@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        /* Modern, responsive styling */
+        body { font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 0; background: #f8fafc; }
+        .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .header { background:rgba(17, 45, 123, 0.97); padding: 24px; text-align: center; }
+        .header h1 { color: white; margin: 0; font-size: 24px; font-weight: 600; }
+        .content { padding: 32px; }
+        .secure-verification { text-align: center; margin-bottom: 48px; }
+        .secure-verification h2 { margin: 0; font-size: 20px; font-weight: 600; color: #1e293b; }
+        .otp-container { background: #f1f5f9; border-radius: 6px; padding: 24px; margin: 24px 0; text-align: center; border: 1px dashed #cbd5e1; }
+        .otp-code { font-size: 32px; font-weight: 700; letter-spacing: 4px; color: #1e3a8a; margin: 10px 0; }
+        .footer { padding: 24px; text-align: center; font-size: 12px; color: #64748b; background: #f1f5f9; }
+        .security-note { color: #dc2626; font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Quantrium Technologies</h1>
+        </div>
+        
+        <div class="content">
+            <div class="secure-verification">
+                <h2>Secure Verification</h2>
+            </div>
+            
+            <p>Hi {{Name}},</p>
+            <p>Your one-time verification code is:</p>
+            
+            <div class="otp-container">
+                <div class="otp-code">{{OTP}}</div>
+                <p>Expires in {{Expiry}} minutes</p>
+            </div>
+            
+            <p class="security-note">IMPORTANT: Do not share this OTP code with anyone. Our team will never ask for your OTP over phone, email, or any other means.</p>
+            
+            <p>If you didn't request this, please contact our <a href="mailto:anandhakumar.u@quantrium.ai">admin team</a> immediately.</p>
+        </div>
+        
+        <div class="footer">
+            <p>© %d Quantrium Tech Pvt Ltd<br>
+Workafella Teynampet<br>
+No. 431, 8th Floor, High Street, <br>Anna Salai, Teynampet,<br>
+Chennai, Tamil Nadu - 600 018</p>
+        </div>
+    </div>
+</body>
+</html>
