@@ -2,13 +2,10 @@ package ctrl
 
 import (
 	"fmt"
-	"log"
 	"net/http"
-	"time"
 
 	"form_pf_backend/db"
 	"form_pf_backend/models"
-	"form_pf_backend/utility"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
@@ -29,27 +26,20 @@ func Login(c *gin.Context) {
 	}
 
 	// Find user by username and password
-	flg, err := validateCredentials(payload.Username, payload.Password, &user)
-	if err != nil {
-		if err.Error() == "record not found" {
-			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
-		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
-		}
-		return
-	}
+	user, err := validateCredentials(payload.Username, payload.Password)
 
 }
 
-func validateCredentials(name string, password string, user *models.User) (bool, error) {
+func validateCredentials(name string, password string) (models.User, error) {
 	db := db.GetDB()
-	if err := db.Where("username = ? AND password = ?", name, password).First(user).Error; err != nil {
+	var user models.User
+	if err := db.Where("username = ? AND password = ?", name, password).First(&user).Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			return false, fmt.Errorf("record not found")
+			return models.User{}, fmt.Errorf("record not found")
 		}
-		return false, fmt.Errorf("internal server error: %w", err)
+		return models.User{}, fmt.Errorf("internal server error: %w", err)
 	}
-	return true, nil
+	return user, nil
 }
 
 // VerifyOTP handles the OTP verification request
