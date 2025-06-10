@@ -2,17 +2,17 @@ package models
 
 import (
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type User struct {
-	gorm.Model
-	UserName     string    `gorm:"not null"`
-	EmailAddress string    `gorm:"not null"`
-	Password     string    `gorm:"not null"`
-	AccessType   string    `gorm:"not null"`
-	ClientCode   string    `gorm:"not null"`
-	OTPHash      string    `gorm:"not null"`
-	OTPExpiry    time.Time `gorm:"not null"`
+	ID           uint      `gorm:"primaryKey;not null"`
+	UserName     string    `gorm:"column:userName;not null"`
+	EmailAddress string    `gorm:"column:emailAddress;not null"`
+	Password     string    `gorm:"column:password;not null"`
+	AccessType   string    `gorm:"column:accessType;not null"`
+	ClientID     uint      `gorm:"column:clientId;not null"`
+	ClientCode   string    `gorm:"column:clientCode;not null"`
+	CreatedAt    time.Time `gorm:"not null"`
+	UpdatedBy    string    `gorm:"column:updatedBy"`
+	UpdatedAt    time.Time
 }
