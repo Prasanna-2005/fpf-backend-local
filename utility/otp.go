@@ -1,6 +1,9 @@
 package utility
 
-import "time"
+import (
+	"os"
+	"time"
+)
 
 type OTPConfig struct {
 	SMTPHost     string
@@ -11,4 +14,17 @@ type OTPConfig struct {
 	FromName     string
 	OTPLength    int
 	OTPExpiry    time.Duration
+}
+
+func LoadOTPConfig() OTPConfig {
+	return OTPConfig{
+		SMTPHost:     os.Getenv("SMTP_HOST"),
+		SMTPPort:     os.Getenv("SMTP_PORT"),
+		SMTPUser:     os.Getenv("SMTP_USER"),
+		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
+		FromEmail:    os.Getenv("FROM_EMAIL"),
+		FromName:     os.Getenv("FROM_NAME"),
+		OTPLength:    GetEnvAsInt("OTP_LENGTH", 6),
+		OTPExpiry:    GetEnvAsDuration("OTP_EXPIRY", 100*time.Second),
+	}
 }
