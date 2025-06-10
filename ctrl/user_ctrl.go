@@ -6,6 +6,7 @@ import (
 
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"form_pf_backend/utility"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jinzhu/gorm"
@@ -27,6 +28,30 @@ func Login(c *gin.Context) {
 
 	// Find user by username and password
 	user, err := validateCredentials(payload.Username, payload.Password)
+	if err != nil {
+		if err.Error() == "record not found" {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error1"})
+		}
+		return
+	}
+	cfg := utility.LoadOTPConfig()
+	code, hash, err := utility.GenerateSecureOTP(cfg.OTPLength)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
+		return
+	}
+	fmt.Print(hash)
+	c.JSON(http.StatusOK, gin.H{
+		"message": "OTP sent successfully",
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.UserName,
+			"email":    user.Email, // Assuming you have an Email field in your User model
+		},
+		"otp_code": code,
+	})
 
 }
 
