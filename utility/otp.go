@@ -28,3 +28,15 @@ func LoadOTPConfig() OTPConfig {
 		OTPExpiry:    GetEnvAsDuration("OTP_EXPIRY", 100*time.Second),
 	}
 }
+func GetEnvAsInt(key string, defaultValue int) int {
+	val := os.Getenv(key)
+	if val == "" {
+		return defaultValue
+	}
+	res, err := strconv.ParseInt(val, 10, 32)
+	if err != nil {
+		fmt.Printf("Error parsing %s as int: %v\n", key, err)
+		return defaultValue
+	}
+	return int(res)
+}
