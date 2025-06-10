@@ -30,6 +30,14 @@ func Login(c *gin.Context) {
 
 	// Find user by username and password
 	flg, err := validateCredentials(payload.Username, payload.Password, &user)
+	if err != nil {
+		if err.Error() == "record not found" {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
+		}
+		return
+	}
 
 }
 
