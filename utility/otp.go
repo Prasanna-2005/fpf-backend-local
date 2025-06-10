@@ -54,3 +54,28 @@ func GetEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 	}
 	return duration
 }
+
+func GenerateSecureOTP(length int) (string, string, error) {
+	if length < 6 || length > 8 {
+		return "", "", fmt.Errorf("OTP length must be between 6 and 8 digits")
+	}
+	const digits = "0123456789"
+	otp := make([]byte, length)
+	for i := range otp {
+		num, err := rand.Int(rand.Reader, big.NewInt(10))
+		if err != nil {
+			return "", "", fmt.Errorf("failed to generate OTP digit: %w", err)
+		}
+		otp[i] = digits[num.Int64()]
+	}
+	code := string(otp)
+
+	// Hash the OTP using bcrypt
+	hashBytes, err := bcrypt.GenerateFromPassword([]byte(code), bcrypt.DefaultCost)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to hash OTP: %w", err)
+	}
+	hash := string(hashBytes)
+
+	return code, hash, nil
+}
