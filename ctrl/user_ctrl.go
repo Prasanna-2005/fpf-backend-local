@@ -47,6 +47,11 @@ func Login(c *gin.Context) {
 		fmt.Print(err)
 		return
 	}
+	err = utility.SendOTPEmail(cfg, user.Email, code)
+	if err != nil {
+		c.JSON(http.StatusFailedDependency, gin.H{"message": "SMTP client or User email doesn't exist"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP sent successfully",
