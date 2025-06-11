@@ -27,7 +27,7 @@ func Login(c *gin.Context) {
 	}
 
 	// Find user by username and password
-	user, err := validateCredentials(payload.Username, payload.Password)
+	user, err := utility.ValidateCredentials(payload.Username, payload.Password)
 	if err != nil {
 		if err.Error() == "record not found" {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
@@ -42,7 +42,7 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
 		return
 	}
-	err = otpUpdate(hash, &user)
+	err = db.OtpUpdate(hash, &user)
 	if err != nil {
 		fmt.Print(err)
 		return
@@ -55,33 +55,8 @@ func Login(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP sent successfully",
-		"user_id":user.ID
-		"otp": code,
+		"user_id": user.ID,
+		"otp":     code,
 	})
 
-}
-
-func validateCredentials(name string, password string) (models.User, error) {
-	db := db.GetDB()
-	var user models.User
-	if err := db.Where("username = ? AND password = ?", name, password).First(&user).Error; err != nil {
-		if gorm.IsRecordNotFoundError(err) {
-			return models.User{}, fmt.Errorf("record not found")
-		}
-		return models.User{}, fmt.Errorf("internal server error: %w", err)
-	}
-	return user, nil
-}
-
-func otpUpdate(hash string, user *models.User) error {
-	db := db.GetDB()
-	otp := models.OTP{
-		UserID:  user.ID,
-		OTPCode: hash,
-	}
-	// Insert the OTP into the database
-	if err := db.Create(&otp).Error; err != nil {
-		return err
-	}
-	return nil
 }
