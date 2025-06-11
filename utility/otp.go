@@ -1,9 +1,11 @@
 package utility
 
 import (
+	"bytes"
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"net/smtp"
 	"os"
 	"strconv"
 	"time"
@@ -84,4 +86,32 @@ func GenerateSecureOTP(length int) (string, string, error) {
 	hash := string(hashBytes)
 
 	return code, hash, nil
+}
+
+func SendOTPEmail(cfg OTPConfig, to, otp string) error {
+	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPHost)
+	headers := map[string]string{
+		"From":         fmt.Sprintf("%s <%s>", cfg.FromName, cfg.FromEmail),
+		"To":           to,
+		"Subject":      "Your Quantrium Verification Code",
+		"MIME-Version": "1.0",
+		"Content-Type": "text/html; charset=UTF-8",
+	}
+
+	var msg bytes.Buffer
+
+	for k, v := range headers {
+		msg.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+	}
+	msg.WriteString(otp)
+	// msg.WriteString("\r\n" + createQuantriumEmail(otp, cfg.OTPExpiry))
+	// fmt.Print(msg.Bytes())
+
+	return smtp.SendMail(
+		fmt.Sprintf("%s:%s", cfg.SMTPHost, cfg.SMTPPort),
+		auth,
+		cfg.FromEmail,
+		[]string{to},
+		msg.Bytes(),
+	)
 }
