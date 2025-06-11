@@ -1,8 +1,14 @@
 package utility
 
 import (
+	"crypto/rand"
+	"fmt"
+	"math/big"
 	"os"
+	"strconv"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type OTPConfig struct {
