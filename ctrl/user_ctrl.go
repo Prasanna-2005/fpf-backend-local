@@ -9,7 +9,6 @@ import (
 	"form_pf_backend/utility"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm"
 )
 
 // Login handles the user login request
@@ -27,7 +26,7 @@ func Login(c *gin.Context) {
 	}
 
 	// Find user by username and password
-	user, err := utility.ValidateCredentials(payload.Username, payload.Password)
+	user, err := db.ValidateCredentials(payload.Username, payload.Password)
 	if err != nil {
 		if err.Error() == "record not found" {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
