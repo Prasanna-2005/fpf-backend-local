@@ -42,6 +42,11 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
 		return
 	}
+	err = otpUpdate(hash, &user)
+	if err != nil {
+		fmt.Print(err)
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP sent successfully",
