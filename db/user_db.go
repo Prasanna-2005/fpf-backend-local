@@ -20,3 +20,16 @@ func OtpUpdate(hash string, user *models.User) error {
 	}
 	return nil
 }
+
+func ValidateCredentials(name string, password string) (models.User, error) {
+	Connect()
+	db := GetDB()
+	var user models.User
+	if err := db.Where("username = ? AND password = ?", name, password).First(&user).Error; err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			return models.User{}, fmt.Errorf("record not found")
+		}
+		return models.User{}, fmt.Errorf("internal server error: %w", err)
+	}
+	return user, nil
+}
