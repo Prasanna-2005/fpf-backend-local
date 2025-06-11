@@ -55,12 +55,8 @@ func Login(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP sent successfully",
-		"user": gin.H{
-			"id":       user.ID,
-			"username": user.UserName,
-			"email":    user.Email,
-		},
-		"otp_code": code,
+		"user_id":user.ID
+		"otp": code,
 	})
 
 }
