@@ -151,3 +151,8 @@ func OtpService(user *models.User) error {
 	}
 	return nil
 }
+
+func CheckOtp(hashedOTPBytes, plainOTPBytes []byte) error {
+	err := bcrypt.CompareHashAndPassword(hashedOTPBytes, plainOTPBytes)
+	return err
+}
