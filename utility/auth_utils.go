@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	"form_pf_backend/db"
+	"form_pf_backend/models"
 	"math/big"
 	"net/smtp"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -88,7 +91,7 @@ func GenerateSecureOTP(length int) (string, string, error) {
 	return code, hash, nil
 }
 
-func SendOTPEmail(cfg OTPConfig, to, otp string) error {
+func SendOTPEmail(cfg OTPConfig, to, emailOTP string) error {
 	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPHost)
 	headers := map[string]string{
 		"From":         fmt.Sprintf("%s <%s>", cfg.FromName, cfg.FromEmail),
@@ -103,9 +106,8 @@ func SendOTPEmail(cfg OTPConfig, to, otp string) error {
 	for k, v := range headers {
 		msg.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
 	}
-	msg.WriteString(otp)
-	// msg.WriteString("\r\n" + createQuantriumEmail(otp, cfg.OTPExpiry))
-	// fmt.Print(msg.Bytes())
+
+	msg.WriteString("\r\n" + emailOTP)
 
 	return smtp.SendMail(
 		fmt.Sprintf("%s:%s", cfg.SMTPHost, cfg.SMTPPort),
@@ -114,4 +116,38 @@ func SendOTPEmail(cfg OTPConfig, to, otp string) error {
 		[]string{to},
 		msg.Bytes(),
 	)
+}
+
+func CreateQuantriumEmail(otp string, name string, expiry time.Duration) (string, error) {
+	// Read the email template from the file.
+	templateFile, err := os.ReadFile("static/email_template.html")
+	if err != nil {
+		return "", err
+	}
+	// Parse the template.
+	template := string(templateFile)
+	template = strings.ReplaceAll(template, "{{.Name}}", name)
+	template = strings.ReplaceAll(template, "{{.OTP}}", otp)
+	template = strings.ReplaceAll(template, "{{.Expiry}}", expiry.String())
+	return template, nil
+}
+
+func OtpService(user *models.User) error {
+	cfg := LoadOTPConfig()
+	code, hash, err := GenerateSecureOTP(cfg.OTPLength)
+	if err != nil {
+		// c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
+		return err
+	}
+	err = db.OtpUpdate(hash, user)
+	if err != nil {
+		return err
+	}
+	emailOTP, err := CreateQuantriumEmail(code, user.UserName, cfg.OTPExpiry)
+	err = SendOTPEmail(cfg, user.Email, emailOTP)
+	if err != nil {
+		// c.JSON(http.StatusFailedDependency, gin.H{"message": "SMTP client or User email doesn't exist"})
+		return err
+	}
+	return nil
 }
