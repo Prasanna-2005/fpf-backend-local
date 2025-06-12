@@ -21,7 +21,7 @@ type OTP struct {
 	ID        uint      `gorm:"primaryKey;autoIncrement"`
 	UserID    uint      `gorm:"column:userId;not null"`
 	OTPCode   string    `gorm:"column:OTP;not null"`
-	CreatedAt time.Time `gorm:"default:CURRENT_TIMESTAMP;not null"`
+	CreatedAt time.Time `gorm:"column:createdAt;not null"`
 }
 
 func (OTP) TableName() string {
