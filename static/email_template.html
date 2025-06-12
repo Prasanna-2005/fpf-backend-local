@@ -28,12 +28,12 @@
                 <h2>Secure Verification</h2>
             </div>
             
-            <p>Hi {{Name}},</p>
+            <p>Hi {{.Name}},</p>
             <p>Your one-time verification code is:</p>
             
             <div class="otp-container">
-                <div class="otp-code">{{OTP}}</div>
-                <p>Expires in {{Expiry}} minutes</p>
+                <div class="otp-code">{{.OTP}}</div>
+                <p>Expires in {{.Expiry}} minutes</p>
             </div>
             
             <p class="security-note">IMPORTANT: Do not share this OTP code with anyone. Our team will never ask for your OTP over phone, email, or any other means.</p>
@@ -42,7 +42,7 @@
         </div>
         
         <div class="footer">
-            <p>© %d Quantrium Tech Pvt Ltd<br>
+            <p>© 2025 Quantrium Tech Pvt Ltd<br>
 Workafella Teynampet<br>
 No. 431, 8th Floor, High Street, <br>Anna Salai, Teynampet,<br>
 Chennai, Tamil Nadu - 600 018</p>
