@@ -2,41 +2,49 @@ package utility
 
 import (
 	"bytes"
-	"crypto/rand"
+	"errors"
 	"fmt"
 	"form_pf_backend/db"
-	"form_pf_backend/models"
-	"math/big"
 	"net/smtp"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
+	"github.com/golang-jwt/jwt"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 )
 
-type OTPConfig struct {
+type SMTPconfig struct {
 	SMTPHost     string
 	SMTPPort     string
 	SMTPUser     string
 	SMTPPassword string
 	FromEmail    string
 	FromName     string
-	OTPLength    int
-	OTPExpiry    time.Duration
+}
+type OTPconfig struct {
+	SecretKey string
+	OTPExpiry uint
+	OTPLength otp.Digits
 }
 
-func LoadOTPConfig() OTPConfig {
-	return OTPConfig{
+func SetSMTP() SMTPconfig {
+	return SMTPconfig{
 		SMTPHost:     os.Getenv("SMTP_HOST"),
 		SMTPPort:     os.Getenv("SMTP_PORT"),
 		SMTPUser:     os.Getenv("SMTP_USER"),
 		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
 		FromEmail:    os.Getenv("FROM_EMAIL"),
 		FromName:     os.Getenv("FROM_NAME"),
-		OTPLength:    GetEnvAsInt("OTP_LENGTH", 6),
-		OTPExpiry:    GetEnvAsDuration("OTP_EXPIRY", 100*time.Second),
+	}
+}
+func LoadOTPConfig() OTPconfig {
+	return OTPconfig{
+		SecretKey: os.Getenv("SECRET_KEY"),
+		OTPExpiry: uint(GetEnvAsInt("OTP_EXPIRY", 100)),
+		OTPLength: otp.Digits(GetEnvAsInt("OTP_LENGTH", 6)),
 	}
 }
 
@@ -53,45 +61,8 @@ func GetEnvAsInt(key string, defaultValue int) int {
 	return int(res)
 }
 
-func GetEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
-	val := os.Getenv(key)
-	if val == "" {
-		return defaultValue
-	}
-	duration, err := time.ParseDuration(val)
-	if err != nil {
-		fmt.Printf("Error parsing %s as duration: %v\n", key, err)
-		return defaultValue
-	}
-	return duration
-}
-
-func GenerateSecureOTP(length int) (string, string, error) {
-	if length < 6 || length > 8 {
-		return "", "", fmt.Errorf("OTP length must be between 6 and 8 digits")
-	}
-	const digits = "0123456789"
-	otp := make([]byte, length)
-	for i := range otp {
-		num, err := rand.Int(rand.Reader, big.NewInt(10))
-		if err != nil {
-			return "", "", fmt.Errorf("failed to generate OTP digit: %w", err)
-		}
-		otp[i] = digits[num.Int64()]
-	}
-	code := string(otp)
-
-	// Hash the OTP using bcrypt
-	hashBytes, err := bcrypt.GenerateFromPassword([]byte(code), bcrypt.DefaultCost)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to hash OTP: %w", err)
-	}
-	hash := string(hashBytes)
-
-	return code, hash, nil
-}
-
-func SendOTPEmail(cfg OTPConfig, to, emailOTP string) error {
+func SendOTPEmail(to, emailOTP string) error {
+	cfg := SetSMTP()
 	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPHost)
 	headers := map[string]string{
 		"From":         fmt.Sprintf("%s <%s>", cfg.FromName, cfg.FromEmail),
@@ -118,7 +89,7 @@ func SendOTPEmail(cfg OTPConfig, to, emailOTP string) error {
 	)
 }
 
-func CreateQuantriumEmail(otp string, name string, expiry time.Duration) (string, error) {
+func CreateQuantriumEmail(otp string, name string, expiry uint) (string, error) {
 	// Read the email template from the file.
 	templateFile, err := os.ReadFile("static/email_template.html")
 	if err != nil {
@@ -128,31 +99,80 @@ func CreateQuantriumEmail(otp string, name string, expiry time.Duration) (string
 	template := string(templateFile)
 	template = strings.ReplaceAll(template, "{{.Name}}", name)
 	template = strings.ReplaceAll(template, "{{.OTP}}", otp)
-	template = strings.ReplaceAll(template, "{{.Expiry}}", expiry.String())
+	template = strings.ReplaceAll(template, "{{.Expiry}}", strconv.FormatUint(uint64(expiry), 10))
 	return template, nil
 }
 
-func OtpService(user *models.User) error {
+func CheckOtp(totpCode string) error {
 	cfg := LoadOTPConfig()
-	code, hash, err := GenerateSecureOTP(cfg.OTPLength)
+	var opts totp.ValidateOpts
+	opts.Period = cfg.OTPExpiry
+	opts.Skew = 1 // Allow for 1 second of skew
+	opts.Digits = cfg.OTPLength
+	val, err := totp.ValidateCustom(totpCode, cfg.SecretKey, time.Now(), opts)
+	// log.ErrorLevel(val)
+	fmt.Println(val)
 	if err != nil {
-		// c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
-		return err
-	}
-	err = db.OtpUpdate(hash, user)
-	if err != nil {
-		return err
-	}
-	emailOTP, err := CreateQuantriumEmail(code, user.UserName, cfg.OTPExpiry)
-	err = SendOTPEmail(cfg, user.Email, emailOTP)
-	if err != nil {
-		// c.JSON(http.StatusFailedDependency, gin.H{"message": "SMTP client or User email doesn't exist"})
 		return err
 	}
 	return nil
 }
 
-func CheckOtp(hashedOTPBytes, plainOTPBytes []byte) error {
-	err := bcrypt.CompareHashAndPassword(hashedOTPBytes, plainOTPBytes)
-	return err
+func GenerateTOTP(cfg OTPconfig) (string, error) {
+	var opts totp.ValidateOpts  // GenerateCodeCustom actually expects ValidateOpts
+	opts.Period = cfg.OTPExpiry // Match the period used in validation
+	opts.Digits = cfg.OTPLength
+	code, err := totp.GenerateCodeCustom(cfg.SecretKey, time.Now(), opts)
+	if err != nil {
+		return "", err
+	}
+	return code, nil
+}
+func GenerateToken(userId string) (string, error) {
+	cfg := LoadOTPConfig() // To get secret key
+	user, err := db.GetUser(userId)
+	if err != nil {
+		return "", err
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"email":  user.Email,
+		"userId": userId,
+		"exp":    time.Now().Add(time.Hour * 2).Unix(),
+	})
+
+	return token.SignedString([]byte(cfg.SecretKey))
+}
+
+func VerifyToken(token string) (int64, error) {
+	cfg := LoadOTPConfig()
+	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+		_, ok := token.Method.(*jwt.SigningMethodHMAC)
+
+		if !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+
+		return []byte(cfg.SecretKey), nil
+	})
+
+	if err != nil {
+		fmt.Println("could not parse token")
+		return 0, errors.New("could not parse token")
+	}
+
+	tokenIsValid := parsedToken.Valid
+
+	if !tokenIsValid {
+		return 0, errors.New("invalid token")
+	}
+
+	claims, ok := parsedToken.Claims.(jwt.MapClaims)
+
+	if !ok {
+		return 0, errors.New("invalid token claims")
+	}
+
+	// email := claims["email"].(string)
+	userId := int64(claims["userId"].(float64))
+	return userId, nil
 }
