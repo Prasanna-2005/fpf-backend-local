@@ -4,35 +4,52 @@ import (
 	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/utility"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 func OtpService(userId string) error {
 	var emailOTP string
-	cfg := utility.LoadOTPConfig()
-	code, err := utility.GenerateTOTP(cfg.SecretKey)
+	otpCfg := utility.LoadOTPConfig()
+	code, err := utility.GenerateTOTP(otpCfg)
 	if err != nil {
-		// c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
 		return err
 	}
-	// err = db.OtpUpdate(hash, user)
-	// if err != nil {
-	// 	return "", err
-	// }
+
 	user, err := db.GetUser(userId)
 	if err != nil {
 		return err
 	}
-	emailOTP, err = utility.CreateQuantriumEmail(code, user.UserName, cfg.OTPExpiry)
+	emailOTP, err = utility.CreateQuantriumEmail(code, user.UserName, otpCfg.OTPExpiry)
 	if err != nil {
 		return err
 	}
 	fmt.Println()
 	fmt.Printf("email: %s ", user.Email)
-	err = utility.SendOTPEmail(cfg, user.Email, emailOTP)
+	err = utility.SendOTPEmail(user.Email, emailOTP)
 	if err != nil {
-		// c.JSON(http.StatusFailedDependency, gin.H{"message": "SMTP client or User email doesn't exist"})
 		return err
 	}
 
 	return nil
+}
+
+func Authenticate(c *gin.Context) {
+	token := c.Request.Header.Get("Authorization")
+
+	if token == "" {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Not authorized."})
+		return
+	}
+
+	userId, err := utility.VerifyToken(token)
+
+	if err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "Not authorized."})
+		return
+	}
+
+	c.Set("userId", userId)
+	c.Next()
 }
