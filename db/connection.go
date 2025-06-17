@@ -2,7 +2,6 @@ package db
 
 import (
 	"fmt"
-	"form_pf_backend/models"
 	"log"
 	"os"
 
@@ -27,7 +26,7 @@ func Connect() {
 	}
 
 	// Migrate the schema
-	DB.AutoMigrate(&models.User{})
+	// DB.AutoMigrate(&models.User{})
 }
 
 func GetDB() *gorm.DB {
