@@ -8,9 +8,8 @@ import (
 
 func SetupRoutes() *gin.Engine {
 	r := gin.Default()
-
 	r.POST("/auth/login", ctrl.Login)
-	r.POST("/auth/verify_otp", ctrl.VerifyOTP)
-
+	r.POST("/auth/verify-otp", ctrl.VerifyOTP)
+	r.POST("/auth/generate-otp", ctrl.GenerateOTP)
 	return r
 }
