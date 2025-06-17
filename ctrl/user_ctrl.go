@@ -3,18 +3,22 @@ package ctrl
 import (
 	"fmt"
 	"net/http"
-	"time"
 
 	"form_pf_backend/db"
+	"form_pf_backend/middleware"
 	"form_pf_backend/models"
 	"form_pf_backend/utility"
 
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	ServerError  = "Internal server Error"
+	PayloadError = "Invalid request payload"
+)
+
 // Login handles the user login request
 func Login(c *gin.Context) {
-
 	var user models.User
 	var payload struct {
 		Username string `json:"username" binding:"required"`
@@ -22,63 +26,83 @@ func Login(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request payload"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
 
-	// Find user by username and password
 	user, err := db.ValidateCredentials(payload.Username, payload.Password)
+
 	if err != nil {
 		if err.Error() == "record not found" {
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error1"})
+			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		}
 		return
 	}
-	err = utility.OtpService(&user)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
-	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "OTP sent successfully",
+		"message": "Login verified, generating OTP",
 		"user_id": user.ID,
 	})
+}
 
+func GenerateOTP(c *gin.Context) {
+	var payload struct {
+		UserId string `json:"user_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+	err := middleware.OtpService(payload.UserId)
+	if err != nil {
+		fmt.Print(err)
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "OTP generated successful",
+	})
 }
 
 func VerifyOTP(c *gin.Context) {
-	cfg := utility.LoadOTPConfig()
+
 	var payload struct {
 		UserId string `json:"user_id" binding:"required"`
 		Otp    string `json:"otp" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request payload"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
 
-	otp, createdAt, err := db.GetOTP(payload.UserId)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid request Otp is not generated "})
-		return
-	}
-	fmt.Println(createdAt)
-	fmt.Println(createdAt.Add(cfg.OTPExpiry))
-	fmt.Println(time.Now())
-	fmt.Println(createdAt.Add(cfg.OTPExpiry).Before(time.Now()))
-	if createdAt.Add(cfg.OTPExpiry).Before(time.Now()) {
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "OTP has expired"})
-		return
-	}
-	err = utility.CheckOtp([]byte(otp), []byte(payload.Otp))
+	err := utility.CheckOtp(payload.Otp)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid OTP"})
 		return
 	}
+	token, err := utility.GenerateToken(payload.UserId)
 
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Could not authenticate user."})
+		return
+	}
+	user, err := db.GetUser(payload.UserId)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid user ID"})
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP verification successful",
+		"response": gin.H{
+			"username":      user.UserName,
+			"user_id":       user.ID,
+			"role":          user.AccessType,
+			"refresh_token": token,
+			"access_token":  token,
+			"expiry_time":   "60 min",
+		},
 	})
+
 }
