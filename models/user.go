@@ -16,14 +16,3 @@ type User struct {
 	UpdatedBy  string    `gorm:"column:updatedBy"`
 	UpdatedAt  time.Time
 }
-
-type OTP struct {
-	ID        uint      `gorm:"primaryKey;autoIncrement"`
-	UserID    uint      `gorm:"column:userId;not null"`
-	OTPCode   string    `gorm:"column:OTP;not null"`
-	CreatedAt time.Time `gorm:"column:createdAt;not null"`
-}
-
-func (OTP) TableName() string {
-	return "OTP"
-}
