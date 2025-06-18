@@ -78,7 +78,7 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	val, err := utility.CheckOtp(payload.Otp)
+	val, err := utility.CheckOtp(payload.Otp, payload.UserId)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid OTP"})
 		return
