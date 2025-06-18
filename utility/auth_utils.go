@@ -163,22 +163,61 @@ func GenerateTOTP(cfg OTPconfig, userId string) (string, error) {
 	}
 	return code, nil
 }
-func GenerateToken(userId string) (string, error) {
-	cfg := LoadOTPConfig() // To get secret key
+
+// Generate refresh token for user
+func GenerateRefreshToken(userId string) (string, error) {
+	cfg := LoadOTPConfig()
 	user, err := db.GetUser(userId)
 	if err != nil {
 		return "", err
 	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email":  user.Email,
 		"userId": userId,
-		"exp":    time.Now().Add(time.Hour * 4).Unix(),
+		"type":   "refresh",
+		"exp":    time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
+
 	})
 
 	return token.SignedString([]byte(cfg.SecretKey))
 }
 
-func VerifyToken(token string) (int64, error) {
+// Generate access token from refresh token
+func GenerateAccessToken(refreshToken string) (string, error) {
+	cfg := LoadOTPConfig()
+
+	// Parse refresh token
+	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
+		return []byte(cfg.SecretKey), nil
+	})
+	if err != nil {
+		return "", err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return "", fmt.Errorf("invalid refresh token")
+	}
+
+	// Check if it's a refresh token
+	if claims["type"] != "refresh" {
+		return "", fmt.Errorf("not a refresh token")
+	}
+
+	// Generate access token
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"email":  claims["email"],
+		"userId": claims["userId"],
+		"type":   "access",
+		"exp":    time.Now().Add(time.Hour * 24).Unix(), // 24 minutes
+		"role":   user.AccessType,
+	})
+
+	return accessToken.SignedString([]byte(cfg.SecretKey))
+}
+
+func VerifyAccessToken(token string) (string, error) {
 	cfg := LoadOTPConfig()
 	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
 		_, ok := token.Method.(*jwt.SigningMethodHMAC)
@@ -192,22 +231,29 @@ func VerifyToken(token string) (int64, error) {
 
 	if err != nil {
 		fmt.Println("could not parse token")
-		return 0, errors.New("could not parse token")
+		return "", errors.New("could not parse token")
 	}
 
-	tokenIsValid := parsedToken.Valid
-
-	if !tokenIsValid {
-		return 0, errors.New("invalid token")
+	if !parsedToken.Valid {
+		return "", errors.New("invalid token")
 	}
 
 	claims, ok := parsedToken.Claims.(jwt.MapClaims)
-
 	if !ok {
-		return 0, errors.New("invalid token claims")
+		return "", errors.New("invalid token claims")
 	}
 
-	// email := claims["email"].(string)
-	userId := int64(claims["userId"].(float64))
+	// Check if it's an access token
+	tokenType, ok := claims["type"].(string)
+	if !ok || tokenType != "access" {
+		return "", errors.New("not an access token")
+	}
+
+	// Get userId as string and convert to int64
+	userId, ok := claims["userId"].(string)
+	if !ok {
+		return "", errors.New("invalid userId type")
+	}
+
 	return userId, nil
 }
