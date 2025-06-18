@@ -103,19 +103,18 @@ func CreateQuantriumEmail(otp string, name string, expiry uint) (string, error) 
 	return template, nil
 }
 
-func CheckOtp(totpCode string) error {
+func CheckOtp(totpCode string) (bool, error) {
 	cfg := LoadOTPConfig()
 	var opts totp.ValidateOpts
 	opts.Period = cfg.OTPExpiry
 	opts.Skew = 1 // Allow for 1 second of skew
 	opts.Digits = cfg.OTPLength
 	val, err := totp.ValidateCustom(totpCode, cfg.SecretKey, time.Now(), opts)
-	// log.ErrorLevel(val)
-	fmt.Println(val)
+
 	if err != nil {
-		return err
+		return val, err
 	}
-	return nil
+	return val, nil
 }
 
 func GenerateTOTP(cfg OTPconfig) (string, error) {
