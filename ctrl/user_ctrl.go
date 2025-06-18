@@ -87,12 +87,20 @@ func VerifyOTP(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid OTP"})
 		return
 	}
-	token, err := utility.GenerateToken(payload.UserId)
+	refresh, err := utility.GenerateRefreshToken(payload.UserId)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Could not authenticate user."})
 		return
 	}
+
+	access, err := utility.GenerateAccessToken(refresh)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Could not authenticate user."})
+		return
+	}
+
 	user, err := db.GetUser(payload.UserId)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid user ID"})
@@ -103,8 +111,8 @@ func VerifyOTP(c *gin.Context) {
 			"username":      user.UserName,
 			"user_id":       user.ID,
 			"role":          user.AccessType,
-			"refresh_token": token,
-			"access_token":  token,
+			"refresh_token": refresh,
+			"access_token":  access,
 			"expiry_time":   "60 min",
 		},
 	})
