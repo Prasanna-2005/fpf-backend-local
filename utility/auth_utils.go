@@ -2,6 +2,7 @@ package utility
 
 import (
 	"bytes"
+	"encoding/base32"
 	"errors"
 	"fmt"
 	"form_pf_backend/db"
@@ -26,9 +27,21 @@ type SMTPconfig struct {
 }
 type OTPconfig struct {
 	SecretKey string
-	OTPExpiry uint
+	OTPExpiry time.Duration
 	OTPLength otp.Digits
 }
+type Tokenconfig struct {
+	SecretKey string
+	OTPExpiry string
+	OTPLength otp.Digits
+}
+
+// func LoadTokenConfig() Tokenconfig{
+// 	return Tokenconfig{
+// 		SecretKey: os.Getenv("TOKEN_SECRET"),
+
+// 	}
+// }
 
 func SetSMTP() SMTPconfig {
 	return SMTPconfig{
@@ -43,9 +56,22 @@ func SetSMTP() SMTPconfig {
 func LoadOTPConfig() OTPconfig {
 	return OTPconfig{
 		SecretKey: os.Getenv("SECRET_KEY"),
-		OTPExpiry: uint(GetEnvAsInt("OTP_EXPIRY", 100)),
+		OTPExpiry: GetEnvAsDuration("OTP_EXPIRY", 45*time.Second),
 		OTPLength: otp.Digits(GetEnvAsInt("OTP_LENGTH", 6)),
 	}
+}
+
+func GetEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
+	val := os.Getenv(key)
+	if val == "" {
+		return defaultValue
+	}
+	duration, err := time.ParseDuration(val)
+	if err != nil {
+		fmt.Printf("Error parsing %s as duration: %v\n", key, err)
+		return defaultValue
+	}
+	return duration
 }
 
 func GetEnvAsInt(key string, defaultValue int) int {
@@ -89,7 +115,7 @@ func SendOTPEmail(to, emailOTP string) error {
 	)
 }
 
-func CreateQuantriumEmail(otp string, name string, expiry uint) (string, error) {
+func CreateQuantriumEmail(otp string, name string, expiry string) (string, error) {
 	// Read the email template from the file.
 	templateFile, err := os.ReadFile("static/email_template.html")
 	if err != nil {
@@ -99,17 +125,21 @@ func CreateQuantriumEmail(otp string, name string, expiry uint) (string, error) 
 	template := string(templateFile)
 	template = strings.ReplaceAll(template, "{{.Name}}", name)
 	template = strings.ReplaceAll(template, "{{.OTP}}", otp)
-	template = strings.ReplaceAll(template, "{{.Expiry}}", strconv.FormatUint(uint64(expiry), 10))
+	template = strings.ReplaceAll(template, "{{.Expiry}}", expiry)
 	return template, nil
 }
 
-func CheckOtp(totpCode string) (bool, error) {
+func CheckOtp(totpCode, userId string) (bool, error) {
 	cfg := LoadOTPConfig()
 	var opts totp.ValidateOpts
-	opts.Period = cfg.OTPExpiry
+	opts.Period = uint(cfg.OTPExpiry.Seconds())
 	opts.Skew = 1 // Allow for 1 second of skew
 	opts.Digits = cfg.OTPLength
-	val, err := totp.ValidateCustom(totpCode, cfg.SecretKey, time.Now(), opts)
+	uniqueSecret := cfg.SecretKey + userId
+
+	// Encode the unique secret key to base32
+	encodedSecretKey := base32.StdEncoding.EncodeToString([]byte(uniqueSecret))
+	val, err := totp.ValidateCustom(totpCode, encodedSecretKey, time.Now(), opts)
 
 	if err != nil {
 		return val, err
@@ -117,11 +147,17 @@ func CheckOtp(totpCode string) (bool, error) {
 	return val, nil
 }
 
-func GenerateTOTP(cfg OTPconfig) (string, error) {
-	var opts totp.ValidateOpts  // GenerateCodeCustom actually expects ValidateOpts
-	opts.Period = cfg.OTPExpiry // Match the period used in validation
+func GenerateTOTP(cfg OTPconfig, userId string) (string, error) {
+	var opts totp.ValidateOpts                  // GenerateCodeCustom actually expects ValidateOpts
+	opts.Period = uint(cfg.OTPExpiry.Seconds()) // Match the period used in validation
 	opts.Digits = cfg.OTPLength
-	code, err := totp.GenerateCodeCustom(cfg.SecretKey, time.Now(), opts)
+	uniqueSecret := cfg.SecretKey + userId
+
+	// Encode the unique secret key to base32
+	encodedSecretKey := base32.StdEncoding.EncodeToString([]byte(uniqueSecret))
+	code, err := totp.GenerateCodeCustom(encodedSecretKey, time.Now(), opts)
+	fmt.Printf("code:%s\n", code)
+	fmt.Println(err)
 	if err != nil {
 		return "", err
 	}
@@ -136,7 +172,7 @@ func GenerateToken(userId string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email":  user.Email,
 		"userId": userId,
-		"exp":    time.Now().Add(time.Hour * 2).Unix(),
+		"exp":    time.Now().Add(time.Hour * 4).Unix(),
 	})
 
 	return token.SignedString([]byte(cfg.SecretKey))
