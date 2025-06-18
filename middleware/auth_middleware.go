@@ -12,7 +12,7 @@ import (
 func OtpService(userId string) error {
 	var emailOTP string
 	otpCfg := utility.LoadOTPConfig()
-	code, err := utility.GenerateTOTP(otpCfg)
+	code, err := utility.GenerateTOTP(otpCfg, userId)
 	if err != nil {
 		return err
 	}
@@ -21,7 +21,7 @@ func OtpService(userId string) error {
 	if err != nil {
 		return err
 	}
-	emailOTP, err = utility.CreateQuantriumEmail(code, user.UserName, otpCfg.OTPExpiry)
+	emailOTP, err = utility.CreateQuantriumEmail(code, user.UserName, otpCfg.OTPExpiry.String())
 	if err != nil {
 		return err
 	}
