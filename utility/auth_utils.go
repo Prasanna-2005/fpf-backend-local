@@ -31,17 +31,8 @@ type OTPconfig struct {
 	OTPLength otp.Digits
 }
 type Tokenconfig struct {
-	SecretKey string
-	OTPExpiry string
-	OTPLength otp.Digits
+	TokenSecret string
 }
-
-// func LoadTokenConfig() Tokenconfig{
-// 	return Tokenconfig{
-// 		SecretKey: os.Getenv("TOKEN_SECRET"),
-
-// 	}
-// }
 
 func SetSMTP() SMTPconfig {
 	return SMTPconfig{
@@ -147,7 +138,7 @@ func CheckOtp(totpCode, userId string) (bool, error) {
 	return val, nil
 }
 
-func GenerateTOTP(cfg OTPconfig, userId string) (string, error) {
+func GenTOTP(cfg OTPconfig, userId string) (string, error) {
 	var opts totp.ValidateOpts                  // GenerateCodeCustom actually expects ValidateOpts
 	opts.Period = uint(cfg.OTPExpiry.Seconds()) // Match the period used in validation
 	opts.Digits = cfg.OTPLength
@@ -177,14 +168,13 @@ func GenerateRefreshToken(userId string) (string, error) {
 		"userId": userId,
 		"type":   "refresh",
 		"exp":    time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
-
 	})
 
 	return token.SignedString([]byte(cfg.SecretKey))
 }
 
 // Generate access token from refresh token
-func GenerateAccessToken(refreshToken string) (string, error) {
+func GenerateAccessToken(refreshToken, AccessType string) (string, error) {
 	cfg := LoadOTPConfig()
 
 	// Parse refresh token
@@ -207,11 +197,11 @@ func GenerateAccessToken(refreshToken string) (string, error) {
 
 	// Generate access token
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"email":  claims["email"],
-		"userId": claims["userId"],
-		"type":   "access",
-		"exp":    time.Now().Add(time.Hour * 24).Unix(), // 24 minutes
-		"role":   user.AccessType,
+		"email":      claims["email"],
+		"userId":     claims["userId"],
+		"type":       "access",
+		"exp":        time.Now().Add(time.Hour * 24).Unix(), // 24 minutes
+		"AccessType": AccessType,
 	})
 
 	return accessToken.SignedString([]byte(cfg.SecretKey))
