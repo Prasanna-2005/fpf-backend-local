@@ -51,6 +51,11 @@ func LoadOTPConfig() OTPconfig {
 		OTPLength: otp.Digits(GetEnvAsInt("OTP_LENGTH", 6)),
 	}
 }
+func LoadTokenConfig() Tokenconfig {
+	return Tokenconfig{
+		TokenSecret: os.Getenv("TOKEN_SECRET"),
+	}
+}
 
 func GetEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 	val := os.Getenv(key)
