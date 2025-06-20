@@ -12,7 +12,7 @@ import (
 func OtpService(userId string) error {
 	var emailOTP string
 	otpCfg := utility.LoadOTPConfig()
-	code, err := utility.GenerateTOTP(otpCfg, userId)
+	code, err := utility.GenTOTP(otpCfg, userId)
 	if err != nil {
 		return err
 	}
