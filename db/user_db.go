@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"form_pf_backend/models"
+	"time"
 
 	"github.com/jinzhu/gorm"
 )
@@ -32,4 +33,33 @@ func GetUser(userId string) (*models.User, error) {
 		return nil, fmt.Errorf("internal server error: %w", err)
 	}
 	return &user, nil
+}
+
+func UpdateSession(user *models.User) {
+	Connect()
+	db := GetDB()
+	var session models.Session
+	session = models.Session{
+		UserID:     user.ID,
+		ClientCode: user.ClientCode,
+		LoginTime:  time.Now(),
+		// ID is omitted - GORM will auto-generate it
+	}
+
+	db.Create(&session)
+}
+
+func UpdateToken(user *models.User, access, refresh string) {
+	Connect()
+	db := GetDB()
+	var token models.Token
+	token = models.Token{
+		UserID:       user.ID,
+		ClientCode:   user.ClientCode,
+		AccessToken:  access,
+		RefreshToken: refresh,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+	db.Create(&token)
 }
