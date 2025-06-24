@@ -169,38 +169,73 @@ func GenerateRefreshToken(userId string) (string, error) {
 	return signedToken, nil
 }
 
-// Generate access token from refresh token
-func GenerateAccessToken(refreshToken, AccessType string) (string, error) {
-	cfg := config.LoadOTPConfig()
+func GenerateAccessToken(refreshToken, accessType string) (string, error) {
+	Debug("GenerateAccessToken: parsing refresh token")
+
+	cfg := config.Token()
+	if cfg.TokenSecret == "" {
+		Critical("GenerateAccessToken: missing token secret in configuration")
+		return "", nil
+	}
 
 	// Parse refresh token
 	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
-		return []byte(cfg.SecretKey), nil
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(cfg.TokenSecret), nil
 	})
+
 	if err != nil {
-		return "", err
+		Errorf("GenerateAccessToken: failed to parse refresh token - %v", err)
+		return "", nil
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
-		return "", fmt.Errorf("invalid refresh token")
+		Error("GenerateAccessToken: invalid refresh token claims")
+		return "", nil
 	}
 
 	// Check if it's a refresh token
-	if claims["type"] != "refresh" {
-		return "", fmt.Errorf("not a refresh token")
+	tokenType, ok := claims["type"].(string)
+	if !ok || tokenType != "refresh" {
+		Error("GenerateAccessToken: provided token is not a refresh token")
+		return "", nil
+	}
+
+	// Extract email from claims
+	email, ok := claims["email"].(string)
+	if !ok {
+		Error("GenerateAccessToken: refresh token missing email claim")
+		return "", nil
+	}
+
+	// Extract userId from claims
+	userId, ok := claims["userId"].(string)
+	if !ok {
+		Error("GenerateAccessToken: refresh token missing userId claim")
+		return "", nil
 	}
 
 	// Generate access token
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"AccessType": AccessType,
+		"AccessType": accessType,
 		"type":       "access",
-		"exp":        time.Now().Add(time.Hour * 24).Unix(), // 24 minutes
-		"email":      claims["email"],
+		"exp":        time.Now().Add(time.Hour * 4).Unix(), // 4 hours
+		"iat":        time.Now().Unix(),
+		"email":      email,
+		"userId":     userId,
 	})
 
-	return accessToken.SignedString([]byte(cfg.SecretKey))
+	signedToken, err := accessToken.SignedString([]byte(cfg.TokenSecret))
+	if err != nil {
+		Errorf("GenerateAccessToken: failed to sign access token for user %s - %v", userId, err)
+		return "", nil
+	}
 
+	Infof("GenerateAccessToken: successfully generated access token for user %s", userId)
+	return signedToken, nil
 }
 
 func VerifyAccessToken(token string) (string, error) {
