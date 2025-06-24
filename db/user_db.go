@@ -35,7 +35,7 @@ func GetUser(userId string) (*models.User, error) {
 	return &user, nil
 }
 
-func UpdateSession(user *models.User) {
+func UpdateSession(user *models.User) error {
 	Connect()
 	db := GetDB()
 	var session models.Session
@@ -46,10 +46,11 @@ func UpdateSession(user *models.User) {
 		// ID is omitted - GORM will auto-generate it
 	}
 
-	db.Create(&session)
+	return db.Create(&session).Error
+
 }
 
-func UpdateToken(user *models.User, access, refresh string) {
+func UpdateToken(user *models.User, access, refresh string) error {
 	Connect()
 	db := GetDB()
 	var token models.Token
@@ -61,5 +62,5 @@ func UpdateToken(user *models.User, access, refresh string) {
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
-	db.Create(&token)
+	return db.Create(&token).Error
 }
