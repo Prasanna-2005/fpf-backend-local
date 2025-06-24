@@ -135,22 +135,38 @@ func GenTOTP(userId string) (string, error) {
 	return code, nil
 }
 
-// Generate refresh token for user
+// GenerateRefreshToken creates a refresh token for the specified user
 func GenerateRefreshToken(userId string) (string, error) {
-	cfg := config.LoadOTPConfig()
+	Debugf("GenerateRefreshToken: generating refresh token for user %s", userId)
+
+	cfg := config.Token()
+	if cfg.TokenSecret == "" {
+		Critical("GenerateRefreshToken: missing token secret in configuration")
+		return "", nil
+	}
+
 	user, err := db.GetUser(userId)
 	if err != nil {
-		return "", err
+		Errorf("GenerateRefreshToken: failed to get user %s from database - %v", userId, err)
+		return "", nil
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"email":  user.Email,
 		"userId": userId,
 		"type":   "refresh",
-		"exp":    time.Now().Add(time.Hour * 24 * 7).Unix(), // 7 days
+		"exp":    time.Now().Add(time.Hour * 24 * 5).Unix(), // 5 days
+		"iat":    time.Now().Unix(),
 	})
 
-	return token.SignedString([]byte(cfg.SecretKey))
+	signedToken, err := token.SignedString([]byte(cfg.TokenSecret))
+	if err != nil {
+		Errorf("GenerateRefreshToken: failed to sign token for user %s - %v", userId, err)
+		return "", nil
+	}
+
+	Infof("GenerateRefreshToken: successfully generated refresh token for user %s", userId)
+	return signedToken, nil
 }
 
 // Generate access token from refresh token
