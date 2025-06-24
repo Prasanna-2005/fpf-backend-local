@@ -5,86 +5,29 @@ import (
 	"encoding/base32"
 	"errors"
 	"fmt"
+	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"net/smtp"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt"
-	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 )
 
-type SMTPconfig struct {
-	SMTPHost     string
-	SMTPPort     string
-	SMTPUser     string
-	SMTPPassword string
-	FromEmail    string
-	FromName     string
-}
-type OTPconfig struct {
-	SecretKey string
-	OTPExpiry time.Duration
-	OTPLength otp.Digits
-}
-type Tokenconfig struct {
-	TokenSecret string
-}
-
-func SetSMTP() SMTPconfig {
-	return SMTPconfig{
-		SMTPHost:     os.Getenv("SMTP_HOST"),
-		SMTPPort:     os.Getenv("SMTP_PORT"),
-		SMTPUser:     os.Getenv("SMTP_USER"),
-		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
-		FromEmail:    os.Getenv("FROM_EMAIL"),
-		FromName:     os.Getenv("FROM_NAME"),
-	}
-}
-func LoadOTPConfig() OTPconfig {
-	return OTPconfig{
-		SecretKey: os.Getenv("SECRET_KEY"),
-		OTPExpiry: GetEnvAsDuration("OTP_EXPIRY", 45*time.Second),
-		OTPLength: otp.Digits(GetEnvAsInt("OTP_LENGTH", 6)),
-	}
-}
-func LoadTokenConfig() Tokenconfig {
-	return Tokenconfig{
-		TokenSecret: os.Getenv("TOKEN_SECRET"),
-	}
-}
-
-func GetEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
-	val := os.Getenv(key)
-	if val == "" {
-		return defaultValue
-	}
-	duration, err := time.ParseDuration(val)
-	if err != nil {
-		fmt.Printf("Error parsing %s as duration: %v\n", key, err)
-		return defaultValue
-	}
-	return duration
-}
-
-func GetEnvAsInt(key string, defaultValue int) int {
-	val := os.Getenv(key)
-	if val == "" {
-		return defaultValue
-	}
-	res, err := strconv.ParseInt(val, 10, 32)
-	if err != nil {
-		fmt.Printf("Error parsing %s as int: %v\n", key, err)
-		return defaultValue
-	}
-	return int(res)
-}
-
+// SendOTPEmail sends an OTP email to the specified recipient
 func SendOTPEmail(to, emailOTP string) error {
-	cfg := SetSMTP()
+	cfg := config.SMTP()
+
+	// Validate SMTP configuration
+	if cfg.SMTPHost == "" || cfg.SMTPPort == "" || cfg.SMTPUser == "" || cfg.SMTPPassword == "" {
+		Critical("SendOTPEmail: incomplete SMTP configuration")
+		return nil
+	}
+
+	Infof("SendOTPEmail: attempting to send OTP email to %s", to)
+
 	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPHost)
 	headers := map[string]string{
 		"From":         fmt.Sprintf("%s <%s>", cfg.FromName, cfg.FromEmail),
@@ -95,20 +38,26 @@ func SendOTPEmail(to, emailOTP string) error {
 	}
 
 	var msg bytes.Buffer
-
 	for k, v := range headers {
 		msg.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
 	}
-
 	msg.WriteString("\r\n" + emailOTP)
 
-	return smtp.SendMail(
+	err := smtp.SendMail(
 		fmt.Sprintf("%s:%s", cfg.SMTPHost, cfg.SMTPPort),
 		auth,
 		cfg.FromEmail,
 		[]string{to},
 		msg.Bytes(),
 	)
+
+	if err != nil {
+		Errorf("SendOTPEmail: failed to send email to %s - %v", to, err)
+		return nil
+	}
+
+	Infof("SendOTPEmail: successfully sent OTP email to %s", to)
+	return nil
 }
 
 func CreateQuantriumEmail(otp string, name string, expiry string) (string, error) {
@@ -126,7 +75,7 @@ func CreateQuantriumEmail(otp string, name string, expiry string) (string, error
 }
 
 func CheckOtp(totpCode, userId string) (bool, error) {
-	cfg := LoadOTPConfig()
+	cfg := config.OTP()
 	var opts totp.ValidateOpts
 	opts.Period = uint(cfg.OTPExpiry.Seconds())
 	opts.Skew = 1 // Allow for 1 second of skew
@@ -143,7 +92,7 @@ func CheckOtp(totpCode, userId string) (bool, error) {
 	return val, nil
 }
 
-func GenTOTP(cfg OTPconfig, userId string) (string, error) {
+func GenTOTP(cfg config.OTPconfig, userId string) (string, error) {
 	var opts totp.ValidateOpts                  // GenerateCodeCustom actually expects ValidateOpts
 	opts.Period = uint(cfg.OTPExpiry.Seconds()) // Match the period used in validation
 	opts.Digits = cfg.OTPLength
@@ -162,7 +111,7 @@ func GenTOTP(cfg OTPconfig, userId string) (string, error) {
 
 // Generate refresh token for user
 func GenerateRefreshToken(userId string) (string, error) {
-	cfg := LoadOTPConfig()
+	cfg := config.LoadOTPConfig()
 	user, err := db.GetUser(userId)
 	if err != nil {
 		return "", err
@@ -180,7 +129,7 @@ func GenerateRefreshToken(userId string) (string, error) {
 
 // Generate access token from refresh token
 func GenerateAccessToken(refreshToken, AccessType string) (string, error) {
-	cfg := LoadOTPConfig()
+	cfg := config.LoadOTPConfig()
 
 	// Parse refresh token
 	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
@@ -202,18 +151,18 @@ func GenerateAccessToken(refreshToken, AccessType string) (string, error) {
 
 	// Generate access token
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"email":      claims["email"],
-		"userId":     claims["userId"],
+		"AccessType": AccessType,
 		"type":       "access",
 		"exp":        time.Now().Add(time.Hour * 24).Unix(), // 24 minutes
-		"AccessType": AccessType,
+		"email":      claims["email"],
 	})
 
 	return accessToken.SignedString([]byte(cfg.SecretKey))
+
 }
 
 func VerifyAccessToken(token string) (string, error) {
-	cfg := LoadOTPConfig()
+	cfg := config.OTP()
 	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
 		_, ok := token.Method.(*jwt.SigningMethodHMAC)
 
