@@ -238,43 +238,53 @@ func GenerateAccessToken(refreshToken, accessType string) (string, error) {
 	return signedToken, nil
 }
 
+// VerifyAccessToken validates an access token and returns the user ID
 func VerifyAccessToken(token string) (string, error) {
-	cfg := config.OTP()
+	Debug("VerifyAccessToken: verifying access token")
+
+	cfg := config.Token()
+	if cfg.TokenSecret == "" {
+		Critical("VerifyAccessToken: missing token secret in configuration")
+		return "", nil
+	}
+
 	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
-		_, ok := token.Method.(*jwt.SigningMethodHMAC)
-
-		if !ok {
-			return nil, errors.New("unexpected signing method")
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-
-		return []byte(cfg.SecretKey), nil
+		return []byte(cfg.TokenSecret), nil
 	})
 
 	if err != nil {
-		fmt.Println("could not parse token")
-		return "", errors.New("could not parse token")
+		Errorf("VerifyAccessToken: failed to parse token - %v", err)
+		return "", nil
 	}
 
 	if !parsedToken.Valid {
-		return "", errors.New("invalid token")
+		Error("VerifyAccessToken: token is invalid")
+		return "", nil
 	}
 
 	claims, ok := parsedToken.Claims.(jwt.MapClaims)
 	if !ok {
-		return "", errors.New("invalid token claims")
+		Error("VerifyAccessToken: invalid token claims")
+		return "", nil
 	}
 
 	// Check if it's an access token
 	tokenType, ok := claims["type"].(string)
 	if !ok || tokenType != "access" {
-		return "", errors.New("not an access token")
+		Error("VerifyAccessToken: provided token is not an access token")
+		return "", nil
 	}
 
-	// Get userId as string and convert to int64
+	// Get userId from claims
 	userId, ok := claims["userId"].(string)
 	if !ok {
-		return "", errors.New("invalid userId type")
+		Error("VerifyAccessToken: token missing userId claim")
+		return "", nil
 	}
 
+	Debugf("VerifyAccessToken: successfully verified access token for user %s", userId)
 	return userId, nil
 }
