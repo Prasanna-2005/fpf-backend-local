@@ -65,3 +65,62 @@ func HashPassword(password, secretKey string) (string, error) {
 }
 
 // CheckPasswordHash verifies password against encrypted hash
+func CheckPasswordHash(password, hashedPassword, secretKey string) bool {
+	Debug("Starting password hash verification")
+
+	if password == "" || hashedPassword == "" || len(secretKey) < 32 {
+		Warning("Password verification failed: invalid input parameters")
+		return false
+	}
+
+	Debug("Decoding base64 hashed password")
+	data, err := base64.StdEncoding.DecodeString(hashedPassword)
+	if err != nil {
+		Errorf("Failed to decode base64 hash: %v", err)
+		return false
+	}
+
+	Debug("Creating SHA256 hash from secret key")
+	keyHash := sha256.Sum256([]byte(secretKey))
+
+	Debug("Creating AES cipher block")
+	block, err := aes.NewCipher(keyHash[:])
+	if err != nil {
+		Errorf("Failed to create AES cipher during verification: %v", err)
+		return false
+	}
+
+	Debug("Creating GCM mode cipher")
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		Errorf("Failed to create GCM cipher during verification: %v", err)
+		return false
+	}
+
+	Debug("Extracting nonce and ciphertext from encrypted data")
+	nonceSize := gcm.NonceSize()
+	if len(data) < nonceSize {
+		Warning("Invalid hash format: data too short for nonce extraction")
+		return false
+	}
+
+	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
+
+	Debug("Decrypting password")
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		Errorf("Failed to decrypt password: %v", err)
+		return false
+	}
+
+	Debug("Comparing decrypted password with provided password")
+	isValid := string(plaintext) == password
+
+	if isValid {
+		Info("Password verification successful")
+	} else {
+		Warning("Password verification failed: passwords do not match")
+	}
+
+	return isValid
+}
