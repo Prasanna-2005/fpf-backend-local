@@ -3,7 +3,6 @@ package utility
 import (
 	"bytes"
 	"encoding/base32"
-	"errors"
 	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
@@ -109,10 +108,9 @@ func CheckOtp(totpCode, userId string) (bool, error) {
 }
 
 // GenTOTP generates a TOTP code for the specified user
-func GenTOTP(userId string) (string, error) {
+func GenTOTP(cfg *config.OTPconfig, userId string) (string, error) {
 	Debugf("GenTOTP: generating TOTP for user %s", userId)
 
-	cfg := config.OTP()
 	if cfg.SecretKey == "" {
 		Critical("GenTOTP: missing OTP secret key in configuration")
 		return "", nil
