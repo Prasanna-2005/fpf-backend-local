@@ -80,13 +80,11 @@ func CreateQuantriumEmail(otp, name, expiry string) (string, error) {
 // CheckOtp validates a TOTP code against the user's secret
 func CheckOtp(totpCode, userId string) (bool, error) {
 	Debugf("CheckOtp: validating TOTP for user %s", userId)
-
 	cfg := config.OTP()
 	if cfg.SecretKey == "" {
 		Critical("CheckOtp: missing OTP secret key in configuration")
 		return false, nil
 	}
-
 	var opts totp.ValidateOpts
 	opts.Period = uint(cfg.OTPExpiry.Seconds())
 	opts.Skew = 1 // Allow for 1 second of skew
@@ -110,20 +108,30 @@ func CheckOtp(totpCode, userId string) (bool, error) {
 	return isValid, nil
 }
 
-func GenTOTP(cfg config.OTPconfig, userId string) (string, error) {
-	var opts totp.ValidateOpts                  // GenerateCodeCustom actually expects ValidateOpts
-	opts.Period = uint(cfg.OTPExpiry.Seconds()) // Match the period used in validation
-	opts.Digits = cfg.OTPLength
-	uniqueSecret := cfg.SecretKey + userId
+// GenTOTP generates a TOTP code for the specified user
+func GenTOTP(userId string) (string, error) {
+	Debugf("GenTOTP: generating TOTP for user %s", userId)
 
-	// Encode the unique secret key to base32
-	encodedSecretKey := base32.StdEncoding.EncodeToString([]byte(uniqueSecret))
-	code, err := totp.GenerateCodeCustom(encodedSecretKey, time.Now(), opts)
-	fmt.Printf("code:%s\n", code)
-	fmt.Println(err)
-	if err != nil {
-		return "", err
+	cfg := config.OTP()
+	if cfg.SecretKey == "" {
+		Critical("GenTOTP: missing OTP secret key in configuration")
+		return "", nil
 	}
+
+	var opts totp.ValidateOpts
+	opts.Period = uint(cfg.OTPExpiry.Seconds())
+	opts.Digits = cfg.OTPLength
+
+	uniqueSecret := cfg.SecretKey + userId
+	encodedSecretKey := base32.StdEncoding.EncodeToString([]byte(uniqueSecret))
+
+	code, err := totp.GenerateCodeCustom(encodedSecretKey, time.Now(), opts)
+	if err != nil {
+		Errorf("GenTOTP: failed to generate TOTP for user %s - %v", userId, err)
+		return "", nil
+	}
+
+	Debugf("GenTOTP: successfully generated TOTP for user %s", userId)
 	return code, nil
 }
 
