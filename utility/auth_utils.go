@@ -60,17 +60,20 @@ func SendOTPEmail(to, emailOTP string) error {
 	return nil
 }
 
-func CreateQuantriumEmail(otp string, name string, expiry string) (string, error) {
-	// Read the email template from the file.
+func CreateQuantriumEmail(otp, name, expiry string) (string, error) {
+	Debug("CreateQuantriumEmail: reading email template file")
 	templateFile, err := os.ReadFile("static/email_template.html")
 	if err != nil {
-		return "", err
+		Errorf("CreateQuantriumEmail: failed to read email template - %v", err)
+		return "", nil
 	}
-	// Parse the template.
+
 	template := string(templateFile)
 	template = strings.ReplaceAll(template, "{{.Name}}", name)
 	template = strings.ReplaceAll(template, "{{.OTP}}", otp)
 	template = strings.ReplaceAll(template, "{{.Expiry}}", expiry)
+
+	Debugf("CreateQuantriumEmail: successfully created email template for user %s", name)
 	return template, nil
 }
 
