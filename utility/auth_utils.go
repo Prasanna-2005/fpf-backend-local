@@ -65,7 +65,7 @@ func CreateQuantriumEmail(otp, name, expiry string) (string, error) {
 	templateFile, err := os.ReadFile("static/email_template.html")
 	if err != nil {
 		Errorf("CreateQuantriumEmail: failed to read email template - %v", err)
-		return "", nil
+		return "", err
 	}
 
 	template := string(templateFile)
@@ -77,22 +77,37 @@ func CreateQuantriumEmail(otp, name, expiry string) (string, error) {
 	return template, nil
 }
 
+// CheckOtp validates a TOTP code against the user's secret
 func CheckOtp(totpCode, userId string) (bool, error) {
+	Debugf("CheckOtp: validating TOTP for user %s", userId)
+
 	cfg := config.OTP()
+	if cfg.SecretKey == "" {
+		Critical("CheckOtp: missing OTP secret key in configuration")
+		return false, nil
+	}
+
 	var opts totp.ValidateOpts
 	opts.Period = uint(cfg.OTPExpiry.Seconds())
 	opts.Skew = 1 // Allow for 1 second of skew
 	opts.Digits = cfg.OTPLength
+
 	uniqueSecret := cfg.SecretKey + userId
-
-	// Encode the unique secret key to base32
 	encodedSecretKey := base32.StdEncoding.EncodeToString([]byte(uniqueSecret))
-	val, err := totp.ValidateCustom(totpCode, encodedSecretKey, time.Now(), opts)
 
+	isValid, err := totp.ValidateCustom(totpCode, encodedSecretKey, time.Now(), opts)
 	if err != nil {
-		return val, err
+		Errorf("CheckOtp: TOTP validation failed for user %s - %v", userId, err)
+		return false, nil
 	}
-	return val, nil
+
+	if isValid {
+		Infof("CheckOtp: TOTP validation successful for user %s", userId)
+	} else {
+		Warningf("CheckOtp: TOTP validation failed for user %s - invalid code", userId)
+	}
+
+	return isValid, nil
 }
 
 func GenTOTP(cfg config.OTPconfig, userId string) (string, error) {
