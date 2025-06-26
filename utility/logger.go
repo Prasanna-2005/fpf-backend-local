@@ -120,8 +120,8 @@ func (l *Logger) log(level string, message string) {
 	}
 
 	// Console timestamp in IST
-	consoleTimestamp := timestamp.Format("02-01-2006 15:04:05 MST-0700")
-	fmt.Printf("%s%s | %s |  pkg=%s | file=%s | line=%d |%s%s\n", color, level, consoleTimestamp, pkg, filename, line, message, ColorReset)
+
+	fmt.Printf("%s%s | %s |  pkg=%s | file=%s | line=%d |%s%s\n", color, level, fileTimestamp, pkg, filename, line, message, ColorReset)
 }
 
 func (l *Logger) Log(level, message string) {
