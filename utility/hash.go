@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -14,112 +15,115 @@ var (
 	ErrInvalidSecretKey = errors.New("secret key must be at least 32 characters")
 	ErrInvalidHash      = errors.New("invalid hash format")
 	ErrEmptyPassword    = errors.New("password cannot be empty")
+
+	// Global logger instance
+	logger = LoggerFunc()
 )
 
 // HashPassword encrypts password using AES-GCM
 func HashPassword(password, secretKey string) (string, error) {
-	Debug("Starting password hashing process")
+	logger.Log("DEBUG", "Starting password hashing process")
 
 	if password == "" {
-		Error("Password hashing failed: empty password provided")
+		logger.Log("ERROR", "Password hashing failed: empty password provided")
 		return "", ErrEmptyPassword
 	}
 
 	if len(secretKey) < 32 {
-		Errorf("Password hashing failed: secret key length is %d, minimum required is 32", len(secretKey))
+		logger.Log("ERROR", fmt.Sprintf("Password hashing failed: secret key length is %d, minimum required is 32", len(secretKey)))
 		return "", ErrInvalidSecretKey
 	}
 
-	Debug("Creating SHA256 hash from secret key")
+	logger.Log("DEBUG", "Creating SHA256 hash from secret key")
 	keyHash := sha256.Sum256([]byte(secretKey))
 
-	Debug("Creating AES cipher block")
+	logger.Log("DEBUG", "Creating AES cipher block")
 	block, err := aes.NewCipher(keyHash[:])
 	if err != nil {
-		Errorf("Failed to create AES cipher: %v", err)
+		logger.Log("ERROR", fmt.Sprintf("Failed to create AES cipher: %v", err))
 		return "", err
 	}
 
-	Debug("Creating GCM mode cipher")
+	logger.Log("DEBUG", "Creating GCM mode cipher")
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		Errorf("Failed to create GCM cipher: %v", err)
+		logger.Log("ERROR", fmt.Sprintf("Failed to create GCM cipher: %v", err))
 		return "", err
 	}
 
-	Debug("Generating random nonce")
+	logger.Log("DEBUG", "Generating random nonce")
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		Errorf("Failed to generate random nonce: %v", err)
+		logger.Log("ERROR", fmt.Sprintf("Failed to generate random nonce: %v", err))
 		return "", err
 	}
 
-	Debug("Encrypting password with AES-GCM")
+	logger.Log("DEBUG", "Encrypting password with AES-GCM")
 	ciphertext := gcm.Seal(nonce, nonce, []byte(password), nil)
 
-	Debug("Encoding encrypted data to base64")
+	logger.Log("DEBUG", "Encoding encrypted data to base64")
 	result := base64.StdEncoding.EncodeToString(ciphertext)
 
-	Info("Password successfully hashed and encrypted")
+	logger.Log("INFO", "Password successfully hashed and encrypted")
 	return result, nil
 }
 
 // CheckPasswordHash verifies password against encrypted hash
 func CheckPasswordHash(password, hashedPassword, secretKey string) bool {
-	Debug("Starting password hash verification")
+	logger.Log("DEBUG", "Starting password hash verification")
 
 	if password == "" || hashedPassword == "" || len(secretKey) < 32 {
-		Warning("Password verification failed: invalid input parameters")
+		logger.Log("WARNING", "Password verification failed: invalid input parameters")
 		return false
 	}
 
-	Debug("Decoding base64 hashed password")
+	logger.Log("DEBUG", "Decoding base64 hashed password")
 	data, err := base64.StdEncoding.DecodeString(hashedPassword)
 	if err != nil {
-		Errorf("Failed to decode base64 hash: %v", err)
+		logger.Log("ERROR", fmt.Sprintf("Failed to decode base64 hash: %v", err))
 		return false
 	}
 
-	Debug("Creating SHA256 hash from secret key")
+	logger.Log("DEBUG", "Creating SHA256 hash from secret key")
 	keyHash := sha256.Sum256([]byte(secretKey))
 
-	Debug("Creating AES cipher block")
+	logger.Log("DEBUG", "Creating AES cipher block")
 	block, err := aes.NewCipher(keyHash[:])
 	if err != nil {
-		Errorf("Failed to create AES cipher during verification: %v", err)
+		logger.Log("ERROR", fmt.Sprintf("Failed to create AES cipher during verification: %v", err))
 		return false
 	}
 
-	Debug("Creating GCM mode cipher")
+	logger.Log("DEBUG", "Creating GCM mode cipher")
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		Errorf("Failed to create GCM cipher during verification: %v", err)
+		logger.Log("ERROR", fmt.Sprintf("Failed to create GCM cipher during verification: %v", err))
 		return false
 	}
 
-	Debug("Extracting nonce and ciphertext from encrypted data")
+	logger.Log("DEBUG", "Extracting nonce and ciphertext from encrypted data")
 	nonceSize := gcm.NonceSize()
 	if len(data) < nonceSize {
-		Warning("Invalid hash format: data too short for nonce extraction")
+		logger.Log("WARNING", "Invalid hash format: data too short for nonce extraction")
 		return false
 	}
 
 	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
 
-	Debug("Decrypting password")
+	logger.Log("DEBUG", "Decrypting password")
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		Errorf("Failed to decrypt password: %v", err)
+		logger.Log("ERROR", fmt.Sprintf("Failed to decrypt password: %v", err))
 		return false
 	}
 
-	Debug("Comparing decrypted password with provided password")
+	logger.Log("DEBUG", "Comparing decrypted password with provided password")
 	isValid := string(plaintext) == password
 
 	if isValid {
-		Info("Password verification successful")
+		logger.Log("INFO", "Password verification successful")
 	} else {
-		Warning("Password verification failed: passwords do not match")
+		logger.Log("WARNING", "Password verification failed: passwords do not match")
 	}
 
 	return isValid
