@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"log"
 
+	"form_pf_backend/db"
 	"form_pf_backend/server"
 	"form_pf_backend/utility"
 
+	"github.com/gin-gonic/gin"
 	"github.com/go-ini/ini"
 	"github.com/joho/godotenv"
 )
@@ -19,7 +21,7 @@ var (
 Main function for loading environment variable and starting the server
 */
 func main() {
-
+	gin.SetMode(gin.ReleaseMode)
 	logger.Log("INFO", "Application starting...")
 
 	// Load environment variables from .env file
@@ -54,4 +56,6 @@ func main() {
 		logger.Log("ERROR", fmt.Sprintf("Failed to start server: %v", err))
 		log.Fatalf("Failed to start server: %v", err)
 	}
+	db.CloseDB()
+	fmt.Println("db closed")
 }
