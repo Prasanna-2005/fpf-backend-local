@@ -1,3 +1,4 @@
+// Package server provides HTTP server setup and route configuration
 package server
 
 import (
@@ -11,9 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// SetupRoutes configures and returns a Gin engine with routes and middleware
 func SetupRoutes(cfg *config.RouteConfig) *gin.Engine {
 	r := gin.Default()
 
+	// Configure CORS if enabled
 	if cfg.EnableCORS {
 		corsConfig := cors.Config{
 			AllowOrigins:     cfg.CORSOrigins,
@@ -30,11 +33,13 @@ func SetupRoutes(cfg *config.RouteConfig) *gin.Engine {
 	return r
 }
 
+// setupAPIRoutes creates the main API route group
 func setupAPIRoutes(r *gin.Engine, version string) {
 	api := r.Group("/api/" + version)
 	setupAuthRoutes(api)
 }
 
+// setupAuthRoutes configures authentication-related routes
 func setupAuthRoutes(api *gin.RouterGroup) {
 	auth := api.Group("/auth")
 	auth.POST("/login", ctrl.Login)
@@ -43,6 +48,7 @@ func setupAuthRoutes(api *gin.RouterGroup) {
 
 }
 
+// SetupRoutesWithDefaults loads config from file and sets up routes with default configuration
 func SetupRoutesWithDefaults() *gin.Engine {
 	config, err := config.LoadConfig("config.ini")
 	if err != nil {
