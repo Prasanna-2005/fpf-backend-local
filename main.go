@@ -56,6 +56,4 @@ func main() {
 		logger.Log("ERROR", fmt.Sprintf("Failed to start server: %v", err))
 		log.Fatalf("Failed to start server: %v", err)
 	}
-	db.CloseDB()
-	fmt.Println("db closed")
 }
