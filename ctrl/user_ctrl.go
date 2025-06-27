@@ -1,3 +1,6 @@
+/*
+Package ctrl provides authentication controllers for user login and OTP verification.
+*/
 package ctrl
 
 import (
@@ -20,7 +23,24 @@ const (
 
 var log = utility.LoggerFunc() // Initialize logger
 
-// Login handles the user login request
+/*
+Login handles user authentication and initiates OTP generation.
+
+This function validates user credentials and sends an OTP for two-factor authentication.
+
+:param c: Gin context containing the HTTP request
+:type c: *gin.Context
+
+Request Body:
+- username (string): User's login username
+- password (string): User's password
+
+Response:
+- 200: Login verified, OTP sent
+- 400: Invalid request payload
+- 401: Incorrect username or password
+- 500: Internal server error
+*/
 func Login(c *gin.Context) {
 	log.Log("INFO", "Login attempt initiated")
 
@@ -69,7 +89,20 @@ func Login(c *gin.Context) {
 	})
 }
 
-// ResendOTP handles OTP resend requests
+/*
+ResendOTP generates and sends a new OTP to the user.
+
+:param c: Gin context containing the HTTP request
+:type c: *gin.Context
+
+Request Body:
+- user_id (string): User's unique identifier
+
+Response:
+- 200: OTP resent successfully
+- 400: Invalid request payload
+- 500: Internal server error
+*/
 func ResendOTP(c *gin.Context) {
 	log.Log("INFO", "OTP resend request initiated")
 
@@ -100,7 +133,24 @@ func ResendOTP(c *gin.Context) {
 	})
 }
 
-// VerifyOTP handles OTP verification and token generation
+/*
+VerifyOTP validates OTP and generates authentication tokens.
+
+This function verifies the provided OTP and returns access/refresh tokens upon successful validation.
+
+:param c: Gin context containing the HTTP request
+:type c: *gin.Context
+
+Request Body:
+- user_id (string): User's unique identifier
+- otp (string): One-time password to verify
+
+Response:
+- 200: OTP verified, tokens generated
+- 400: Invalid request payload or user ID
+- 401: Invalid OTP
+- 500: Internal server error
+*/
 func VerifyOTP(c *gin.Context) {
 	log.Log("INFO", "OTP verification initiated")
 
