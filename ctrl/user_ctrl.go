@@ -18,9 +18,11 @@ const (
 	AuthError    = "User not found"
 )
 
+var log = utility.LoggerFunc() // Initialize logger
+
 // Login handles the user login request
 func Login(c *gin.Context) {
-	utility.Info("Login attempt initiated")
+	log.Log("INFO", "Login attempt initiated")
 
 	var user models.User
 	var payload struct {
@@ -30,37 +32,37 @@ func Login(c *gin.Context) {
 
 	// Bind and validate request payload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		utility.Errorf("Login failed: invalid payload - %v", err)
+		log.Log("ERROR", "Login failed: invalid payload - "+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
 
-	utility.Debugf("Login attempt for username: %s", payload.Username)
+	log.Log("DEBUG", "Login attempt for username: "+payload.Username)
 
 	// Validate user credentials
 	user, err := db.ValidateCredentials(payload.Username, payload.Password)
 	if err != nil {
 		if err.Error() == "record not found" {
-			utility.Warningf("Login failed: user not found for username: %s", payload.Username)
+			log.Log("WARNING", "Login failed: user not found for username: "+payload.Username)
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
 		} else {
-			utility.Errorf("Login failed: credential validation error - %v", err)
+			log.Log("ERROR", "Login failed: credential validation error - "+err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		}
 		return
 	}
 
-	utility.Infof("Credentials validated successfully for user: %s", user.ID)
+	log.Log("INFO", "Credentials validated successfully for user: "+user.ID)
 
 	// Generate and send OTP
 	err = middleware.OtpService(user.ID)
 	if err != nil {
-		utility.Errorf("Login failed: OTP service error for user %s - %v", user.ID, err)
+		log.Log("ERROR", "Login failed: OTP service error for user "+user.ID+" - "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
-	utility.Infof("Login successful: OTP sent to user %s", user.ID)
+	log.Log("INFO", "Login successful: OTP sent to user "+user.ID)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Login verified, generating OTP",
 		"user_id": user.ID,
@@ -69,7 +71,7 @@ func Login(c *gin.Context) {
 
 // ResendOTP handles OTP resend requests
 func ResendOTP(c *gin.Context) {
-	utility.Info("OTP resend request initiated")
+	log.Log("INFO", "OTP resend request initiated")
 
 	var payload struct {
 		UserId string `json:"user_id" binding:"required"`
@@ -77,22 +79,22 @@ func ResendOTP(c *gin.Context) {
 
 	// Bind and validate request payload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		utility.Errorf("OTP resend failed: invalid payload - %v", err)
+		log.Log("ERROR", "OTP resend failed: invalid payload - "+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
 
-	utility.Debugf("OTP resend requested for user: %s", payload.UserId)
+	log.Log("DEBUG", "OTP resend requested for user: "+payload.UserId)
 
 	// Generate and send new OTP
 	err := middleware.OtpService(payload.UserId)
 	if err != nil {
-		utility.Errorf("OTP resend failed for user %s: %v", payload.UserId, err)
+		log.Log("ERROR", "OTP resend failed for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
-	utility.Infof("OTP resend successful for user: %s", payload.UserId)
+	log.Log("INFO", "OTP resend successful for user: "+payload.UserId)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP generated successful",
 	})
@@ -100,7 +102,7 @@ func ResendOTP(c *gin.Context) {
 
 // VerifyOTP handles OTP verification and token generation
 func VerifyOTP(c *gin.Context) {
-	utility.Info("OTP verification initiated")
+	log.Log("INFO", "OTP verification initiated")
 
 	var payload struct {
 		UserId string `json:"user_id" binding:"required"`
@@ -109,93 +111,93 @@ func VerifyOTP(c *gin.Context) {
 
 	// Bind and validate request payload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		utility.Errorf("OTP verification failed: invalid payload - %v", err)
+		log.Log("ERROR", "OTP verification failed: invalid payload - "+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
 
-	utility.Debugf("OTP verification attempt for user: %s", payload.UserId)
+	log.Log("DEBUG", "OTP verification attempt for user: "+payload.UserId)
 
 	// Verify OTP
 	isValid, err := utility.CheckOtp(payload.Otp, payload.UserId)
 	if err != nil {
-		utility.Errorf("OTP verification failed for user %s: %v", payload.UserId, err)
+		log.Log("ERROR", "OTP verification failed for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid OTP"})
 		return
 	}
 
 	if !isValid {
-		utility.Warningf("OTP verification failed: invalid OTP for user %s", payload.UserId)
+		log.Log("WARNING", "OTP verification failed: invalid OTP for user "+payload.UserId)
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid OTP"})
 		return
 	}
 
-	utility.Infof("OTP verified successfully for user: %s", payload.UserId)
+	log.Log("INFO", "OTP verified successfully for user: "+payload.UserId)
 
 	// Get user details
 	user, err := db.GetUser(payload.UserId)
 	if err != nil {
-		utility.Errorf("Failed to retrieve user %s: %v", payload.UserId, err)
+		log.Log("ERROR", "Failed to retrieve user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid user ID"})
 		return
 	}
 
-	utility.Debug("Generating refresh token")
+	log.Log("DEBUG", "Generating refresh token")
 
 	// Generate refresh token
 	refresh, err := utility.GenerateRefreshToken(payload.UserId)
 	if err != nil {
-		utility.Errorf("Failed to generate refresh token for user %s: %v", payload.UserId, err)
+		log.Log("ERROR", "Failed to generate refresh token for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
 		return
 	}
 
-	utility.Debug("Generating access token")
+	log.Log("DEBUG", "Generating access token")
 
 	// Generate access token
 	access, err := utility.GenerateAccessToken(refresh, user.AccessType)
 	if err != nil {
-		utility.Errorf("Failed to generate access token for user %s: %v", payload.UserId, err)
+		log.Log("ERROR", "Failed to generate access token for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
 		return
 	}
 
-	utility.Debug("Hashing access token")
+	log.Log("DEBUG", "Hashing access token")
 	tokenCfg := config.Token()
 	// Hash access token
 	hashedAccess, err := utility.HashPassword(access, tokenCfg.TokenSecret)
 	if err != nil {
-		utility.Errorf("Failed to hash access token for user %s: %v", payload.UserId, err)
+		log.Log("ERROR", "Failed to hash access token for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
 		return
 	}
 
-	utility.Debug("Hashing refresh token")
+	log.Log("DEBUG", "Hashing refresh token")
 
 	// Hash refresh token
 	hashedRefresh, err := utility.HashPassword(refresh, tokenCfg.TokenSecret)
 	if err != nil {
-		utility.Errorf("Failed to hash refresh token for user %s: %v", payload.UserId, err)
+		log.Log("ERROR", "Failed to hash refresh token for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
 		return
 	}
 
-	utility.Debug("Updating user tokens and session")
+	log.Log("DEBUG", "Updating user tokens and session")
 
 	// Update tokens and session
 	if err := db.UpdateToken(user, hashedAccess, hashedRefresh); err != nil {
-		utility.Errorf("Failed to update tokens for user %s: %v", payload.UserId, err)
+		log.Log("ERROR", "Failed to update tokens for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
 	if err := db.UpdateSession(user); err != nil {
-		utility.Errorf("Failed to update session for user %s: %v", payload.UserId, err)
+		log.Log("ERROR", "Failed to update session for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
-	utility.Infof("Authentication completed successfully for user: %s", payload.UserId)
+	log.Log("INFO", "Authentication completed successfully for user: "+payload.UserId)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP verification successful",
