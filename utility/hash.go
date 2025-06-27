@@ -21,9 +21,6 @@ var (
 	ErrInvalidSecretKey = errors.New("secret key must be at least 32 characters")
 	ErrInvalidHash      = errors.New("invalid hash format")
 	ErrEmptyPassword    = errors.New("password cannot be empty")
-
-	// Global logger instance
-	logger = LoggerFunc()
 )
 
 /*

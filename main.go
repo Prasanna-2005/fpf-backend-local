@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 
-	"form_pf_backend/db"
 	"form_pf_backend/server"
 	"form_pf_backend/utility"
 
