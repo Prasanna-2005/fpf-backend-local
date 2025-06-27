@@ -1,3 +1,9 @@
+/*
+Package utility provides AES-GCM password encryption and verification.
+
+This package implements secure password hashing using AES-GCM encryption
+with SHA256-derived keys for authentication systems.
+*/
 package utility
 
 import (
@@ -20,7 +26,20 @@ var (
 	logger = LoggerFunc()
 )
 
-// HashPassword encrypts password using AES-GCM
+/*
+HashPassword encrypts a password using AES-GCM encryption.
+
+This function validates input parameters, creates a SHA256 hash from the secret key,
+and encrypts the password using AES-GCM with a random nonce.
+
+:param password: The plaintext password to encrypt
+:type password: string
+:param secretKey: Secret key for encryption (minimum 32 characters)
+:type secretKey: string
+
+:returns: Base64-encoded encrypted password and error if encryption fails
+:rtype: (string, error)
+*/
 func HashPassword(password, secretKey string) (string, error) {
 	logger.Log("DEBUG", "Starting password hashing process")
 
@@ -68,7 +87,22 @@ func HashPassword(password, secretKey string) (string, error) {
 	return result, nil
 }
 
-// CheckPasswordHash verifies password against encrypted hash
+/*
+CheckPasswordHash verifies a password against its encrypted hash.
+
+This function decodes the base64 hash, extracts the nonce and ciphertext,
+decrypts the password using AES-GCM, and compares with the provided password.
+
+:param password: The plaintext password to verify
+:type password: string
+:param hashedPassword: The base64-encoded encrypted password hash
+:type hashedPassword: string
+:param secretKey: Secret key used for encryption (minimum 32 characters)
+:type secretKey: string
+
+:returns: Boolean indicating if password matches hash
+:rtype: bool
+*/
 func CheckPasswordHash(password, hashedPassword, secretKey string) bool {
 	logger.Log("DEBUG", "Starting password hash verification")
 
