@@ -1,3 +1,6 @@
+/*
+Package middleware provides authentication middleware services including OTP generation and delivery.
+*/
 package middleware
 
 import (
@@ -8,10 +11,28 @@ import (
 )
 
 var (
-	// Global logger instance
 	logger = utility.LoggerFunc()
 )
 
+/*
+OtpService generates and sends OTP to the specified user via email.
+
+This function handles the complete OTP workflow including TOTP generation,
+user lookup, email creation, and delivery.
+
+:param userId: Unique identifier of the user requesting OTP
+:type userId: string
+
+:returns: Error if any step in the OTP process fails, nil on success
+:rtype: error
+
+Process Flow:
+1. Retrieves OTP configuration
+2. Generates TOTP code for the user
+3. Fetches user details from database
+4. Creates formatted OTP email
+5. Sends email to user's registered address
+*/
 func OtpService(userId string) error {
 	logger.Log("INFO", fmt.Sprintf("Starting OTP service for user: %s", userId))
 
