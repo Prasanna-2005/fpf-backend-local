@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"form_pf_backend/server"
@@ -10,44 +11,46 @@ import (
 	"github.com/joho/godotenv"
 )
 
-func main() {
-	// Initialize logger
-	if err := utility.Init(); err != nil {
-		log.Fatalf("Failed to initialize logger: %v", err)
-	}
+var (
+	// Global logger instance
+	logger = utility.LoggerFunc()
+)
 
-	utility.Info("Application starting...")
+func main() {
+	// Initialize logger (if you still need the utility.Init() function for other purposes)
+
+	logger.Log("INFO", "Application starting...")
 
 	// Load environment variables from .env file
-	utility.Debug("Loading environment variables from .env file")
+	logger.Log("DEBUG", "Loading environment variables from .env file")
 	err := godotenv.Load()
 	if err != nil {
-		utility.Errorf("Error loading .env file: %v", err)
+		logger.Log("ERROR", fmt.Sprintf("Error loading .env file: %v", err))
 		log.Fatalf("Error loading .env file: %v", err)
 	}
-	utility.Info("Environment variables loaded successfully")
+	logger.Log("INFO", "Environment variables loaded successfully")
 
 	// Set up routes
-	utility.Debug("Setting up application routes")
+	logger.Log("DEBUG", "Setting up application routes")
 	r := server.SetupRoutesWithDefaults()
-	utility.Info("Routes configured successfully")
+	logger.Log("INFO", "Routes configured successfully")
 
 	// Load config to get port
-	utility.Debug("Loading configuration for server port")
+	logger.Log("DEBUG", "Loading configuration for server port")
 	cfg, err := ini.Load("config/config.ini")
 
 	if err != nil {
-		utility.Errorf("Failed to load config: %v", err)
+		logger.Log("ERROR", fmt.Sprintf("Failed to load config: %v", err))
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	port := cfg.Section("server").Key("port").String()
-	utility.Infof("Server will run on port: %s", port)
+	logger.Log("INFO", fmt.Sprintf("Server will run on port: %s", port))
 
 	// Start the server
-	utility.Infof("Starting server on port %s...", port)
+	logger.Log("INFO", fmt.Sprintf("Starting server on port %s...", port))
 	if err := r.Run(":" + port); err != nil {
-		utility.Errorf("Failed to start server: %v", err)
+		logger.Log("ERROR", fmt.Sprintf("Failed to start server: %v", err))
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
