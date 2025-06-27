@@ -9,7 +9,6 @@ import (
 )
 
 func ValidateCredentials(name string, password string) (models.User, error) {
-	Connect()
 	db := GetDB()
 	var user models.User
 	if err := db.Where("username = ? AND password = ?", name, password).First(&user).Error; err != nil {
@@ -22,7 +21,6 @@ func ValidateCredentials(name string, password string) (models.User, error) {
 }
 
 func GetUser(userId string) (*models.User, error) {
-	Connect()
 	db := GetDB()
 	var user models.User
 	// Correct the Where clause and pass the userId as a separate argument
@@ -36,10 +34,8 @@ func GetUser(userId string) (*models.User, error) {
 }
 
 func UpdateSession(user *models.User) error {
-	Connect()
 	db := GetDB()
-	var session models.Session
-	session = models.Session{
+	var session = models.Session{
 		UserID:     user.ID,
 		ClientCode: user.ClientCode,
 		LoginTime:  time.Now(),
@@ -51,10 +47,8 @@ func UpdateSession(user *models.User) error {
 }
 
 func UpdateToken(user *models.User, access, refresh string) error {
-	Connect()
 	db := GetDB()
-	var token models.Token
-	token = models.Token{
+	var token = models.Token{
 		UserID:       user.ID,
 		ClientCode:   user.ClientCode,
 		AccessToken:  access,
@@ -62,5 +56,6 @@ func UpdateToken(user *models.User, access, refresh string) error {
 		CreatedAt:    time.Now(),
 		UpdatedAt:    time.Now(),
 	}
+
 	return db.Create(&token).Error
 }
