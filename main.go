@@ -12,12 +12,13 @@ import (
 )
 
 var (
-	// Global logger instance
 	logger = utility.LoggerFunc()
 )
 
+/*
+Main function for loading environment variable and starting the server
+*/
 func main() {
-	// Initialize logger (if you still need the utility.Init() function for other purposes)
 
 	logger.Log("INFO", "Application starting...")
 
