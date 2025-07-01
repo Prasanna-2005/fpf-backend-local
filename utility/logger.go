@@ -98,9 +98,9 @@ func (l *Logger) log(level string, message string) {
 
 	// File logging with format: 2025-06-25 05:24:13 UTC | INFO | pkg=utility | file=hash.go | line=63 | message
 	fileTimestamp := timestamp.UTC().Format("2006-01-02 15:04:05 UTC")
-	fileLogMsg := fmt.Sprintf("%s | %s | pkg=%s | file=%s | line=%d | %s",
-		fileTimestamp, level, pkg, filename, line, message)
-	l.fileLogger.Println(fileLogMsg)
+	// fileLogMsg := fmt.Sprintf("%s | %s | pkg=%s | file=%s | line=%d | %s",
+	// 	fileTimestamp, level, pkg, filename, line, message)
+	// l.fileLogger.Println(fileLogMsg)
 
 	// Console logging with colors
 	var color string
@@ -118,7 +118,9 @@ func (l *Logger) log(level string, message string) {
 	default:
 		color = ColorReset
 	}
-
+	fileLogMsg := fmt.Sprintf("%s%s | %s | pkg=%s | file=%s | line=%d | %s%s",
+		color, fileTimestamp, level, pkg, filename, line, message, ColorReset)
+	l.fileLogger.Println(fileLogMsg)
 	// Console timestamp in IST
 
 	fmt.Printf("%s%s | %s |  pkg=%s | file=%s | line=%d |%s%s\n", color, level, fileTimestamp, pkg, filename, line, message, ColorReset)
