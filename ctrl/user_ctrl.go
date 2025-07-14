@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	ServerError  = "Internal server Error"
+	ServerError  = "Internal server error"
 	PayloadError = "Invalid request payload"
 	AuthError    = "User not found"
 )
