@@ -94,38 +94,38 @@ func CheckPasswordHash(password, hashedPassword, secretKey string) bool {
 		:returns: Boolean indicating if password matches hash
 		:rtype: bool
 	*/
-	logger.Log("DEBUG", "Starting password hash verification")
+	logger.Log("INFO", "Starting password hash verification")
 
 	if password == "" || hashedPassword == "" || len(secretKey) < 32 {
 		logger.Log("WARNING", "Password verification failed: invalid input parameters")
 		return false
 	}
 
-	logger.Log("DEBUG", "Decoding base64 hashed password")
+	logger.Log("INFO", "Decoding base64 hashed password")
 	data, err := base64.StdEncoding.DecodeString(hashedPassword)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("Failed to decode base64 hash: %v", err))
 		return false
 	}
 
-	logger.Log("DEBUG", "Creating SHA256 hash from secret key")
+	logger.Log("INFO", "Creating SHA256 hash from secret key")
 	keyHash := sha256.Sum256([]byte(secretKey))
 
-	logger.Log("DEBUG", "Creating AES cipher block")
+	logger.Log("INFO", "Creating AES cipher block")
 	block, err := aes.NewCipher(keyHash[:])
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("Failed to create AES cipher during verification: %v", err))
 		return false
 	}
 
-	logger.Log("DEBUG", "Creating GCM mode cipher")
+	logger.Log("INFO", "Creating GCM mode cipher")
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("Failed to create GCM cipher during verification: %v", err))
 		return false
 	}
 
-	logger.Log("DEBUG", "Extracting nonce and ciphertext from encrypted data")
+	logger.Log("INFO", "Extracting nonce and ciphertext from encrypted data")
 	nonceSize := gcm.NonceSize()
 	if len(data) < nonceSize {
 		logger.Log("WARNING", "Invalid hash format: data too short for nonce extraction")
@@ -134,14 +134,14 @@ func CheckPasswordHash(password, hashedPassword, secretKey string) bool {
 
 	nonce, ciphertext := data[:nonceSize], data[nonceSize:]
 
-	logger.Log("DEBUG", "Decrypting password")
+	logger.Log("INFO", "Decrypting password")
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("Failed to decrypt password: %v", err))
 		return false
 	}
 
-	logger.Log("DEBUG", "Comparing decrypted password with provided password")
+	logger.Log("INFO", "Comparing decrypted password with provided password")
 	isValid := string(plaintext) == password
 
 	if isValid {
