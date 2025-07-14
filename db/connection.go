@@ -51,50 +51,29 @@ func connect() {
 	// DB.AutoMigrate(&models.User{})
 }
 
-/*
-Init returns the global database connection instance.
-
-:returns: Pointer to the GORM database instance
-:rtype: *gorm.DB
-*/
-
 func Init() *gorm.DB {
+	/*
+		Init returns the global database connection instance.
+
+		:returns: Pointer to the GORM database instance
+		:rtype: *gorm.DB
+	*/
 	connect()
 	return DB
 }
 
-/*
-GetDB returns the global database connection instance, initializing it if needed.
-
-This function uses sync.Once to ensure the database connection is established
-only once, making it safe for concurrent use.
-
-:returns: Pointer to the GORM database instance
-:rtype: *gorm.DB
-*/
 func GetDB() *gorm.DB {
+	/*
+		GetDB returns the global database connection instance, initializing it if needed.
+
+		This function uses sync.Once to ensure the database connection is established
+		only once, making it safe for concurrent use.
+
+		:returns: Pointer to the GORM database instance
+		:rtype: *gorm.DB
+	*/
 	once.Do(func() {
 		connect()
 	})
 	return DB
-}
-
-/*
-CloseDB closes the database connection.
-
-This function should be called during application shutdown to properly
-close the database connection and free resources.
-
-:returns: Error if closing fails, nil otherwise
-:rtype: error
-*/
-func CloseDB() error {
-	if DB != nil {
-		sqlDB, err := DB.DB()
-		if err != nil {
-			return fmt.Errorf("failed to get underlying sql.DB: %w", err)
-		}
-		return sqlDB.Close()
-	}
-	return nil
 }
