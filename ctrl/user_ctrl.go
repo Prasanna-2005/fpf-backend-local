@@ -19,29 +19,30 @@ const (
 	ServerError  = "Internal server error"
 	PayloadError = "Invalid request payload"
 	AuthError    = "User not found"
+	InvalidOTP   = "Invalid OTP"
 )
 
 var logger = utility.LoggerFunc() // Initialize logger
 
-/*
-Login handles user authentication and initiates OTP generation.
-
-This function validates user credentials and sends an OTP for two-factor authentication.
-
-:param c: Gin context containing the HTTP request
-:type c: *gin.Context
-
-Request Body:
-- username (string): User's login username
-- password (string): User's password
-
-Response:
-- 200: Login verified, OTP sent
-- 400: Invalid request payload
-- 401: Incorrect username or password
-- 500: Internal server error
-*/
 func Login(c *gin.Context) {
+	/*
+		Login handles user authentication and initiates OTP generation.
+
+		This function validates user credentials and sends an OTP for two-factor authentication.
+
+		:param c: Gin context containing the HTTP request
+		:type c: *gin.Context
+
+		Request Body:
+		  username (string): User's login username
+		  password (string): User's password
+
+		Response:
+		  200: Login verified, OTP sent
+		  400: Invalid request payload
+		  401: Incorrect username or password
+		  500: Internal server error
+	*/
 	logger.Log("INFO", "Login attempt initiated")
 
 	var user models.User
@@ -56,8 +57,6 @@ func Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
-
-	logger.Log("DEBUG", "Login attempt for username: "+payload.Username)
 
 	// Validate user credentials
 	user, err := db.ValidateCredentials(payload.Username, payload.Password)
@@ -89,21 +88,21 @@ func Login(c *gin.Context) {
 	})
 }
 
-/*
-ResendOTP generates and sends a new OTP to the user.
-
-:param c: Gin context containing the HTTP request
-:type c: *gin.Context
-
-Request Body:
-- user_id (string): User's unique identifier
-
-Response:
-- 200: OTP resent successfully
-- 400: Invalid request payload
-- 500: Internal server error
-*/
 func ResendOTP(c *gin.Context) {
+	/*
+		ResendOTP generates and sends a new OTP to the user.
+
+		:param c: Gin context containing the HTTP request
+		:type c: *gin.Context
+
+		Request Body:
+		  user_id (string): User's unique identifier
+
+		Response:
+		  200: OTP resent successfully
+		  400: Invalid request payload
+		  500: Internal server error
+	*/
 	logger.Log("INFO", "OTP resend request initiated")
 
 	var payload struct {
@@ -116,8 +115,6 @@ func ResendOTP(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
-
-	logger.Log("DEBUG", "OTP resend requested for user: "+payload.UserId)
 
 	// Generate and send new OTP
 	err := middleware.OtpService(payload.UserId)
@@ -133,25 +130,26 @@ func ResendOTP(c *gin.Context) {
 	})
 }
 
-/*
-VerifyOTP validates OTP and generates authentication tokens.
-
-This function verifies the provided OTP and returns access/refresh tokens upon successful validation.
-
-:param c: Gin context containing the HTTP request
-:type c: *gin.Context
-
-Request Body:
-- user_id (string): User's unique identifier
-- otp (string): One-time password to verify
-
-Response:
-- 200: OTP verified, tokens generated
-- 400: Invalid request payload or user ID
-- 401: Invalid OTP
-- 500: Internal server error
-*/
 func VerifyOTP(c *gin.Context) {
+	/*
+		VerifyOTP validates OTP and generates authentication tokens.
+
+		This function verifies the provided OTP and returns access/refresh tokens upon successful validation.
+
+		:param c: Gin context containing the HTTP request
+		:type c: *gin.Context
+
+		Request Body:
+		  user_id (string): User's unique identifier
+		  otp (string): One-time password to verify
+
+		Response:
+		  200: OTP verified, tokens generated
+		  400: Invalid request payload or user ID
+		  401: Invalid OTP
+		  500: Internal server error
+	*/
+
 	logger.Log("INFO", "OTP verification initiated")
 
 	var payload struct {
@@ -166,33 +164,31 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	logger.Log("DEBUG", "OTP verification attempt for user: "+payload.UserId)
-
 	// Verify OTP
 	isValid, err := utility.CheckOtp(payload.Otp, payload.UserId)
 	if err != nil {
-		logger.Log("ERROR", "OTP verification failed for user "+payload.UserId+": "+err.Error())
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid OTP"})
+		logger.Log("ERROR", "OTP verification failed: "+err.Error())
+		c.JSON(http.StatusUnauthorized, gin.H{"message": InvalidOTP})
 		return
 	}
 
 	if !isValid {
 		logger.Log("WARNING", "OTP verification failed: invalid OTP for user "+payload.UserId)
-		c.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid OTP"})
+		c.JSON(http.StatusUnauthorized, gin.H{"message": InvalidOTP})
 		return
 	}
 
-	logger.Log("INFO", "OTP verified successfully for user: "+payload.UserId)
+	logger.Log("INFO", "OTP verified successfully for user")
 
 	// Get user details
 	user, err := db.GetUser(payload.UserId)
 	if err != nil {
-		logger.Log("ERROR", "Failed to retrieve user "+payload.UserId+": "+err.Error())
+		logger.Log("ERROR", "Failed to retrieve user: "+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid user ID"})
 		return
 	}
 
-	logger.Log("DEBUG", "Generating refresh token")
+	logger.Log("INFO", "Generating refresh token")
 
 	// Generate refresh token
 	refresh, err := utility.GenerateRefreshToken(payload.UserId)
@@ -202,7 +198,7 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	logger.Log("DEBUG", "Generating access token")
+	logger.Log("INFO", "Generating access token")
 
 	// Generate access token
 	access, err := utility.GenerateAccessToken(refresh, user.AccessType)
@@ -212,7 +208,7 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	logger.Log("DEBUG", "Hashing access token")
+	logger.Log("INFO", "Hashing access token")
 	tokenCfg := config.Token()
 	// Hash access token
 	hashedAccess, err := utility.HashPassword(access, tokenCfg.TokenSecret)
@@ -222,7 +218,7 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	logger.Log("DEBUG", "Hashing refresh token")
+	logger.Log("INFO", "Hashing refresh token")
 
 	// Hash refresh token
 	hashedRefresh, err := utility.HashPassword(refresh, tokenCfg.TokenSecret)
@@ -232,7 +228,7 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	logger.Log("DEBUG", "Updating user tokens and session")
+	logger.Log("INFO", "Updating user tokens and session")
 
 	// Update tokens and session
 	if err := db.UpdateToken(user, hashedAccess, hashedRefresh); err != nil {
@@ -247,7 +243,7 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	logger.Log("INFO", "Authentication completed successfully for user: "+payload.UserId)
+	logger.Log("INFO", "Authentication completed successfully for user")
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP verification successful",
@@ -257,7 +253,7 @@ func VerifyOTP(c *gin.Context) {
 			"role":          user.AccessType,
 			"refresh_token": hashedRefresh,
 			"access_token":  hashedAccess,
-			"expiry_time":   "4hr",
+			"expiry_time":   tokenCfg.TokenExpiry,
 		},
 	})
 }
