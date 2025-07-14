@@ -19,24 +19,23 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
-// logs holds the global logger instance for utility operations
 var logger = LoggerFunc() // Initialize logger
 
-/*
-SendOTPEmail sends an OTP email to the specified recipient using SMTP.
-
-This function validates SMTP configuration, constructs an HTML email with headers,
-and sends the OTP email to the recipient.
-
-:param to: Email address of the recipient
-:type to: string
-:param emailOTP: HTML content of the OTP email
-:type emailOTP: string
-
-:returns: Error if email sending fails, nil on success
-:rtype: error
-*/
 func SendOTPEmail(to, emailOTP string) error {
+	/*
+		SendOTPEmail sends an OTP email to the specified recipient using SMTP.
+
+		This function validates SMTP configuration, constructs an HTML email with headers,
+		and sends the OTP email to the recipient.
+
+		:param to: Email address of the recipient
+		:type to: string
+		:param emailOTP: HTML content of the OTP email
+		:type emailOTP: string
+
+		:returns: Error if email sending fails, nil on success
+		:rtype: error
+	*/
 	cfg := config.SMTP()
 
 	// Validate SMTP configuration
@@ -79,24 +78,24 @@ func SendOTPEmail(to, emailOTP string) error {
 	return nil
 }
 
-/*
-CreateQuantriumEmail creates a personalized OTP email from HTML template.
-
-This function reads an HTML template file and replaces placeholders with
-user-specific data including name, OTP code, and expiry time.
-
-:param otp: The OTP code to include in the email
-:type otp: string
-:param name: User's name for personalization
-:type name: string
-:param expiry: OTP expiry duration as string
-:type expiry: string
-
-:returns: Formatted HTML email content and error if template reading fails
-:rtype: (string, error)
-*/
 func CreateQuantriumEmail(otp, name, expiry string) (string, error) {
-	logger.Log("DEBUG", "CreateQuantriumEmail: reading email template file")
+	/*
+		CreateQuantriumEmail creates a personalized OTP email from HTML template.
+
+		This function reads an HTML template file and replaces placeholders with
+		user-specific data including name, OTP code, and expiry time.
+
+		:param otp: The OTP code to include in the email
+		:type otp: string
+		:param name: User's name for personalization
+		:type name: string
+		:param expiry: OTP expiry duration as string
+		:type expiry: string
+
+		:returns: Formatted HTML email content and error if template reading fails
+		:rtype: (string, error)
+	*/
+	logger.Log("INFO", "CreateQuantriumEmail: reading email template file")
 	templateFile, err := os.ReadFile("static/email_template.html")
 	if err != nil {
 		logger.Log("ERROR", "CreateQuantriumEmail: failed to read email template - "+err.Error())
@@ -108,26 +107,26 @@ func CreateQuantriumEmail(otp, name, expiry string) (string, error) {
 	template = strings.ReplaceAll(template, "{{.OTP}}", otp)
 	template = strings.ReplaceAll(template, "{{.Expiry}}", expiry)
 
-	logger.Log("DEBUG", "CreateQuantriumEmail: successfully created email template for user "+name)
+	logger.Log("INFO", "CreateQuantriumEmail: successfully created email template for user "+name)
 	return template, nil
 }
 
-/*
-CheckOtp validates a TOTP code against the user's unique secret.
-
-This function creates a user-specific secret by combining the base secret key
-with the user ID, then validates the provided TOTP code.
-
-:param totpCode: The TOTP code to validate
-:type totpCode: string
-:param userId: Unique identifier of the user
-:type userId: string
-
-:returns: Boolean indicating if OTP is valid and error if validation fails
-:rtype: (bool, error)
-*/
 func CheckOtp(totpCode, userId string) (bool, error) {
-	logger.Log("DEBUG", "CheckOtp: validating TOTP for user "+userId)
+	/*
+		CheckOtp validates a TOTP code against the user's unique secret.
+
+		This function creates a user-specific secret by combining the base secret key
+		with the user ID, then validates the provided TOTP code.
+
+		:param totpCode: The TOTP code to validate
+		:type totpCode: string
+		:param userId: Unique identifier of the user
+		:type userId: string
+
+		:returns: Boolean indicating if OTP is valid and error if validation fails
+		:rtype: (bool, error)
+	*/
+	logger.Log("INFO", "CheckOtp: validating TOTP for user "+userId)
 	cfg := config.OTP()
 	if cfg.SecretKey == "" {
 		logger.Log("CRITICAL", "CheckOtp: missing OTP secret key in configuration")
@@ -156,22 +155,22 @@ func CheckOtp(totpCode, userId string) (bool, error) {
 	return isValid, nil
 }
 
-/*
-GenTOTP generates a TOTP code for the specified user.
-
-This function creates a user-specific secret and generates a time-based
-one-time password using the configured parameters.
-
-:param cfg: OTP configuration containing secret key, expiry, and length
-:type cfg: *config.OTPconfig
-:param userId: Unique identifier of the user
-:type userId: string
-
-:returns: Generated TOTP code and error if generation fails
-:rtype: (string, error)
-*/
 func GenTOTP(cfg *config.OTPconfig, userId string) (string, error) {
-	logger.Log("DEBUG", "GenTOTP: generating TOTP for user "+userId)
+	/*
+		GenTOTP generates a TOTP code for the specified user.
+
+		This function creates a user-specific secret and generates a time-based
+		one-time password using the configured parameters.
+
+		:param cfg: OTP configuration containing secret key, expiry, and length
+		:type cfg: *config.OTPconfig
+		:param userId: Unique identifier of the user
+		:type userId: string
+
+		:returns: Generated TOTP code and error if generation fails
+		:rtype: (string, error)
+	*/
+	logger.Log("INFO", "GenTOTP: generating TOTP for user "+userId)
 
 	if cfg.SecretKey == "" {
 		logger.Log("CRITICAL", "GenTOTP: missing OTP secret key in configuration")
@@ -191,31 +190,32 @@ func GenTOTP(cfg *config.OTPconfig, userId string) (string, error) {
 		return "", nil
 	}
 
-	logger.Log("DEBUG", "GenTOTP: successfully generated TOTP for user "+userId)
+	logger.Log("INFO", "GenTOTP: successfully generated TOTP for user "+userId)
 	return code, nil
 }
 
-/*
-GenerateRefreshToken creates a JWT refresh token for the specified user.
-
-This function generates a long-lived refresh token (5 days) containing
-user information and refresh token type claim.
-
-:param userId: Unique identifier of the user
-:type userId: string
-
-:returns: Signed JWT refresh token and error if generation fails
-:rtype: (string, error)
-
-Token Claims:
-- userId: User's unique identifier
-- type: Token type (refresh)
-- exp: Expiration time (5 days)
-- iat: Issued at time
-- email: User's email address
-*/
 func GenerateRefreshToken(userId string) (string, error) {
-	logger.Log("DEBUG", "GenerateRefreshToken: generating refresh token for user "+userId)
+
+	/*
+	   GenerateRefreshToken creates a JWT refresh token for the specified user.
+
+	   This function generates a long-lived refresh token (5 days) containing
+	   user information and refresh token type claim.
+
+	   :param userId: Unique identifier of the user
+	   :type userId: string
+
+	   :returns: Signed JWT refresh token and error if generation fails
+	   :rtype: (string, error)
+
+	   Token Claims:
+	   - userId: User's unique identifier
+	   - type: Token type (refresh)
+	   - exp: Expiration time (5 days)
+	   - iat: Issued at time
+	   - email: User's email address
+	*/
+	logger.Log("INFO", "GenerateRefreshToken: generating refresh token for user "+userId)
 
 	cfg := config.Token()
 	if cfg.TokenSecret == "" {
@@ -232,7 +232,7 @@ func GenerateRefreshToken(userId string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userId": userId,
 		"type":   "refresh",
-		"exp":    time.Now().Add(time.Hour * 24 * 5).Unix(), // 5 days
+		"exp":    time.Now().Add(time.Hour * cfg.TokenExpiry).Unix(), // 5 days
 		"iat":    time.Now().Unix(),
 		"email":  user.Email,
 	})
@@ -247,30 +247,30 @@ func GenerateRefreshToken(userId string) (string, error) {
 	return signedToken, nil
 }
 
-/*
-GenerateAccessToken creates a JWT access token from a valid refresh token.
-
-This function parses the refresh token, validates its claims, and generates
-a short-lived access token (4 hours) with user permissions.
-
-:param refreshToken: Valid JWT refresh token
-:type refreshToken: string
-:param accessType: User's access level or role
-:type accessType: string
-
-:returns: Signed JWT access token and error if generation fails
-:rtype: (string, error)
-
-Token Claims:
-- AccessType: User's access level
-- type: Token type (access)
-- exp: Expiration time (4 hours)
-- iat: Issued at time
-- email: User's email address
-- userId: User's unique identifier
-*/
 func GenerateAccessToken(refreshToken, accessType string) (string, error) {
-	logger.Log("DEBUG", "GenerateAccessToken: parsing refresh token")
+	/*
+		GenerateAccessToken creates a JWT access token from a valid refresh token.
+
+		This function parses the refresh token, validates its claims, and generates
+		a short-lived access token (4 hours) with user permissions.
+
+		:param refreshToken: Valid JWT refresh token
+		:type refreshToken: string
+		:param accessType: User's access level or role
+		:type accessType: string
+
+		:returns: Signed JWT access token and error if generation fails
+		:rtype: (string, error)
+
+		Token Claims:
+		- AccessType: User's access level
+		- type: Token type (access)
+		- exp: Expiration time (4 hours)
+		- iat: Issued at time
+		- email: User's email address
+		- userId: User's unique identifier
+	*/
+	logger.Log("INFO", "GenerateAccessToken: parsing refresh token")
 
 	cfg := config.Token()
 	if cfg.TokenSecret == "" {
@@ -338,26 +338,26 @@ func GenerateAccessToken(refreshToken, accessType string) (string, error) {
 	return signedToken, nil
 }
 
-/*
-VerifyAccessToken validates a JWT access token and extracts the user ID.
-
-This function parses the access token, validates its signature and claims,
-and returns the user ID if the token is valid.
-
-:param token: JWT access token to verify
-:type token: string
-
-:returns: User ID from token claims and error if verification fails
-:rtype: (string, error)
-
-Validation Steps:
-1. Parse token with secret key
-2. Verify token signature and validity
-3. Check token type is 'access'
-4. Extract userId from claims
-*/
 func VerifyAccessToken(token string) (string, error) {
-	logger.Log("DEBUG", "VerifyAccessToken: verifying access token")
+	/*
+		VerifyAccessToken validates a JWT access token and extracts the user ID.
+
+		This function parses the access token, validates its signature and claims,
+		and returns the user ID if the token is valid.
+
+		:param token: JWT access token to verify
+		:type token: string
+
+		:returns: User ID from token claims and error if verification fails
+		:rtype: (string, error)
+
+		Validation Steps:
+		1. Parse token with secret key
+		2. Verify token signature and validity
+		3. Check token type is 'access'
+		4. Extract userId from claims
+	*/
+	logger.Log("INFO", "VerifyAccessToken: verifying access token")
 
 	cfg := config.Token()
 	if cfg.TokenSecret == "" {
@@ -402,6 +402,6 @@ func VerifyAccessToken(token string) (string, error) {
 		return "", nil
 	}
 
-	logger.Log("DEBUG", "VerifyAccessToken: successfully verified access token for user "+userId)
+	logger.Log("INFO", "VerifyAccessToken: successfully verified access token for user ")
 	return userId, nil
 }
