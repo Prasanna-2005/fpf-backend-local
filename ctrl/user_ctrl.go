@@ -63,7 +63,7 @@ func Login(c *gin.Context) {
 	user, err := db.ValidateCredentials(payload.Username, payload.Password)
 	if err != nil {
 		if err.Error() == "record not found" {
-			logger.Log("WARNING", "Login failed: user not found for username: "+payload.Username)
+			logger.Log("WARNING", "Login failed: user not found for username: ")
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
 		} else {
 			logger.Log("ERROR", "Login failed: credential validation error - "+err.Error())
