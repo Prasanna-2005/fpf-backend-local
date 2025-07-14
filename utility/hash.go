@@ -23,22 +23,21 @@ var (
 	ErrEmptyPassword    = errors.New("password cannot be empty")
 )
 
-/*
-HashPassword encrypts a password using AES-GCM encryption.
-
-This function validates input parameters, creates a SHA256 hash from the secret key,
-and encrypts the password using AES-GCM with a random nonce.
-
-:param password: The plaintext password to encrypt
-:type password: string
-:param secretKey: Secret key for encryption (minimum 32 characters)
-:type secretKey: string
-
-:returns: Base64-encoded encrypted password and error if encryption fails
-:rtype: (string, error)
-*/
 func HashPassword(password, secretKey string) (string, error) {
-	logger.Log("DEBUG", "Starting password hashing process")
+	/*
+		HashPassword encrypts a password using AES-GCM encryption.
+
+		This function validates input parameters, creates a SHA256 hash from the secret key,
+		and encrypts the password using AES-GCM with a random nonce.
+
+		:param password: The plaintext password to encrypt
+		:type password: string
+		:param secretKey: Secret key for encryption (minimum 32 characters)
+		:type secretKey: string
+
+		:returns: Base64-encoded encrypted password and error if encryption fails
+		:rtype: (string, error)
+	*/
 
 	if password == "" {
 		logger.Log("ERROR", "Password hashing failed: empty password provided")
@@ -50,57 +49,51 @@ func HashPassword(password, secretKey string) (string, error) {
 		return "", ErrInvalidSecretKey
 	}
 
-	logger.Log("DEBUG", "Creating SHA256 hash from secret key")
 	keyHash := sha256.Sum256([]byte(secretKey))
 
-	logger.Log("DEBUG", "Creating AES cipher block")
 	block, err := aes.NewCipher(keyHash[:])
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("Failed to create AES cipher: %v", err))
 		return "", err
 	}
 
-	logger.Log("DEBUG", "Creating GCM mode cipher")
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("Failed to create GCM cipher: %v", err))
 		return "", err
 	}
 
-	logger.Log("DEBUG", "Generating random nonce")
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		logger.Log("ERROR", fmt.Sprintf("Failed to generate random nonce: %v", err))
 		return "", err
 	}
 
-	logger.Log("DEBUG", "Encrypting password with AES-GCM")
 	ciphertext := gcm.Seal(nonce, nonce, []byte(password), nil)
 
-	logger.Log("DEBUG", "Encoding encrypted data to base64")
 	result := base64.StdEncoding.EncodeToString(ciphertext)
 
 	logger.Log("INFO", "Password successfully hashed and encrypted")
 	return result, nil
 }
 
-/*
-CheckPasswordHash verifies a password against its encrypted hash.
-
-This function decodes the base64 hash, extracts the nonce and ciphertext,
-decrypts the password using AES-GCM, and compares with the provided password.
-
-:param password: The plaintext password to verify
-:type password: string
-:param hashedPassword: The base64-encoded encrypted password hash
-:type hashedPassword: string
-:param secretKey: Secret key used for encryption (minimum 32 characters)
-:type secretKey: string
-
-:returns: Boolean indicating if password matches hash
-:rtype: bool
-*/
 func CheckPasswordHash(password, hashedPassword, secretKey string) bool {
+	/*
+		CheckPasswordHash verifies a password against its encrypted hash.
+
+		This function decodes the base64 hash, extracts the nonce and ciphertext,
+		decrypts the password using AES-GCM, and compares with the provided password.
+
+		:param password: The plaintext password to verify
+		:type password: string
+		:param hashedPassword: The base64-encoded encrypted password hash
+		:type hashedPassword: string
+		:param secretKey: Secret key used for encryption (minimum 32 characters)
+		:type secretKey: string
+
+		:returns: Boolean indicating if password matches hash
+		:rtype: bool
+	*/
 	logger.Log("DEBUG", "Starting password hash verification")
 
 	if password == "" || hashedPassword == "" || len(secretKey) < 32 {
