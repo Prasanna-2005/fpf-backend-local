@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	DB   *gorm.DB  // DB holds the global database connection instance
-	once sync.Once // once ensures the database is initialized only once
+	database *gorm.DB  // DB holds the global database connection instance
+	once     sync.Once // once ensures the database is initialized only once
 )
 
 /*
@@ -42,7 +42,7 @@ func connect() {
 		os.Getenv("DB_PORT"),
 		os.Getenv("DB_NAME"))
 
-	DB, err = gorm.Open(mysql.Open(connectionString), &gorm.Config{})
+	database, err = gorm.Open(mysql.Open(connectionString), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)
 	}
@@ -59,7 +59,7 @@ func Init() *gorm.DB {
 		:rtype: *gorm.DB
 	*/
 	connect()
-	return DB
+	return database
 }
 
 func GetDB() *gorm.DB {
@@ -75,5 +75,5 @@ func GetDB() *gorm.DB {
 	once.Do(func() {
 		connect()
 	})
-	return DB
+	return database
 }
