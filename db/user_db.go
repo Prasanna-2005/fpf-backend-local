@@ -6,21 +6,24 @@ import (
 	"time"
 
 	"github.com/jinzhu/gorm"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var DbError = "Internal server error: "
 
-func ValidateCredentials(name string, password string) (models.User, error) {
-
-	var user models.User
-	password = Bcrypt()
-	if err := sqlDb.Where(" password = ? AND username = ? ", password, name).First(&user).Error; err != nil {
-		if gorm.IsRecordNotFoundError(err) {
-			return models.User{}, fmt.Errorf("record not found")
-		}
-		return models.User{}, err
+func ValidateCredentials(name, password string) (models.User, error) {
+	var u models.User
+	if err := sqlDb.Where("username = ?", name).First(&u).Error; err != nil {
+		return models.User{}, fmt.Errorf("invalid username ")
 	}
-	return user, nil
+
+	match := func(h, p string) bool {
+		return bcrypt.CompareHashAndPassword([]byte(h), []byte(p)) == nil
+	}
+	if !match(u.Password, password) {
+		return models.User{}, fmt.Errorf("invalid  password")
+	}
+	return u, nil
 }
 
 func GetUser(userId string) (*models.User, error) {
