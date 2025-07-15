@@ -5,6 +5,7 @@ package ctrl
 
 import (
 	"net/http"
+	"strconv"
 
 	"form_pf_backend/config"
 	"form_pf_backend/db"
@@ -253,7 +254,7 @@ func VerifyOTP(c *gin.Context) {
 			"role":          user.AccessType,
 			"refresh_token": hashedRefresh,
 			"access_token":  hashedAccess,
-			"expiry_time":   tokenCfg.TokenExpiry,
+			"expiry_time":   strconv.Itoa(int(tokenCfg.TokenExpiry.Hours())) + " Hours",
 		},
 	})
 }
