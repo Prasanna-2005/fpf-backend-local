@@ -136,10 +136,13 @@ func CheckOtp(totpCode, userId string) (bool, error) {
 	opts.Period = uint(cfg.OTPExpiry.Seconds())
 	opts.Skew = 1 // Allow for 1 second of skew
 	opts.Digits = cfg.OTPLength
-
+	fmt.Println(cfg.OTPLength)
+	fmt.Println(opts.Digits)
+	fmt.Println(opts.Period)
 	uniqueSecret := cfg.SecretKey + userId
 	encodedSecretKey := base32.StdEncoding.EncodeToString([]byte(uniqueSecret))
-
+	fmt.Println(userId)
+	fmt.Println(cfg.SecretKey)
 	isValid, err := totp.ValidateCustom(totpCode, encodedSecretKey, time.Now(), opts)
 	if err != nil {
 		logger.Log("ERROR", "CheckOtp: TOTP validation failed for user: "+err.Error())
@@ -215,7 +218,7 @@ func GenerateRefreshToken(userId string) (string, error) {
 	   - iat: Issued at time
 	   - email: User's email address
 	*/
-	logger.Log("INFO", "GenerateRefreshToken: generating refresh token for user "+userId)
+	logger.Log("INFO", "GenerateRefreshToken: generating refresh token for user")
 
 	cfg := config.Token()
 	if cfg.TokenSecret == "" {
@@ -225,7 +228,7 @@ func GenerateRefreshToken(userId string) (string, error) {
 
 	user, err := db.GetUser(userId)
 	if err != nil {
-		logger.Log("ERROR", "GenerateRefreshToken: failed to get user "+userId+" from database - "+err.Error())
+		logger.Log("ERROR", "GenerateRefreshToken: failed to get user  from database: "+err.Error())
 		return "", err
 	}
 
