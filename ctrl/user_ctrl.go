@@ -9,8 +9,7 @@ import (
 
 	"form_pf_backend/config"
 	"form_pf_backend/db"
-	"form_pf_backend/middleware"
-	"form_pf_backend/models"
+	"form_pf_backend/modules"
 	"form_pf_backend/utility"
 
 	"github.com/gin-gonic/gin"
@@ -21,6 +20,7 @@ const (
 	PayloadError = "Invalid request payload"
 	AuthError    = "User not found"
 	InvalidOTP   = "Invalid OTP"
+	LoginFailed  = "Login failed: "
 )
 
 var logger = utility.LoggerFunc() // Initialize logger
@@ -46,7 +46,6 @@ func Login(c *gin.Context) {
 	*/
 	logger.Log("INFO", "Login attempt initiated")
 
-	var user models.User
 	var payload struct {
 		Username string `json:"username" binding:"required"`
 		Password string `json:"password" binding:"required"`
@@ -54,7 +53,7 @@ func Login(c *gin.Context) {
 
 	// Bind and validate request payload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		logger.Log("ERROR", "Login failed: invalid payload - "+err.Error())
+		logger.Log("ERROR", LoginFailed+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
@@ -63,26 +62,25 @@ func Login(c *gin.Context) {
 	user, err := db.ValidateCredentials(payload.Username, payload.Password)
 	if err != nil {
 		if err.Error() == "record not found" {
-			logger.Log("WARNING", "Login failed: user not found for username: ")
+			logger.Log("WARNING", LoginFailed+err.Error())
 			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
 		} else {
-			logger.Log("ERROR", "Login failed: credential validation error - "+err.Error())
+			logger.Log("ERROR", LoginFailed+err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		}
 		return
 	}
 
-	logger.Log("INFO", "Credentials validated successfully for user: "+user.ID)
+	logger.Log("INFO", "Credentials validated successfully for user")
 
 	// Generate and send OTP
-	err = middleware.OtpService(user.ID)
+	err = modules.OtpService(user.ID)
 	if err != nil {
-		logger.Log("ERROR", "Login failed: OTP service error for user "+user.ID+" - "+err.Error())
+		logger.Log("ERROR", LoginFailed+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
-	logger.Log("INFO", "Login successful: OTP sent to user "+user.ID)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Login verified, generating OTP",
 		"user_id": user.ID,
@@ -118,14 +116,14 @@ func ResendOTP(c *gin.Context) {
 	}
 
 	// Generate and send new OTP
-	err := middleware.OtpService(payload.UserId)
+	err := modules.OtpService(payload.UserId)
 	if err != nil {
-		logger.Log("ERROR", "OTP resend failed for user "+payload.UserId+": "+err.Error())
+		logger.Log("ERROR", LoginFailed+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
-	logger.Log("INFO", "OTP resend successful for user: "+payload.UserId)
+	logger.Log("INFO", "OTP resend successful for user")
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP generated successful",
 	})
@@ -174,7 +172,7 @@ func VerifyOTP(c *gin.Context) {
 	}
 
 	if !isValid {
-		logger.Log("WARNING", "OTP verification failed: invalid OTP for user "+payload.UserId)
+		logger.Log("WARNING", "OTP verification failed: invalid OTP for user ")
 		c.JSON(http.StatusUnauthorized, gin.H{"message": InvalidOTP})
 		return
 	}
