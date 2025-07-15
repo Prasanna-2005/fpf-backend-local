@@ -27,7 +27,10 @@ type Logger struct {
 
 func LoggerFunc() *Logger {
 	// Set timezone to IST (UTC+5:30)
-	loc := time.FixedZone("IST", 5*3600+30*60)
+	loc, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Create logs directory if it doesn't exist
 	logDir := "./logs"
@@ -60,16 +63,16 @@ func LoggerFunc() *Logger {
 	}
 }
 
-func (l *Logger) getCallerInfo() (string, string, int) {
+func (l *Logger) getCallerInfo() (string, string, string, int) {
 	// Skip 3 frames: runtime.Callers, getCallerInfo, Log, actual caller
 	pc, file, line, ok := runtime.Caller(3)
 	if !ok {
-		return "unknown", "unknown", 0
+		return "unknown", "unknown", "unknown", 0
 	}
 
 	// Get function name and extract package
 	fn := runtime.FuncForPC(pc)
-	var pkg string
+	var pkg, funcName string
 	if fn != nil {
 		fullName := fn.Name()
 		parts := strings.Split(fullName, "/")
@@ -78,6 +81,7 @@ func (l *Logger) getCallerInfo() (string, string, int) {
 			pkgFunc := strings.Split(lastPart, ".")
 			if len(pkgFunc) > 0 {
 				pkg = pkgFunc[0]
+				funcName = strings.Join(pkgFunc[1:], ".")
 			}
 		}
 	}
@@ -85,15 +89,18 @@ func (l *Logger) getCallerInfo() (string, string, int) {
 	// Get just the filename without path
 	filename := filepath.Base(file)
 
-	return pkg, filename, line
+	return pkg, filename, funcName, line
 }
 
 func (l *Logger) log(level string, message string) {
 	// Get caller information
-	pkg, filename, line := l.getCallerInfo()
+	pkg, filename, funcName, line := l.getCallerInfo()
 
 	// Set timezone to IST
-	loc := time.FixedZone("IST", 5*3600+30*60)
+	loc, err := time.LoadLocation("Asia/Kolkata")
+	if err != nil {
+		log.Fatal(err)
+	}
 	timestamp := time.Now().In(loc)
 
 	// File logging with format: 2025-06-25 05:24:13 UTC | INFO | pkg=utility | file=hash.go | line=63 | message
@@ -116,12 +123,12 @@ func (l *Logger) log(level string, message string) {
 		color = ColorReset
 	}
 	//filelog
-	fileLogMsg := fmt.Sprintf("%s%s | %s | pkg=%s | file=%s | line=%d | %s%s",
-		color, fileTimestamp, level, pkg, filename, line, message, ColorReset)
+	fileLogMsg := fmt.Sprintf("%s%s | %s | pkg=%s | file=%s | func=%s |line=%d | %s%s",
+		color, fileTimestamp, level, pkg, filename, funcName, line, message, ColorReset)
 	l.fileLogger.Println(fileLogMsg)
 	// Console timestamp in IST
 
-	fmt.Printf("%s%s | %s |  pkg=%s | file=%s | line=%d |%s%s\n", color, level, fileTimestamp, pkg, filename, line, message, ColorReset)
+	fmt.Printf("%s%s | %s |  pkg=%s | file=%s | func=%s | line=%d |%s%s\n", color, level, fileTimestamp, pkg, filename, funcName, line, message, ColorReset)
 }
 
 func (l *Logger) Log(level, message string) {
