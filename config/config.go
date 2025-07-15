@@ -33,6 +33,7 @@ type OTPconfig struct {
 type Tokenconfig struct {
 	TokenSecret string
 	TokenExpiry time.Duration
+	BcryptCost  int
 }
 
 func SMTP() SMTPconfig {
