@@ -136,9 +136,7 @@ func CheckOtp(totpCode, userId string) (bool, error) {
 	opts.Period = uint(cfg.OTPExpiry.Seconds())
 	opts.Skew = 1 // Allow for 1 second of skew
 	opts.Digits = cfg.OTPLength
-	fmt.Println(cfg.OTPLength)
-	fmt.Println(opts.Digits)
-	fmt.Println(opts.Period)
+
 	uniqueSecret := cfg.SecretKey + userId
 	encodedSecretKey := base32.StdEncoding.EncodeToString([]byte(uniqueSecret))
 	fmt.Println(userId)
