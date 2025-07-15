@@ -32,6 +32,7 @@ type OTPconfig struct {
 }
 type Tokenconfig struct {
 	TokenSecret string
+	TokenExpiry time.Duration
 }
 
 func SMTP() SMTPconfig {
@@ -54,6 +55,7 @@ func OTP() OTPconfig {
 func Token() Tokenconfig {
 	return Tokenconfig{
 		TokenSecret: os.Getenv("TOKEN_SECRET"),
+		TokenExpiry: GetEnvAsDuration("TOKEN_EXPIRY", 120),
 	}
 }
 
