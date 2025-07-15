@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"form_pf_backend/db"
 	"form_pf_backend/server"
 	"form_pf_backend/utility"
 
@@ -31,6 +32,8 @@ func main() {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 	logger.Log("INFO", "Environment variables loaded successfully")
+
+	db.GetDB()
 
 	// Set up routes
 	logger.Log("DEBUG", "Setting up application routes")
