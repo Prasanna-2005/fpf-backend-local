@@ -8,14 +8,17 @@ import (
 	"github.com/jinzhu/gorm"
 )
 
+var DbError = "Internal server error: "
+
 func ValidateCredentials(name string, password string) (models.User, error) {
 
 	var user models.User
-	if err := sqlDb.Where("username = ? AND password = ?", name, password).First(&user).Error; err != nil {
+	password = Bcrypt()
+	if err := sqlDb.Where(" password = ? AND username = ? ", password, name).First(&user).Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return models.User{}, fmt.Errorf("record not found")
 		}
-		return models.User{}, fmt.Errorf("internal server error: %w", err)
+		return models.User{}, err
 	}
 	return user, nil
 }
@@ -28,7 +31,7 @@ func GetUser(userId string) (*models.User, error) {
 		if gorm.IsRecordNotFoundError(err) {
 			return nil, fmt.Errorf("record not found")
 		}
-		return nil, fmt.Errorf("internal server error: %w", err)
+		return nil, err
 	}
 	return &user, nil
 }
