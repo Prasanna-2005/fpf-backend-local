@@ -71,7 +71,7 @@ func SendOTPEmail(to, emailOTP string) error {
 
 	if err != nil {
 		logger.Log("ERROR", "SendOTPEmail: failed to send email to "+to+" - "+err.Error())
-		return nil
+		return err
 	}
 
 	logger.Log("INFO", "SendOTPEmail: successfully sent OTP email to "+to)
@@ -142,14 +142,14 @@ func CheckOtp(totpCode, userId string) (bool, error) {
 
 	isValid, err := totp.ValidateCustom(totpCode, encodedSecretKey, time.Now(), opts)
 	if err != nil {
-		logger.Log("ERROR", "CheckOtp: TOTP validation failed for user "+userId+" - "+err.Error())
-		return false, nil
+		logger.Log("ERROR", "CheckOtp: TOTP validation failed for user: "+err.Error())
+		return false, err
 	}
 
 	if isValid {
-		logger.Log("INFO", "CheckOtp: TOTP validation successful for user "+userId)
+		logger.Log("INFO", "CheckOtp: TOTP validation successful for user ")
 	} else {
-		logger.Log("WARNING", "CheckOtp: TOTP validation failed for user "+userId+" - invalid code")
+		logger.Log("WARNING", "CheckOtp: TOTP validation failed for user - invalid code")
 	}
 
 	return isValid, nil
@@ -170,7 +170,7 @@ func GenTOTP(cfg *config.OTPconfig, userId string) (string, error) {
 		:returns: Generated TOTP code and error if generation fails
 		:rtype: (string, error)
 	*/
-	logger.Log("INFO", "GenTOTP: generating TOTP for user "+userId)
+	logger.Log("INFO", "GenTOTP: generating TOTP for user ")
 
 	if cfg.SecretKey == "" {
 		logger.Log("CRITICAL", "GenTOTP: missing OTP secret key in configuration")
@@ -187,7 +187,7 @@ func GenTOTP(cfg *config.OTPconfig, userId string) (string, error) {
 	code, err := totp.GenerateCodeCustom(encodedSecretKey, time.Now(), opts)
 	if err != nil {
 		logger.Log("ERROR", "GenTOTP: failed to generate TOTP for user "+userId+" - "+err.Error())
-		return "", nil
+		return "", err
 	}
 
 	logger.Log("INFO", "GenTOTP: successfully generated TOTP for user "+userId)
@@ -226,13 +226,13 @@ func GenerateRefreshToken(userId string) (string, error) {
 	user, err := db.GetUser(userId)
 	if err != nil {
 		logger.Log("ERROR", "GenerateRefreshToken: failed to get user "+userId+" from database - "+err.Error())
-		return "", nil
+		return "", err
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userId": userId,
 		"type":   "refresh",
-		"exp":    time.Now().Add(time.Hour * cfg.TokenExpiry).Unix(), // 5 days
+		"exp":    time.Now().Add(time.Duration(cfg.TokenExpiry.Hours())).Unix(), // 5 days
 		"iat":    time.Now().Unix(),
 		"email":  user.Email,
 	})
@@ -240,7 +240,7 @@ func GenerateRefreshToken(userId string) (string, error) {
 	signedToken, err := token.SignedString([]byte(cfg.TokenSecret))
 	if err != nil {
 		logger.Log("ERROR", "GenerateRefreshToken: failed to sign token for user "+userId+" - "+err.Error())
-		return "", nil
+		return "", err
 	}
 
 	logger.Log("INFO", "GenerateRefreshToken: successfully generated refresh token for user "+userId)
@@ -288,34 +288,34 @@ func GenerateAccessToken(refreshToken, accessType string) (string, error) {
 
 	if err != nil {
 		logger.Log("ERROR", "GenerateAccessToken: failed to parse refresh token - "+err.Error())
-		return "", nil
+		return "", err
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
 		logger.Log("ERROR", "GenerateAccessToken: invalid refresh token claims")
-		return "", nil
+		return "", err
 	}
 
 	// Check if it's a refresh token
 	tokenType, ok := claims["type"].(string)
 	if !ok || tokenType != "refresh" {
 		logger.Log("ERROR", "GenerateAccessToken: provided token is not a refresh token")
-		return "", nil
+		return "", err
 	}
 
 	// Extract email from claims
 	email, ok := claims["email"].(string)
 	if !ok {
 		logger.Log("ERROR", "GenerateAccessToken: refresh token missing email claim")
-		return "", nil
+		return "", err
 	}
 
 	// Extract userId from claims
 	userId, ok := claims["userId"].(string)
 	if !ok {
 		logger.Log("ERROR", "GenerateAccessToken: refresh token missing userId claim")
-		return "", nil
+		return "", err
 	}
 
 	// Generate access token
@@ -331,11 +331,11 @@ func GenerateAccessToken(refreshToken, accessType string) (string, error) {
 	signedToken, err := accessToken.SignedString([]byte(cfg.TokenSecret))
 	if err != nil {
 		logger.Log("ERROR", "GenerateAccessToken: failed to sign access token for user "+userId+" - "+err.Error())
-		return "", nil
+		return "", err
 	}
 
 	logger.Log("INFO", "GenerateAccessToken: successfully generated access token for user "+userId)
-	return signedToken, nil
+	return signedToken, err
 }
 
 func VerifyAccessToken(token string) (string, error) {
@@ -374,34 +374,34 @@ func VerifyAccessToken(token string) (string, error) {
 
 	if err != nil {
 		logger.Log("ERROR", "VerifyAccessToken: failed to parse token - "+err.Error())
-		return "", nil
+		return "", err
 	}
 
 	if !parsedToken.Valid {
 		logger.Log("ERROR", "VerifyAccessToken: token is invalid")
-		return "", nil
+		return "", err
 	}
 
 	claims, ok := parsedToken.Claims.(jwt.MapClaims)
 	if !ok {
 		logger.Log("ERROR", "VerifyAccessToken: invalid token claims")
-		return "", nil
+		return "", err
 	}
 
 	// Check if it's an access token
 	tokenType, ok := claims["type"].(string)
 	if !ok || tokenType != "access" {
 		logger.Log("ERROR", "VerifyAccessToken: provided token is not an access token")
-		return "", nil
+		return "", err
 	}
 
 	// Get userId from claims
 	userId, ok := claims["userId"].(string)
 	if !ok {
 		logger.Log("ERROR", "VerifyAccessToken: token missing userId claim")
-		return "", nil
+		return "", err
 	}
 
 	logger.Log("INFO", "VerifyAccessToken: successfully verified access token for user ")
-	return userId, nil
+	return userId, err
 }
