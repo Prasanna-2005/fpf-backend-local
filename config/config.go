@@ -73,6 +73,30 @@ type CookieSettings struct {
 	HTTPOnly bool
 }
 
+func Cookie() (*CookieConfig, error) {
+	cfg, err := ini.Load("config/config.ini")
+	if err != nil {
+		return nil, err
+	}
+
+	accessSection := cfg.Section("cookie_access_token")
+	refreshSection := cfg.Section("cookie_refresh_token")
+
+	return &CookieConfig{
+		AccessToken: CookieSettings{
+			Path:     accessSection.Key("path").MustString("/"),
+			Domain:   accessSection.Key("domain").MustString(""),
+			Secure:   accessSection.Key("secure").MustBool(false),
+			HTTPOnly: accessSection.Key("http_only").MustBool(true),
+		},
+		RefreshToken: CookieSettings{
+			Path:     refreshSection.Key("path").MustString("/auth/access"),
+			Domain:   refreshSection.Key("domain").MustString(""),
+			Secure:   refreshSection.Key("secure").MustBool(false),
+			HTTPOnly: refreshSection.Key("http_only").MustBool(true),
+		},
+	}, nil
+}
 func GetEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
 	val := os.Getenv(key)
 	if val == "" {
@@ -118,29 +142,4 @@ func LoadConfig(filePath string) (*RouteConfig, error) {
 
 func splitOrigins(origins string) []string {
 	return strings.Split(origins, ",")
-}
-
-func Cookie() (*CookieConfig, error) {
-	cfg, err := ini.Load("config.ini")
-	if err != nil {
-		return nil, err
-	}
-
-	accessSection := cfg.Section("cookie_access_token")
-	refreshSection := cfg.Section("cookie_refresh_token")
-
-	return &CookieConfig{
-		AccessToken: CookieSettings{
-			Path:     accessSection.Key("path").MustString("/"),
-			Domain:   accessSection.Key("domain").MustString(""),
-			Secure:   accessSection.Key("secure").MustBool(false),
-			HTTPOnly: accessSection.Key("http_only").MustBool(true),
-		},
-		RefreshToken: CookieSettings{
-			Path:     refreshSection.Key("path").MustString("/auth/access"),
-			Domain:   refreshSection.Key("domain").MustString(""),
-			Secure:   refreshSection.Key("secure").MustBool(false),
-			HTTPOnly: refreshSection.Key("http_only").MustBool(true),
-		},
-	}, nil
 }
