@@ -23,6 +23,7 @@ const (
 	LoginFailed  = "Login failed: "
 )
 
+var cookieCfg *config.CookieConfig
 var logger = utility.LoggerFunc() // Initialize logger
 
 func Login(c *gin.Context) {
@@ -358,11 +359,11 @@ func VerifyOTP(c *gin.Context) {
 	logger.Log("INFO", "Updating user tokens and session")
 
 	// Update tokens and session
-	if err := db.UpdateToken(user, hashedAccess, hashedRefresh); err != nil {
-		logger.Log("ERROR", "Failed to update tokens for user "+payload.UserId+": "+err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
-		return
-	}
+	// if err := db.UpdateToken(user, hashedAccess, hashedRefresh); err != nil {
+	// 	logger.Log("ERROR", "Failed to update tokens for user "+payload.UserId+": "+err.Error())
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+	// 	return
+	// }
 
 	if err := db.UpdateSession(user); err != nil {
 		logger.Log("ERROR", "Failed to update session for user "+payload.UserId+": "+err.Error())
@@ -373,7 +374,12 @@ func VerifyOTP(c *gin.Context) {
 	logger.Log("INFO", "Setting authentication cookies")
 
 	// Get cookie configuration
-	cookieCfg, err := config.Cookie()
+	cookieCfg, err = config.Cookie()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		logger.Log("ERROR", "Cookie error: "+err.Error())
+		return
+	}
 
 	// Calculate expiry times in seconds for cookie MaxAge
 	accessTokenExpiry := int(tokenCfg.TokenExpiry.Seconds())
@@ -381,7 +387,7 @@ func VerifyOTP(c *gin.Context) {
 
 	// Set access token cookie using configuration
 	c.SetCookie(
-		"access_token",                 // name
+		access,                         // name
 		hashedAccess,                   // value
 		accessTokenExpiry,              // maxAge in seconds
 		cookieCfg.AccessToken.Path,     // path from config
@@ -392,7 +398,7 @@ func VerifyOTP(c *gin.Context) {
 
 	// Set refresh token cookie using configuration
 	c.SetCookie(
-		"refresh_token",                 // name
+		refresh,                         // name
 		hashedRefresh,                   // value
 		refreshTokenExpiry,              // maxAge in seconds
 		cookieCfg.RefreshToken.Path,     // path from config
