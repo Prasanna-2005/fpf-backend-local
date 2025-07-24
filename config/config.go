@@ -31,9 +31,9 @@ type OTPconfig struct {
 	OTPLength otp.Digits
 }
 type Tokenconfig struct {
-	TokenSecret string
-	TokenExpiry time.Duration
-	BcryptCost  int
+	TokenSecret        string
+	TokenExpiry        time.Duration
+	RefreshTokenExpiry time.Duration
 }
 
 func SMTP() SMTPconfig {
@@ -55,9 +55,22 @@ func OTP() OTPconfig {
 }
 func Token() Tokenconfig {
 	return Tokenconfig{
-		TokenSecret: os.Getenv("TOKEN_SECRET"),
-		TokenExpiry: GetEnvAsDuration("TOKEN_EXPIRY", 120),
+		TokenSecret:        os.Getenv("TOKEN_SECRET"),
+		TokenExpiry:        GetEnvAsDuration("TOKEN_EXPIRY", 4),
+		RefreshTokenExpiry: GetEnvAsDuration("TOKEN_EXPIRY", 120),
 	}
+}
+
+type CookieConfig struct {
+	AccessToken  CookieSettings
+	RefreshToken CookieSettings
+}
+
+type CookieSettings struct {
+	Path     string
+	Domain   string
+	Secure   bool
+	HTTPOnly bool
 }
 
 func GetEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
@@ -105,4 +118,29 @@ func LoadConfig(filePath string) (*RouteConfig, error) {
 
 func splitOrigins(origins string) []string {
 	return strings.Split(origins, ",")
+}
+
+func Cookie() (*CookieConfig, error) {
+	cfg, err := ini.Load("config.ini")
+	if err != nil {
+		return nil, err
+	}
+
+	accessSection := cfg.Section("cookie_access_token")
+	refreshSection := cfg.Section("cookie_refresh_token")
+
+	return &CookieConfig{
+		AccessToken: CookieSettings{
+			Path:     accessSection.Key("path").MustString("/"),
+			Domain:   accessSection.Key("domain").MustString(""),
+			Secure:   accessSection.Key("secure").MustBool(false),
+			HTTPOnly: accessSection.Key("http_only").MustBool(true),
+		},
+		RefreshToken: CookieSettings{
+			Path:     refreshSection.Key("path").MustString("/auth/access"),
+			Domain:   refreshSection.Key("domain").MustString(""),
+			Secure:   refreshSection.Key("secure").MustBool(false),
+			HTTPOnly: refreshSection.Key("http_only").MustBool(true),
+		},
+	}, nil
 }
