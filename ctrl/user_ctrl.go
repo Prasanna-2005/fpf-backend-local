@@ -237,7 +237,7 @@ func VerifyOTP(c *gin.Context) {
 	// }
 
 	if err := db.UpdateSession(user); err != nil {
-		logger.Log("ERROR", "Failed to update session for user "+payload.UserId+": "+err.Error())
+		logger.Log("ERROR", "Failed to update session for user "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
@@ -293,6 +293,11 @@ func VerifyOTP(c *gin.Context) {
 
 func NewAccessToken(c *gin.Context) {
 
+	var hashedAccess string
+
+	tokenCfg := config.Token()
+	accessTokenExpiry := int(tokenCfg.TokenExpiry.Seconds())
+
 	logger.Log("INFO", "Access token generation")
 	refreshCookie, err := c.Cookie("refresh")
 	if err != nil {
@@ -302,5 +307,30 @@ func NewAccessToken(c *gin.Context) {
 	if err != nil {
 		logger.Log("ERROR", "access token generation error: "+err.Error())
 	}
+
+	hashedAccess, err = utility.HashPassword(access, tokenCfg.TokenSecret)
+	if err != nil {
+		logger.Log("ERROR", "Failed to hash access token for user "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
+		return
+	}
+
+	c.SetCookie(
+		"access",                       // name
+		hashedAccess,                   // value
+		accessTokenExpiry,              // maxAge in seconds
+		CookieCfg.AccessToken.Path,     // path from config
+		CookieCfg.AccessToken.Domain,   // domain from config
+		CookieCfg.AccessToken.Secure,   // secure from config
+		CookieCfg.AccessToken.HTTPOnly, // httpOnly from config
+	)
+
+	logger.Log("INFO", "Authentication completed successfully for user")
+
+	c.JSON(http.StatusOK, gin.H{
+		"response": gin.H{
+			"expiry_time": strconv.Itoa(int(tokenCfg.TokenExpiry.Hours())) + " Hours",
+		},
+	})
 
 }
