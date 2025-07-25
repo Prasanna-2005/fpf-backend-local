@@ -32,6 +32,7 @@ type OTPconfig struct {
 }
 type Tokenconfig struct {
 	TokenSecret        string
+	Issuer             string
 	TokenExpiry        time.Duration
 	RefreshTokenExpiry time.Duration
 }
@@ -57,7 +58,8 @@ func Token() Tokenconfig {
 	return Tokenconfig{
 		TokenSecret:        os.Getenv("TOKEN_SECRET"),
 		TokenExpiry:        GetEnvAsDuration("TOKEN_EXPIRY", 4),
-		RefreshTokenExpiry: GetEnvAsDuration("TOKEN_EXPIRY", 120),
+		RefreshTokenExpiry: GetEnvAsDuration("REFRESH_TOKEN_EXPIRY", 120),
+		Issuer:             os.Getenv("ISS"),
 	}
 }
 
