@@ -53,7 +53,7 @@ func Login(c *gin.Context) {
 
 	// Bind and validate request payload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		logger.Log("ERROR", LoginFailed+err.Error())
+		logger.Log("ERROR", PayloadError+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
@@ -200,7 +200,7 @@ func VerifyOTP(c *gin.Context) {
 	logger.Log("INFO", "Generating access token")
 
 	// Generate access token
-	access, err := utility.GenerateAccessToken(refresh, user.AccessType)
+	access, err := utility.GenerateAccessToken(refresh, c.ClientIP())
 	if err != nil {
 		logger.Log("ERROR", "Failed to generate access token for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
@@ -254,11 +254,11 @@ func VerifyOTP(c *gin.Context) {
 
 	// Calculate expiry times in seconds for cookie MaxAge
 	accessTokenExpiry := int(tokenCfg.TokenExpiry.Seconds())
-	refreshTokenExpiry := int(tokenCfg.RefreshTokenExpiry.Seconds()) // Assuming you have this config
+	refreshTokenExpiry := int(tokenCfg.RefreshTokenExpiry.Seconds())
 
 	// Set access token cookie using configuration
 	c.SetCookie(
-		access,                         // name
+		"access",                       // name
 		hashedAccess,                   // value
 		accessTokenExpiry,              // maxAge in seconds
 		CookieCfg.AccessToken.Path,     // path from config
@@ -269,7 +269,7 @@ func VerifyOTP(c *gin.Context) {
 
 	// Set refresh token cookie using configuration
 	c.SetCookie(
-		refresh,                         // name
+		"refresh",                       // name
 		hashedRefresh,                   // value
 		refreshTokenExpiry,              // maxAge in seconds
 		CookieCfg.RefreshToken.Path,     // path from config
@@ -289,4 +289,15 @@ func VerifyOTP(c *gin.Context) {
 			"expiry_time": strconv.Itoa(int(tokenCfg.TokenExpiry.Hours())) + " Hours",
 		},
 	})
+}
+
+func NewAccessToken(c *gin.Context) {
+
+	logger.Log("INFO", "Access token generation")
+	refreshCookie, err := c.Cookie("refresh")
+	if err != nil {
+		logger.Log("ERROR", "Cookie error: "+err.Error())
+	}
+	utility.GenerateAccessToken(refreshCookie, c.ClientIP())
+
 }
