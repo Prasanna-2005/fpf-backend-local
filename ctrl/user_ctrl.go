@@ -298,6 +298,9 @@ func NewAccessToken(c *gin.Context) {
 	if err != nil {
 		logger.Log("ERROR", "Cookie error: "+err.Error())
 	}
-	utility.GenerateAccessToken(refreshCookie, c.ClientIP())
+	access, err := utility.GenerateAccessToken(refreshCookie, c.ClientIP())
+	if err != nil {
+		logger.Log("ERROR", "access token generation error: "+err.Error())
+	}
 
 }
