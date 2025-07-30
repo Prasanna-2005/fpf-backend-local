@@ -50,15 +50,15 @@ func SMTP() SMTPconfig {
 func OTP() OTPconfig {
 	return OTPconfig{
 		SecretKey: os.Getenv("SECRET_KEY"),
-		OTPExpiry: GetEnvAsDuration("OTP_EXPIRY", 45*time.Second),
+		OTPExpiry: GetEnvAsDuration("OTP_EXPIRY", 100),
 		OTPLength: otp.Digits(GetEnvAsInt("OTP_LENGTH", 6)),
 	}
 }
 func Token() Tokenconfig {
 	return Tokenconfig{
 		TokenSecret:        os.Getenv("TOKEN_SECRET"),
-		TokenExpiry:        GetEnvAsDuration("TOKEN_EXPIRY", 4),
-		RefreshTokenExpiry: GetEnvAsDuration("REFRESH_TOKEN_EXPIRY", 120),
+		TokenExpiry:        GetEnvAsDuration("TOKEN_EXPIRY", 4*3600),
+		RefreshTokenExpiry: GetEnvAsDuration("REFRESH_TOKEN_EXPIRY", 120*60*60),
 		Issuer:             os.Getenv("ISS"),
 	}
 }
@@ -99,17 +99,26 @@ func Cookie() (*CookieConfig, error) {
 		},
 	}, nil
 }
-func GetEnvAsDuration(key string, defaultValue time.Duration) time.Duration {
+
+func GetEnvAsDuration(key string, defaultHours int) time.Duration {
 	val := os.Getenv(key)
 	if val == "" {
-		return defaultValue
+		return time.Duration(defaultHours) * time.Second
 	}
+
+	// Try parsing as duration first (e.g., "4h", "120h")
 	duration, err := time.ParseDuration(val)
-	if err != nil {
-		fmt.Printf("Error parsing %s as duration: %v\n", key, err)
-		return defaultValue
+	if err == nil {
+		return duration
 	}
-	return duration
+
+	// If that fails, try parsing as hours (e.g., "4", "120")
+	hours, err := strconv.Atoi(val)
+	if err != nil {
+		fmt.Printf("Error parsing %s as duration or hours: %v\n", key, err)
+		return time.Duration(defaultHours) * time.Second
+	}
+	return time.Duration(hours) * time.Second
 }
 
 func GetEnvAsInt(key string, defaultValue int) int {
