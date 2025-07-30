@@ -4,6 +4,7 @@ Package ctrl provides authentication controllers for user login and OTP verifica
 package ctrl
 
 import (
+	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/modules"
@@ -155,7 +156,7 @@ func VerifyOTP(c *gin.Context) {
 		UserId string `json:"user_id" binding:"required"`
 		Otp    string `json:"otp" binding:"required"`
 	}
-
+	tokenCfg := config.Token()
 	// Bind and validate request payload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		logger.Log("ERROR", "OTP verification failed: invalid payload - "+err.Error())
@@ -197,10 +198,20 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
+	logger.Log("INFO", "Hashing refresh token")
+
+	// Hash refresh token
+	hashedRefresh, err := utility.HashPassword(refresh, tokenCfg.TokenSecret)
+	if err != nil {
+		logger.Log("ERROR", "Failed to hash refresh token for user "+payload.UserId+": "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
+		return
+	}
+
 	logger.Log("INFO", "Generating access token")
 
 	// Generate access token
-	access, err := utility.GenerateAccessToken(refresh, c.ClientIP())
+	access, err := utility.GenerateAccessToken(hashedRefresh, c.ClientIP())
 	if err != nil {
 		logger.Log("ERROR", "Failed to generate access token for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
@@ -208,21 +219,11 @@ func VerifyOTP(c *gin.Context) {
 	}
 
 	logger.Log("INFO", "Hashing access token")
-	tokenCfg := config.Token()
+
 	// Hash access token
 	hashedAccess, err := utility.HashPassword(access, tokenCfg.TokenSecret)
 	if err != nil {
 		logger.Log("ERROR", "Failed to hash access token for user "+payload.UserId+": "+err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
-		return
-	}
-
-	logger.Log("INFO", "Hashing refresh token")
-
-	// Hash refresh token
-	hashedRefresh, err := utility.HashPassword(refresh, tokenCfg.TokenSecret)
-	if err != nil {
-		logger.Log("ERROR", "Failed to hash refresh token for user "+payload.UserId+": "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
 		return
 	}
@@ -257,6 +258,8 @@ func VerifyOTP(c *gin.Context) {
 	refreshTokenExpiry := int(tokenCfg.RefreshTokenExpiry.Seconds())
 
 	// Set access token cookie using configuration
+	fmt.Println(accessTokenExpiry)
+	fmt.Println(refreshTokenExpiry)
 	c.SetCookie(
 		"access",                       // name
 		hashedAccess,                   // value
@@ -303,6 +306,8 @@ func NewAccessToken(c *gin.Context) {
 	if err != nil {
 		logger.Log("ERROR", "Cookie error: "+err.Error())
 	}
+	fmt.Println(refreshCookie)
+
 	access, err := utility.GenerateAccessToken(refreshCookie, c.ClientIP())
 	if err != nil {
 		logger.Log("ERROR", "access token generation error: "+err.Error())
@@ -314,7 +319,12 @@ func NewAccessToken(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
 		return
 	}
-
+	CookieCfg, err = config.Cookie()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		logger.Log("ERROR", "Cookie error: "+err.Error())
+		return
+	}
 	c.SetCookie(
 		"access",                       // name
 		hashedAccess,                   // value
