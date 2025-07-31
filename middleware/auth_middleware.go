@@ -8,22 +8,24 @@ import (
 )
 
 var AuthError = "User not found / Invalid User session"
+var logger = utility.LoggerFunc()
 
-func Authenticate(context *gin.Context) {
-	token := c.Cookie("access")
+func Authenticate(c *gin.Context) {
+	token, err := c.Cookie("access")
 
-	if token == "" {
-		context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": AuthError})
+	if token == "" || err != nil {
+		logger.Log("Error", "Authenticate error: "+err.Error())
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": AuthError})
 		return
 	}
 
 	userId, err := utility.VerifyAccessToken(token)
 
 	if err != nil {
-		context.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": AuthError})
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": AuthError})
 		return
 	}
 
-	context.Set("userId", userId)
-	context.Next()
+	c.Set("userId", userId)
+	c.Next()
 }
