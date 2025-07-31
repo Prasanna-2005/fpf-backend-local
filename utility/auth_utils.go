@@ -365,6 +365,7 @@ func VerifyAccessToken(token string) (string, error) {
 		logger.Log("CRITICAL", "VerifyAccessToken: missing token secret in configuration")
 		return "", nil
 	}
+	decryptToken ,err:=
 
 	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
