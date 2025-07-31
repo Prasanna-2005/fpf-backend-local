@@ -288,7 +288,6 @@ func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 		logger.log("Error", "Decryption error:"+err.Error())
 	}
 	// Parse refresh token
-	fmt.Println(refresh)
 	token, err := jwt.Parse(refresh, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
