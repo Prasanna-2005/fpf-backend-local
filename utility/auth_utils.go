@@ -365,7 +365,11 @@ func VerifyAccessToken(token string) (string, error) {
 		logger.Log("CRITICAL", "VerifyAccessToken: missing token secret in configuration")
 		return "", nil
 	}
-	decryptToken ,err:=
+
+	token, err := DecryptToken(token, cfg.TokenSecret)
+	if err != nil {
+		logger.log("Error", "Decryption error:"+err.Error())
+	}
 
 	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -404,6 +408,18 @@ func VerifyAccessToken(token string) (string, error) {
 		return "", err
 	}
 
+	AccessType, ok := claims["AccessType"].(string)
+	if !ok {
+		logger.Log("ERROR", "VerifyAccessToken: token missing AccessType claim")
+		return "", err
+	}
+
+	email, ok := claims["email"].(string)
+	if !ok {
+		logger.Log("ERROR", "VerifyAccessToken: token missing userId claim")
+		return "", err
+	}
+
 	logger.Log("INFO", "VerifyAccessToken: successfully verified access token for user ")
-	return userId, err
+	return AccessType, userId, email, err
 }
