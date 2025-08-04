@@ -231,11 +231,16 @@ func GenerateRefreshToken(userId string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userId": userId,
-		"type":   "refresh",
-		"exp":    time.Now().Add(time.Duration(cfg.TokenExpiry.Hours())).Unix(), // 5 days
-		"iat":    time.Now().Unix(),
-		"email":  user.Email,
+		"userId":     userId,
+		"type":       "refresh",
+		"exp":        time.Now().Add(time.Duration(cfg.RefreshTokenExpiry)).Unix(), // 5 days
+		"iat":        time.Now().Unix(),
+		"email":      user.Email,
+		"role":       user.AccessType,
+		"jti":        user.JwtId,
+		"aud":        user.ClientCode,
+		"iss":        cfg.Issuer,
+		"AccessType": user.AccessType,
 	})
 
 	signedToken, err := token.SignedString([]byte(cfg.TokenSecret))
@@ -248,7 +253,7 @@ func GenerateRefreshToken(userId string) (string, error) {
 	return signedToken, nil
 }
 
-func GenerateAccessToken(refreshToken, accessType string) (string, error) {
+func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 	/*
 		GenerateAccessToken creates a JWT access token from a valid refresh token.
 
@@ -278,9 +283,12 @@ func GenerateAccessToken(refreshToken, accessType string) (string, error) {
 		logger.Log("CRITICAL", "GenerateAccessToken: missing token secret in configuration")
 		return "", nil
 	}
-
+	refresh, err := DecryptToken(refreshToken, cfg.TokenSecret)
+	if err != nil {
+		logger.log("Error", "Decryption error:"+err.Error())
+	}
 	// Parse refresh token
-	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(refresh, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -319,14 +327,27 @@ func GenerateAccessToken(refreshToken, accessType string) (string, error) {
 		return "", err
 	}
 
+	accessType, ok := claims["AccessType"].(string)
+	if !ok {
+		logger.Log("ERROR", "Access type is missing for refresh token!")
+	}
+
+	jti, ok := claims["jti"].(string)
+	if !ok {
+		logger.Log("ERROR", "Access type is missing for refresh token!")
+	}
 	// Generate access token
+
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"AccessType": accessType,
 		"type":       "access",
-		"exp":        time.Now().Add(time.Hour * 4).Unix(), // 4 hours
+		"exp":        time.Now().Add(cfg.TokenExpiry).Unix(), // 4 hours
 		"iat":        time.Now().Unix(),
+		"nbf":        time.Now().Unix(),
+		"ip":         clientIP,
 		"email":      email,
 		"userId":     userId,
+		"jti":        jti,
 	})
 
 	signedToken, err := accessToken.SignedString([]byte(cfg.TokenSecret))

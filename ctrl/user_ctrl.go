@@ -4,13 +4,13 @@ Package ctrl provides authentication controllers for user login and OTP verifica
 package ctrl
 
 import (
-	"net/http"
-	"strconv"
-
+	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/modules"
 	"form_pf_backend/utility"
+	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,6 +23,7 @@ const (
 	LoginFailed  = "Login failed: "
 )
 
+var CookieCfg *config.CookieConfig
 var logger = utility.LoggerFunc() // Initialize logger
 
 func Login(c *gin.Context) {
@@ -53,7 +54,7 @@ func Login(c *gin.Context) {
 
 	// Bind and validate request payload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		logger.Log("ERROR", LoginFailed+err.Error())
+		logger.Log("ERROR", PayloadError+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
@@ -133,7 +134,7 @@ func VerifyOTP(c *gin.Context) {
 	/*
 		VerifyOTP validates OTP and generates authentication tokens.
 
-		This function verifies the provided OTP and returns access/refresh tokens upon successful validation.
+		This function verifies the provided OTP and sets access/refresh tokens as HTTP cookies upon successful validation.
 
 		:param c: Gin context containing the HTTP request
 		:type c: *gin.Context
@@ -143,7 +144,7 @@ func VerifyOTP(c *gin.Context) {
 		  otp (string): One-time password to verify
 
 		Response:
-		  200: OTP verified, tokens generated
+		  200: OTP verified, tokens set as cookies
 		  400: Invalid request payload or user ID
 		  401: Invalid OTP
 		  500: Internal server error
@@ -155,7 +156,7 @@ func VerifyOTP(c *gin.Context) {
 		UserId string `json:"user_id" binding:"required"`
 		Otp    string `json:"otp" binding:"required"`
 	}
-
+	tokenCfg := config.Token()
 	// Bind and validate request payload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		logger.Log("ERROR", "OTP verification failed: invalid payload - "+err.Error())
@@ -197,26 +198,6 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
-	logger.Log("INFO", "Generating access token")
-
-	// Generate access token
-	access, err := utility.GenerateAccessToken(refresh, user.AccessType)
-	if err != nil {
-		logger.Log("ERROR", "Failed to generate access token for user "+payload.UserId+": "+err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
-		return
-	}
-
-	logger.Log("INFO", "Hashing access token")
-	tokenCfg := config.Token()
-	// Hash access token
-	hashedAccess, err := utility.HashPassword(access, tokenCfg.TokenSecret)
-	if err != nil {
-		logger.Log("ERROR", "Failed to hash access token for user "+payload.UserId+": "+err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
-		return
-	}
-
 	logger.Log("INFO", "Hashing refresh token")
 
 	// Hash refresh token
@@ -227,32 +208,139 @@ func VerifyOTP(c *gin.Context) {
 		return
 	}
 
+	logger.Log("INFO", "Generating access token")
+
+	// Generate access token
+	access, err := utility.GenerateAccessToken(hashedRefresh, c.ClientIP())
+	if err != nil {
+		logger.Log("ERROR", "Failed to generate access token for user "+payload.UserId+": "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
+		return
+	}
+
+	logger.Log("INFO", "Hashing access token")
+
+	// Hash access token
+	hashedAccess, err := utility.HashPassword(access, tokenCfg.TokenSecret)
+	if err != nil {
+		logger.Log("ERROR", "Failed to hash access token for user "+payload.UserId+": "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
+		return
+	}
+
 	logger.Log("INFO", "Updating user tokens and session")
 
 	// Update tokens and session
-	if err := db.UpdateToken(user, hashedAccess, hashedRefresh); err != nil {
-		logger.Log("ERROR", "Failed to update tokens for user "+payload.UserId+": "+err.Error())
+	// if err := db.UpdateToken(user, hashedAccess, hashedRefresh); err != nil {
+	// 	logger.Log("ERROR", "Failed to update tokens for user "+payload.UserId+": "+err.Error())
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+	// 	return
+	// }
+
+	if err := db.UpdateSession(user); err != nil {
+		logger.Log("ERROR", "Failed to update session for user "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
-	if err := db.UpdateSession(user); err != nil {
-		logger.Log("ERROR", "Failed to update session for user "+payload.UserId+": "+err.Error())
+	logger.Log("INFO", "Setting authentication cookies")
+
+	// Get cookie configuration
+	CookieCfg, err = config.Cookie()
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		logger.Log("ERROR", "Cookie error: "+err.Error())
 		return
 	}
+
+	// Calculate expiry times in seconds for cookie MaxAge
+	accessTokenExpiry := int(tokenCfg.TokenExpiry.Seconds())
+	refreshTokenExpiry := int(tokenCfg.RefreshTokenExpiry.Seconds())
+
+	// Set access token cookie using configuration
+	fmt.Println(accessTokenExpiry)
+	fmt.Println(refreshTokenExpiry)
+	c.SetCookie(
+		"access",                       // name
+		hashedAccess,                   // value
+		accessTokenExpiry,              // maxAge in seconds
+		CookieCfg.AccessToken.Path,     // path from config
+		CookieCfg.AccessToken.Domain,   // domain from config
+		CookieCfg.AccessToken.Secure,   // secure from config
+		CookieCfg.AccessToken.HTTPOnly, // httpOnly from config
+	)
+
+	// Set refresh token cookie using configuration
+	c.SetCookie(
+		"refresh",                       // name
+		hashedRefresh,                   // value
+		refreshTokenExpiry,              // maxAge in seconds
+		CookieCfg.RefreshToken.Path,     // path from config
+		CookieCfg.RefreshToken.Domain,   // domain from config
+		CookieCfg.RefreshToken.Secure,   // secure from config
+		CookieCfg.RefreshToken.HTTPOnly, // httpOnly from config
+	)
 
 	logger.Log("INFO", "Authentication completed successfully for user")
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP verification successful",
 		"response": gin.H{
-			"username":      user.UserName,
-			"user_id":       user.ID,
-			"role":          user.AccessType,
-			"refresh_token": hashedRefresh,
-			"access_token":  hashedAccess,
-			"expiry_time":   strconv.Itoa(int(tokenCfg.TokenExpiry.Hours())) + " Hours",
+			"username":    user.UserName,
+			"user_id":     user.ID,
+			"role":        user.AccessType,
+			"expiry_time": strconv.Itoa(int(tokenCfg.TokenExpiry.Hours())) + " Hours",
 		},
 	})
+}
+
+func NewAccessToken(c *gin.Context) {
+
+	var hashedAccess string
+
+	tokenCfg := config.Token()
+	accessTokenExpiry := int(tokenCfg.TokenExpiry.Seconds())
+
+	logger.Log("INFO", "Access token generation")
+	refreshCookie, err := c.Cookie("refresh")
+	if err != nil {
+		logger.Log("ERROR", "Cookie error: "+err.Error())
+	}
+	fmt.Println(refreshCookie)
+
+	access, err := utility.GenerateAccessToken(refreshCookie, c.ClientIP())
+	if err != nil {
+		logger.Log("ERROR", "access token generation error: "+err.Error())
+	}
+
+	hashedAccess, err = utility.HashPassword(access, tokenCfg.TokenSecret)
+	if err != nil {
+		logger.Log("ERROR", "Failed to hash access token for user "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
+		return
+	}
+	CookieCfg, err = config.Cookie()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		logger.Log("ERROR", "Cookie error: "+err.Error())
+		return
+	}
+	c.SetCookie(
+		"access",                       // name
+		hashedAccess,                   // value
+		accessTokenExpiry,              // maxAge in seconds
+		CookieCfg.AccessToken.Path,     // path from config
+		CookieCfg.AccessToken.Domain,   // domain from config
+		CookieCfg.AccessToken.Secure,   // secure from config
+		CookieCfg.AccessToken.HTTPOnly, // httpOnly from config
+	)
+
+	logger.Log("INFO", "Authentication completed successfully for user")
+
+	c.JSON(http.StatusOK, gin.H{
+		"response": gin.H{
+			"expiry_time": strconv.Itoa(int(tokenCfg.TokenExpiry.Hours())) + " Hours",
+		},
+	})
+
 }
