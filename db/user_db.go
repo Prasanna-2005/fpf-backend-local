@@ -65,3 +65,15 @@ func UpdateToken(user *models.User, access, refresh string) error {
 
 	return sqlDb.Create(&token).Error
 }
+
+func UpdateLogout(uid, logout_time string) error {
+	user, err := GetUser(uid)
+	if err != nil {
+		return err
+	}
+	var logout = models.Session{
+		UserID: uid,
+		jwtId:  user.jti,
+	}
+	return sqlDb.Update()
+}
