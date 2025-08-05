@@ -66,14 +66,22 @@ func UpdateToken(user *models.User, access, refresh string) error {
 	return sqlDb.Create(&token).Error
 }
 
-func UpdateLogout(uid, logout_time string) error {
+func UpdateLogout(uid, expiry string) error {
+	// 1. Parse the incoming string into UTC time
+	logoutTime, err := time.Parse(time.RFC3339, expiry)
+	if err != nil {
+		return err
+	}
+	logoutTime = logoutTime.UTC()
+
+	// 2. Get the user so we know the active JWT id
 	user, err := GetUser(uid)
 	if err != nil {
 		return err
 	}
-	var logout = models.Session{
-		UserID: uid,
-		jwtId:  user.jti,
-	}
-	return sqlDb.Update()
+
+	// 3. Update the session row in one GORM call
+	return sqlDb.Model(&models.Session{}).
+		Where("userId = ? AND jwtId = ?", uid, user.Jti).
+		Update("logoutTime", logoutTime).Error
 }
