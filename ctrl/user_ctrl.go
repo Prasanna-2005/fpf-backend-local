@@ -239,7 +239,7 @@ func VerifyOTP(c *gin.Context) {
 
 	if err := db.UpdateSession(user); err != nil {
 		logger.Log("ERROR", "Failed to update session for user "+err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		c.JSON(http.StatusAlreadyReported, gin.H{"message": ServerError})
 		return
 	}
 
@@ -261,7 +261,7 @@ func VerifyOTP(c *gin.Context) {
 	fmt.Println(accessTokenExpiry)
 	fmt.Println(refreshTokenExpiry)
 	c.SetCookie(
-		"access",                       // name
+		user.ID+"access",               // name
 		hashedAccess,                   // value
 		accessTokenExpiry,              // maxAge in seconds
 		CookieCfg.AccessToken.Path,     // path from config
@@ -272,7 +272,7 @@ func VerifyOTP(c *gin.Context) {
 
 	// Set refresh token cookie using configuration
 	c.SetCookie(
-		"refresh",                       // name
+		user.ID+"refresh",               // name
 		hashedRefresh,                   // value
 		refreshTokenExpiry,              // maxAge in seconds
 		CookieCfg.RefreshToken.Path,     // path from config
@@ -295,6 +295,14 @@ func VerifyOTP(c *gin.Context) {
 }
 
 func NewAccessToken(c *gin.Context) {
+	var payload struct {
+		UserId string `json:"user_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		logger.Log("ERROR", "New Access token generation error: "+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
 
 	var hashedAccess string
 
@@ -302,11 +310,13 @@ func NewAccessToken(c *gin.Context) {
 	accessTokenExpiry := int(tokenCfg.TokenExpiry.Seconds())
 
 	logger.Log("INFO", "Access token generation")
-	refreshCookie, err := c.Cookie("refresh")
+	refreshCookie, err := c.Cookie(payload.UserId + "refresh")
+	fmt.Println(payload.UserId + "refresh")
 	if err != nil {
 		logger.Log("ERROR", "Cookie error: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
+		return
 	}
-	fmt.Println(refreshCookie)
 
 	access, err := utility.GenerateAccessToken(refreshCookie, c.ClientIP())
 	if err != nil {
@@ -326,7 +336,7 @@ func NewAccessToken(c *gin.Context) {
 		return
 	}
 	c.SetCookie(
-		"access",                       // name
+		payload.UserId+"access",        // name
 		hashedAccess,                   // value
 		accessTokenExpiry,              // maxAge in seconds
 		CookieCfg.AccessToken.Path,     // path from config
@@ -355,5 +365,36 @@ func Logout(c *gin.Context) {
 		Logout_time string `json:"logout_time" binding:"required"`
 	}
 
-	db.UpdateLogout(payload.UserId, payload.Logout_time)
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		logger.Log("ERROR", "logout error: "+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+
+	// Logout in DB
+	err := db.UpdateLogout(payload.UserId, payload.Logout_time)
+	if err != nil {
+		logger.Log("ERROR", "Db error: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+
+	// Load cookie config for domain/path
+	CookieCfg, err := config.Cookie()
+	if err != nil {
+		logger.Log("ERROR", "Cookie config error: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+
+	// Clear access and refresh cookies
+	accessName := payload.UserId + "access"
+	refreshName := payload.UserId + "refresh"
+
+	// MaxAge < 0 means delete cookie now
+	c.SetCookie(accessName, "", -1, CookieCfg.AccessToken.Path, CookieCfg.AccessToken.Domain, CookieCfg.AccessToken.Secure, CookieCfg.AccessToken.HTTPOnly)
+	c.SetCookie(refreshName, "", -1, CookieCfg.RefreshToken.Path, CookieCfg.RefreshToken.Domain, CookieCfg.RefreshToken.Secure, CookieCfg.RefreshToken.HTTPOnly)
+
+	logger.Log("INFO", "User logged out and cookies cleared")
+	c.JSON(http.StatusOK, gin.H{"message": "Logged out successfully"})
 }
