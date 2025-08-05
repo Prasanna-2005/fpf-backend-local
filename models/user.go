@@ -12,7 +12,7 @@ type User struct {
 	AccessType string    `gorm:"column:accessType;not null"`
 	JwtId      string    `gorm:"column:jwtId;not null"`
 	ClientID   uint      `gorm:"column:clientId;not null"`
-	jti        string    `gorm:"column:jwtid;not null"`
+	Jti        string    `gorm:"column:jwtId;not null"`
 	CreatedAt  time.Time `gorm:"not null"`
 	UpdatedBy  string    `gorm:"column:updatedBy"`
 	UpdatedAt  time.Time
@@ -24,7 +24,7 @@ type Session struct {
 	ClientCode string    `gorm:"column:clientCode"`
 	LoginTime  time.Time `gorm:"column:loginTime"`
 	LogoutTime time.Time `gorm:"column:logoutTime;default:null"`
-	jti        string    `gorm:"column:jwtId;default:null "`
+	Jti        string    `gorm:"column:jwtId;default:null "`
 }
 
 type Token struct {
