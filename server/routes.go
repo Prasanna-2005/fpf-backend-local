@@ -47,6 +47,7 @@ func setupAuthRoutes(api *gin.RouterGroup) {
 	auth.POST("/resend_otp", ctrl.ResendOTP)
 	auth.POST("/change_password", ctrl.UpdatePasswd)
 	auth.POST("/logout", ctrl.Logout)
+	auth.POST("/access_token", ctrl.NewAccessToken)
 
 }
 

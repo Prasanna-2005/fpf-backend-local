@@ -10,6 +10,7 @@ type User struct {
 	Email      string    `gorm:"column:emailAddress;not null"`
 	Password   string    `gorm:"column:password;not null"`
 	AccessType string    `gorm:"column:accessType;not null"`
+	JwtId      string    `gorm:"column:jwtId;not null"`
 	ClientID   uint      `gorm:"column:clientId;not null"`
 	jti        string    `gorm:"column:jwtid;not null"`
 	CreatedAt  time.Time `gorm:"not null"`
