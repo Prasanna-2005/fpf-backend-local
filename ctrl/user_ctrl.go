@@ -256,3 +256,16 @@ func VerifyOTP(c *gin.Context) {
 		},
 	})
 }
+
+func UpdatePasswd(c *gin.Context) {
+
+}
+
+func Logout(c *gin.Context) {
+	var payload struct {
+		UserId      string `json:"user_id" binding:"required"`
+		logout_time string `json:"logout_time" binding:"required"`
+	}
+
+	db
+}
