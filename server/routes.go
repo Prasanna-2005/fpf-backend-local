@@ -4,6 +4,7 @@ package server
 import (
 	"form_pf_backend/config"
 	"form_pf_backend/ctrl"
+	"form_pf_backend/middleware"
 
 	"log"
 	"time"
@@ -37,6 +38,7 @@ func SetupRoutes(cfg *config.RouteConfig) *gin.Engine {
 func setupAPIRoutes(r *gin.Engine, version string) {
 	api := r.Group("/api/" + version)
 	setupAuthRoutes(api)
+	setupProfileRoutes(api)
 }
 
 // setupAuthRoutes configures authentication-related routes
@@ -45,11 +47,20 @@ func setupAuthRoutes(api *gin.RouterGroup) {
 	auth.POST("/login", ctrl.Login)
 	auth.POST("/verify_otp", ctrl.VerifyOTP)
 	auth.POST("/resend_otp", ctrl.ResendOTP)
-	auth.POST("/change_password", ctrl.UpdatePasswd)
 	auth.POST("/logout", ctrl.Logout)
 	auth.POST("/access_token", ctrl.NewAccessToken)
-
 }
+
+func setupProfileRoutes(api *gin.RouterGroup) {
+	prof := api.Group("/profile")
+	prof.Use(middleware.Authenticate(""))
+	prof.POST("/reset", ctrl.UpdatePasswd)
+}
+
+// func setupFileRoutes(api *gin.RouterGroup){
+// 	file:=api.Group("/files")
+// 	files.POST("")
+// }
 
 // SetupRoutesWithDefaults loads config from file and sets up routes with default configuration
 func SetupRoutesWithDefaults() *gin.Engine {
