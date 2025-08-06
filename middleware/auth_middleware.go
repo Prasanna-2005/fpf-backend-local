@@ -12,7 +12,7 @@ var AuthError = "User not found / Invalid User session"
 var Restriction = "Insufficient privellege.Contact admin"
 var logger = utility.LoggerFunc()
 
-func Authenticate(requiredRole, uid string) gin.HandlerFunc {
+func Authenticate(requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var cookieName string
 		for _, i := range c.Request.Cookies() {
