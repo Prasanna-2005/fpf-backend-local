@@ -75,6 +75,16 @@ type CookieSettings struct {
 	HTTPOnly bool
 }
 
+type BcryptCostSetting struct {
+	Cost int
+}
+
+func BcryptCost() BcryptCostSetting {
+	return BcryptCostSetting{
+		Cost: GetEnvAsInt("COST", 3),
+	}
+}
+
 func Cookie() (*CookieConfig, error) {
 	cfg, err := ini.Load("config/config.ini")
 	if err != nil {

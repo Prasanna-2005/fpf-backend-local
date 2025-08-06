@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -366,14 +367,20 @@ func UpdatePasswd(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
-
+	cost := config.BcryptCost()
 	user, err := db.GetUser(payload.UserId)
 	if err != nil {
 		logger.Log("ERROR", "user not found"+err.Error())
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect UserId"})
 		return
 	}
-	user.Password = payload.newPswd
+	hashedPswd, err := bcrypt.GenerateFromPassword([]byte(payload.newPswd), cost.Cost)
+	if err != nil {
+		logger.Log("Error", "passwd length error: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Reset Password again"})
+		return
+	}
+	user.Password = string(hashedPswd)
 	err = db.UpdatePasswd(user)
 	if err != nil {
 		logger.Log("ERROR", "Password update failed"+err.Error())
