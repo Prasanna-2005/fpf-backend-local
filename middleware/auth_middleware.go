@@ -3,6 +3,7 @@ package middleware
 import (
 	"form_pf_backend/utility"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -11,9 +12,20 @@ var AuthError = "User not found / Invalid User session"
 var Restriction = "Insufficient privellege.Contact admin"
 var logger = utility.LoggerFunc()
 
-func Authenticate(requiredRole string) gin.HandlerFunc {
+func Authenticate(requiredRole, uid string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token, err := c.Cookie("access")
+		var cookieName string
+		for _, i := range c.Request.Cookies() {
+			if strings.HasSuffix(i.Name, "access") {
+				cookieName = i.Name + "access"
+				break
+			}
+		}
+		if cookieName == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "access cookie not found"})
+			return
+		}
+		token, err := c.Cookie(cookieName)
 		if token == "" || err != nil {
 			logger.Log("Error", "Authenticate error: "+err.Error())
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": AuthError})
