@@ -53,26 +53,6 @@ func UpdateSession(user *models.User) error {
 
 }
 
-// func UpdateLogout(uid, expiry string) error {
-// 	// 1. Parse the incoming string into UTC time
-// 	logoutTime, err := time.Parse(time.RFC3339, expiry)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	logoutTime = logoutTime.UTC()
-
-// 	// 2. Get the user so we know the active JWT id
-// 	user, err := GetUser(uid)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	// 3. Update the session row
-// 	return sqlDb.Model(&models.Session{}).
-// 		Where("userId = ? AND jwtId = ?", uid, user.Jti).
-// 		Update("logoutTime", logoutTime).Error
-// }
-
 func UpdateLogout(uid, expiry string) error {
 	// 1. Parse the incoming string into UTC time
 	logoutTime, err := time.Parse(time.RFC3339, expiry)
@@ -104,4 +84,8 @@ func UpdateLogout(uid, expiry string) error {
 	// return sqlDb.Model(&models.User{}).
 	// 	Where("id = ?", uid).
 	// 	Update("jwtId").Error
+}
+
+func UpdatePasswd(user *models.User) error {
+	return sqlDb.Save(&user).Error
 }

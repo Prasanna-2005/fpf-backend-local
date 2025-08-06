@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	ServerError  = "Internal server error"
+	ServerError  = "Internal Sever Error. Please reach out to your admin"
 	PayloadError = "Invalid request payload"
 	AuthError    = "User not found"
 	InvalidOTP   = "Invalid OTP"
@@ -356,7 +356,31 @@ func NewAccessToken(c *gin.Context) {
 }
 
 func UpdatePasswd(c *gin.Context) {
+	var payload struct {
+		UserId  string `json:"user_id" binding:"required"`
+		newPswd string `json:"new_password" binding:"required"`
+	}
 
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		logger.Log("ERROR", PayloadError+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+
+	user, err := db.GetUser(payload.UserId)
+	if err != nil {
+		logger.Log("ERROR", "user not found"+err.Error())
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect UserId"})
+		return
+	}
+	user.Password = payload.newPswd
+	err = db.UpdatePasswd(user)
+	if err != nil {
+		logger.Log("ERROR", "Password update failed"+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Password reset successful"})
 }
 
 func Logout(c *gin.Context) {
