@@ -72,7 +72,38 @@ func NewUser(c *gin.Context) {
 }
 
 func GetUsers(c *gin.Context) {
+	usersPtr, err := db.GetAllUser()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"message": ServerError,
+		})
+		return
+	}
 
+	//  success payload
+	type respUser struct {
+		UserId    string    `json:"user_id"`
+		Username  string    `json:"username"`
+		Role      string    `json:"role"`
+		Email     string    `json:"email"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		UpdatedBy string    `json:"updated_by"`
+	}
+	var list []respUser
+	for _, u := range *usersPtr {
+		list = append(list, respUser{
+			UserId:    u.ID,
+			Username:  u.UserName,
+			Role:      u.AccessType,
+			Email:     u.Email,
+			CreatedAt: u.CreatedAt,
+			UpdatedAt: u.UpdatedAt,
+			UpdatedBy: u.UpdatedBy,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"users": list})
 }
 
 func DeleteUser(c *gin.Context) {
