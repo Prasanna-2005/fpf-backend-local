@@ -61,9 +61,9 @@ func setupProfileRoutes(api *gin.RouterGroup) {
 func setupAdminRoutes(api *gin.RouterGroup) {
 	admin := api.Group("/admin")
 	admin.Use(middleware.Authenticate("admin"))
-	admin.GET("/users")
-	admin.POST("/create_user")
-	admin.DELETE("delete_user")
+	admin.GET("/users", ctrl.GetUsers)
+	admin.POST("/create_user", ctrl.NewUser)
+	admin.DELETE("delete_user", ctrl.DeleteUser)
 
 }
 
