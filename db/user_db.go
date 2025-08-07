@@ -111,3 +111,11 @@ func GetUserEmail(email string) (bool, error) {
 	}
 	return false, nil
 }
+
+func GetAllUser() (*[]models.User, error) {
+	var users []models.User
+	err := sqlDb.Model(&models.User{}).
+		Select("id", "userName", "emailAddress", "accessType", "clientId", "createdAt", "updatedAt", "updatedBy").
+		Find(&users).Error
+	return &users, err
+}
