@@ -89,3 +89,25 @@ func UpdateLogout(uid, expiry string) error {
 func UpdatePasswd(user *models.User) error {
 	return sqlDb.Save(&user).Error
 }
+
+func CreateUser(user *models.User) (string, error) {
+	if err := sqlDb.Create(&user).Error; err != nil {
+		return "", err
+	}
+	return user.ID, nil
+}
+
+func GetUserEmail(email string) (bool, error) {
+	var exists bool
+	err := sqlDb.Model(&models.User{}).
+		Select("count(*) > 0").
+		Where("email = ?", email).
+		Find(&exists).Error
+	if err != nil {
+		return false, err // DB failure
+	}
+	if exists {
+		return true, nil
+	}
+	return false, nil
+}
