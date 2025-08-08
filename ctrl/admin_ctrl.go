@@ -107,5 +107,17 @@ func GetUsers(c *gin.Context) {
 }
 
 func DeleteUser(c *gin.Context) {
+	userID := c.Param("user_id") // grab the path variable
+	if userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "user_id missing"})
+		return
+	}
 
+	if err := db.RemoveUser(userID); err != nil {
+		logger.Log("ERROR", "DeleteUser: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "could not delete user"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "user deleted"})
 }
