@@ -333,9 +333,9 @@ func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 		logger.Log("ERROR", "Access type is missing for refresh token!")
 	}
 
-	jti, ok := claims["jti"].(string)
+	jti, ok := claims["jti"]
 	if !ok {
-		logger.Log("ERROR", "Access type is missing for refresh token!")
+		logger.Log("ERROR", "JWT id is missing for refresh token!")
 	}
 	// Generate access token
 
