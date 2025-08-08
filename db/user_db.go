@@ -119,3 +119,7 @@ func GetAllUser() (*[]models.User, error) {
 		Find(&users).Error
 	return &users, err
 }
+
+func RemoveUser(uid string) {
+
+}
