@@ -101,7 +101,7 @@ func GetUserEmail(email string) (bool, error) {
 	var exists bool
 	err := sqlDb.Model(&models.User{}).
 		Select("count(*) > 0").
-		Where("email = ?", email).
+		Where("emailAddress = ?", email).
 		Find(&exists).Error
 	if err != nil {
 		return false, err // DB failure
@@ -120,6 +120,20 @@ func GetAllUser() (*[]models.User, error) {
 	return &users, err
 }
 
-func RemoveUser(uid string) {
+func RemoveUser(uid string) error {
+	// 1. fetch the user row
+	var u models.User
+	if err := sqlDb.First(&u, "id = ?", uid).Error; err != nil {
+		return err
+	}
 
+	// 2. update filing_tracker rows: copy createdBy (int) -> userName (varchar)
+	if err := sqlDb.Model(&models.FilingTracker{}).
+		Where("created_by = ?", uid).
+		Update("user_name", u.UserName+"(deleted)").Error; err != nil {
+		return err
+	}
+
+	// 3. delete the user (which cascades to session_logs & filing_tracker)
+	return sqlDb.Delete(&models.User{}, "id = ?", uid).Error
 }
