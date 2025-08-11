@@ -1,11 +1,12 @@
 package ctrl
 
 import (
-	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"form_pf_backend/utility"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,12 @@ func NewUser(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
+
+	if err := utility.ValidateUser(req.Data.Username, req.Data.Email); err != nil {
+		logger.Log("WARNING", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
 	email, err := db.GetUserEmail(req.Data.Email)
 	if email {
 		logger.Log("WARNING", "User already exist: ")
@@ -48,12 +55,19 @@ func NewUser(c *gin.Context) {
 	)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to hash password"})
 		return
 	}
 	role, _ := c.Get("role")
-	cid, _ := c.Get("clientId")
-	fmt.Println(cid)
+
+	cid, err := strconv.Atoi(req.ClientCode)
+	if err != nil {
+		logger.Log("ERROR", "Client id parsing error: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	jti := int(time.Now().Unix())
+
 	user := models.User{
 		UserName:   req.Data.Username,
 		Password:   string(hashedPasswd),
@@ -61,7 +75,8 @@ func NewUser(c *gin.Context) {
 		AccessType: req.Data.UserRole,
 		CreatedAt:  time.Now().UTC(),
 		UpdatedBy:  role.(string),
-		ClientID:   cid.(int),
+		ClientID:   cid,
+		Jti:        jti,
 	}
 
 	uid, err := db.CreateUser(&user)
