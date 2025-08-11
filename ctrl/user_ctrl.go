@@ -22,6 +22,7 @@ const (
 	AuthError    = "User not found"
 	InvalidOTP   = "Invalid OTP"
 	LoginFailed  = "Login failed: "
+	CookieError  = "Cookie error: "
 )
 
 var CookieCfg *config.CookieConfig
@@ -250,7 +251,7 @@ func VerifyOTP(c *gin.Context) {
 	CookieCfg, err = config.Cookie()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
-		logger.Log("ERROR", "Cookie error: "+err.Error())
+		logger.Log("ERROR", CookieError+err.Error())
 		return
 	}
 
@@ -314,7 +315,7 @@ func NewAccessToken(c *gin.Context) {
 	refreshCookie, err := c.Cookie(payload.UserId + "refresh")
 	fmt.Println(payload.UserId + "refresh")
 	if err != nil {
-		logger.Log("ERROR", "Cookie error: "+err.Error())
+		logger.Log("ERROR", CookieError+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": AuthError})
 		return
 	}
@@ -333,7 +334,7 @@ func NewAccessToken(c *gin.Context) {
 	CookieCfg, err = config.Cookie()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
-		logger.Log("ERROR", "Cookie error: "+err.Error())
+		logger.Log("ERROR", CookieError+err.Error())
 		return
 	}
 	c.SetCookie(
@@ -359,7 +360,7 @@ func NewAccessToken(c *gin.Context) {
 func UpdatePasswd(c *gin.Context) {
 	var payload struct {
 		UserId  string `json:"user_id" binding:"required"`
-		newPswd string `json:"new_password" binding:"required"`
+		NewPswd string `json:"new_password" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
@@ -374,7 +375,7 @@ func UpdatePasswd(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect UserId"})
 		return
 	}
-	hashedPswd, err := bcrypt.GenerateFromPassword([]byte(payload.newPswd), cost.Cost)
+	hashedPswd, err := bcrypt.GenerateFromPassword([]byte(payload.NewPswd), cost.Cost)
 	if err != nil {
 		logger.Log("Error", "passwd length error: "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Reset Password again"})

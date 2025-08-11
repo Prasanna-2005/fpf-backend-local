@@ -2,10 +2,8 @@ package middleware
 
 import (
 	"errors"
-	"fmt"
 	"form_pf_backend/utility"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,47 +20,57 @@ func Authenticate(requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		uid, err := ExtractUserID(c)
 		if err != nil {
-			logger.Log("WARNING", "Payload doesn't have user id: "+err.Error())
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"message": UidError})
+			abortWithMsg(c, http.StatusBadRequest, UidError, "Payload doesn't have user id: "+err.Error())
 			return
 		}
-		var cookieName = uid + "access"
-		for _, i := range c.Request.Cookies() {
-			if strings.Compare(cookieName, i.Name) == 0 {
-				cookieName = i.Name
-				break
-			}
-		}
-		if cookieName == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "access cookie not found"})
-			return
-		}
-		token, err := c.Cookie(cookieName)
-		if token == "" || err != nil {
-			logger.Log("ERROR", "Authenticate error: "+err.Error()+cookieName)
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": AuthError})
-			return
+
+		token, ok := findAccessToken(c, uid)
+		if !ok {
+			return // already aborted inside helper
 		}
 
 		claims, err := utility.VerifyAccessToken(token)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": AuthError})
+			abortWithMsg(c, http.StatusUnauthorized, AuthError, "")
 			return
 		}
 
-		userID := claims.ID
-		role := claims.AccessType
-		fmt.Println(role)
-		if requiredRole != "" && role != requiredRole {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": Restriction})
+		if !roleAllowed(claims.AccessType, requiredRole) {
+			abortWithMsg(c, http.StatusForbidden, Restriction, "")
 			return
 		}
 
-		c.Set("userId", userID)
-		c.Set("role", role)
-
+		c.Set("userId", claims.ID)
+		c.Set("role", claims.AccessType)
+		c.Set("clientId", claims.ClientID)
 		c.Next()
 	}
+}
+
+/* ---------- helpers ---------- */
+func abortWithMsg(c *gin.Context, code int, msg, logMsg string) {
+	if logMsg != "" {
+		logger.Log("WARNING", logMsg)
+	}
+	c.AbortWithStatusJSON(code, gin.H{"message": msg})
+}
+
+func findAccessToken(c *gin.Context, uid string) (string, bool) {
+	cookieName := uid + "access"
+	if _, err := c.Cookie(cookieName); err != nil {
+		abortWithMsg(c, http.StatusUnauthorized, "access cookie not found", "")
+		return "", false
+	}
+	token, _ := c.Cookie(cookieName) // err already checked above
+	if token == "" {
+		abortWithMsg(c, http.StatusUnauthorized, AuthError, "")
+		return "", false
+	}
+	return token, true
+}
+
+func roleAllowed(userRole, required string) bool {
+	return required == "" || userRole == required
 }
 
 // Returns the user_id (string) or an error.
