@@ -39,7 +39,7 @@ func Authenticate(requiredRole string) gin.HandlerFunc {
 		}
 		token, err := c.Cookie(cookieName)
 		if token == "" || err != nil {
-			logger.Log("ERROR", "Authenticate error: "+err.Error()+cookieName)
+			logger.Log("WARNING", "Authenticate error: "+err.Error()+cookieName)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": AuthError})
 			return
 		}
@@ -52,6 +52,7 @@ func Authenticate(requiredRole string) gin.HandlerFunc {
 
 		userID := claims.ID
 		role := claims.AccessType
+		clientId := claims.ClientID
 		fmt.Println(role)
 		if requiredRole != "" && role != requiredRole {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": Restriction})
@@ -60,6 +61,7 @@ func Authenticate(requiredRole string) gin.HandlerFunc {
 
 		c.Set("userId", userID)
 		c.Set("role", role)
+		c.Set("clientId", clientId)
 
 		c.Next()
 	}
