@@ -1,6 +1,7 @@
 package ctrl
 
 import (
+	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
@@ -15,14 +16,11 @@ const UserExist = "User already exists"
 
 type NewUserRequest struct {
 	Data struct {
-		Username  string `json:"username" binding:"required"`
-		Password  string `json:"password" binding:"required"`
-		UserRole  string `json:"user_role" binding:"required"`
-		CreatedAt string `json:"created_at"`
-		Email     string
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+		UserRole string `json:"user_role" binding:"required"`
+		Email    string
 	} `json:"data"`
-	Role       string `json:"role"`
-	AdminID    string `json:"admin_id"`
 	ClientCode string `json:"client_code"`
 }
 
@@ -33,9 +31,13 @@ func NewUser(c *gin.Context) {
 		return
 	}
 	email, err := db.GetUserEmail(req.Data.Email)
-	if err != nil || !email {
-		logger.Log("WARNING", "User already exist")
+	if email {
+		logger.Log("WARNING", "User already exist: ")
 		c.JSON(http.StatusBadRequest, gin.H{"message": UserExist})
+		return
+	}
+	if err != nil {
+		logger.Log("ERROR", "email Fetch error:"+err.Error())
 	}
 
 	// Hash the password
@@ -49,14 +51,17 @@ func NewUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
 		return
 	}
-
+	role, _ := c.Get("role")
+	cid, _ := c.Get("clientId")
+	fmt.Println(cid)
 	user := models.User{
 		UserName:   req.Data.Username,
 		Password:   string(hashedPasswd),
 		Email:      req.Data.Email,
-		AccessType: req.Role,
+		AccessType: req.Data.UserRole,
 		CreatedAt:  time.Now().UTC(),
-		UpdatedBy:  "admin",
+		UpdatedBy:  role.(string),
+		ClientID:   cid.(int),
 	}
 
 	uid, err := db.CreateUser(&user)
