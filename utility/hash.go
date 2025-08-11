@@ -105,7 +105,7 @@ func CheckPasswordHash(hashedPassword, secretKey string) (string, error) {
 	logger.Log("INFO", "Decoding base64 hashed password")
 	data, err := base64.StdEncoding.DecodeString(hashedPassword)
 	if err != nil {
-		logger.Log("ERROR", fmt.Sprintf("Failed to decode base64 hash: %v"))
+		logger.Log("ERROR", fmt.Sprintf("Failed to decode base64 hash: %v", err.Error()))
 		return "", err
 	}
 
@@ -154,33 +154,33 @@ func DecryptToken(encryptedToken, secretKey string) (string, error) {
 
 	cipherData, err := base64.StdEncoding.DecodeString(encryptedToken)
 	if err != nil {
-		logger.Log("Error", "decode error"+err.Error())
+		logger.Log("ERROR", "decode error"+err.Error())
 		return "", err
 	}
 
 	keyHash := sha256.Sum256([]byte(secretKey))
 	block, err := aes.NewCipher(keyHash[:])
 	if err != nil {
-		logger.Log("Error", "Cipher error"+err.Error())
+		logger.Log("ERROR", "Cipher error"+err.Error())
 		return "", err
 	}
 
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
-		logger.Log("Error", "GCM error"+err.Error())
+		logger.Log("ERROR", "GCM error"+err.Error())
 		return "", err
 	}
 
 	nonceSize := gcm.NonceSize()
 	if len(cipherData) < nonceSize {
-		logger.Log("Error", "Nonce error"+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("Nonce error: %v", err))
 		return "", errors.New("ciphertext too short")
 	}
 
 	nonce, ciphertext := cipherData[:nonceSize], cipherData[nonceSize:]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		logger.Log("Error", "decryption error"+err.Error())
+		logger.Log("ERROR", "decryption error"+err.Error())
 		return "", err
 	}
 

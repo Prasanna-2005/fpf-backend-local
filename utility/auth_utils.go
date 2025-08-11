@@ -342,7 +342,7 @@ func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 	if !ok {
 		logger.Log("ERROR", "client id not present in refresh token")
 	}
-	fmt.Printf("cid: %d", cid)
+
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"AccessType": accessType,
 		"type":       "access",

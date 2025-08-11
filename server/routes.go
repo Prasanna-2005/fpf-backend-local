@@ -63,7 +63,7 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 	admin.Use(middleware.Authenticate("admin"))
 	admin.GET("/users", ctrl.GetUsers)
 	admin.POST("/create_user", ctrl.NewUser)
-	admin.DELETE("/delete_user/:user_id", ctrl.DeleteUser)
+	// admin.DELETE("/delete_user/:user_id", ctrl.DeleteUser)
 
 }
 

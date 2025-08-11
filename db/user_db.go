@@ -10,7 +10,10 @@ import (
 )
 
 // var logger = utility.LoggerFunc()
-var DbError = "Internal server error: "
+const (
+	DbError = "Internal server error: "
+	idQuery = "id = ?"
+)
 
 func ValidateCredentials(name, password string) (models.User, error) {
 	var u models.User
@@ -31,7 +34,7 @@ func GetUser(userId string) (*models.User, error) {
 
 	var user models.User
 	// Correct the Where clause and pass the userId as a separate argument
-	if err := sqlDb.Where("id = ?", userId).First(&user).Error; err != nil {
+	if err := sqlDb.Where(idQuery, userId).First(&user).Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return nil, fmt.Errorf("record not found")
 		}
@@ -123,7 +126,7 @@ func GetAllUser() (*[]models.User, error) {
 func RemoveUser(uid string) error {
 	// 1. fetch the user row
 	var u models.User
-	if err := sqlDb.First(&u, "id = ?", uid).Error; err != nil {
+	if err := sqlDb.First(&u, idQuery, uid).Error; err != nil {
 		return err
 	}
 
