@@ -39,12 +39,12 @@ func NewUser(c *gin.Context) {
 	}
 	email, err := db.GetUserEmail(req.Data.Email)
 	if email {
-		logger.Log("WARNING", "User already exist: ")
+		logger.Log("WARNING", UserExist)
 		c.JSON(http.StatusBadRequest, gin.H{"message": UserExist})
 		return
 	}
 	if err != nil {
-		logger.Log("ERROR", "email Fetch error:"+err.Error())
+		logger.Log("ERROR", "DB error: "+err.Error())
 	}
 
 	// Hash the password
@@ -55,7 +55,8 @@ func NewUser(c *gin.Context) {
 	)
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "failed to hash password"})
+		logger.Log("ERROR", "Password hashing failed: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 	role, _ := c.Get("role")
@@ -126,18 +127,18 @@ func GetUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": list})
 }
 
-func DeleteUser(c *gin.Context) {
-	userID := c.Param("user_id") // grab the path variable
-	if userID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "user_id missing"})
-		return
-	}
+// func DeleteUser(c *gin.Context) {
+// 	userID := c.Param("user_id") // grab the path variable
+// 	if userID == "" {
+// 		c.JSON(http.StatusBadRequest, gin.H{"message": "user_id missing"})
+// 		return
+// 	}
 
-	if err := db.RemoveUser(userID); err != nil {
-		logger.Log("ERROR", "DeleteUser: "+err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "could not delete user"})
-		return
-	}
+// 	if err := db.RemoveUser(userID); err != nil {
+// 		logger.Log("ERROR", "DeleteUser: "+err.Error())
+// 		c.JSON(http.StatusInternalServerError, gin.H{"message": "could not delete user"})
+// 		return
+// 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "user deleted"})
-}
+// 	c.JSON(http.StatusOK, gin.H{"message": "user deleted"})
+// }
