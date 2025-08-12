@@ -173,7 +173,7 @@ func DecryptToken(encryptedToken, secretKey string) (string, error) {
 
 	nonceSize := gcm.NonceSize()
 	if len(cipherData) < nonceSize {
-		logger.Log("ERROR", fmt.Sprintf("Nonce error: %v", err))
+		logger.Log("ERROR", "Nonce error:Cipher data length less than noncesize")
 		return "", errors.New("ciphertext too short")
 	}
 

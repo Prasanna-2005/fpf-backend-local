@@ -230,7 +230,6 @@ func GenerateRefreshToken(userId string) (string, error) {
 		logger.Log("ERROR", "GenerateRefreshToken: failed to get user  from database: "+err.Error())
 		return "", err
 	}
-	fmt.Printf("clientID: %d", user.ClientID)
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userId":     userId,
 		"type":       "refresh",
@@ -363,7 +362,6 @@ func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 	}
 
 	logger.Log("INFO", "GenerateAccessToken: successfully generated access token for user "+userId)
-	fmt.Println(userId)
 	return signedToken, err
 
 }
@@ -460,6 +458,6 @@ func VerifyAccessToken(token string) (models.User, error) {
 	}
 
 	logger.Log("INFO", "VerifyAccessToken: successfully verified access token for user ")
-	fmt.Println(user.ID)
+
 	return user, nil
 }
