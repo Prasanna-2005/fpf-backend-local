@@ -9,6 +9,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// var logger = utility.LoggerFunc()
 var DbError = "Internal server error: "
 
 func ValidateCredentials(name, password string) (models.User, error) {
@@ -42,26 +43,49 @@ func GetUser(userId string) (*models.User, error) {
 func UpdateSession(user *models.User) error {
 
 	var session = models.Session{
-		UserID:     user.ID,
-		ClientCode: user.ClientCode,
-		LoginTime:  time.Now(),
-		// ID is omitted - GORM will auto-generate it
+		UserID:    user.ID,
+		ClientID:  user.ClientID,
+		LoginTime: time.Now().UTC(),
+		Jti:       user.Jti,
 	}
 
 	return sqlDb.Create(&session).Error
 
 }
 
-func UpdateToken(user *models.User, access, refresh string) error {
+func UpdateLogout(uid, expiry string) error {
+	// 1. Parse the incoming string into UTC time
+	logoutTime, err := time.Parse(time.RFC3339, expiry)
+	if err != nil {
+		// logger.Log("ERROR", "logout parsing error: "+err.Error())
+		fmt.Print("parse: " + err.Error())
+		return err
+	}
+	logoutTime = logoutTime.UTC()
 
-	var token = models.Token{
-		UserID:       user.ID,
-		ClientCode:   user.ClientCode,
-		AccessToken:  access,
-		RefreshToken: refresh,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
+	// 2. Get the user so we know the active JWT id
+	user, err := GetUser(uid)
+	if err != nil {
+		// logger.Log("ERROR", "User not found: "+err.Error())
+		fmt.Println("uid error: " + err.Error())
+		return err
 	}
 
-	return sqlDb.Create(&token).Error
+	// 3. Update the session row
+	if err := sqlDb.Model(&models.Session{}).
+		Where("userId = ? AND jwtId = ?", uid, user.Jti).
+		Update("logoutTime", logoutTime).Error; err != nil {
+		return err
+	}
+
+	// 4. Increment JTI in users table
+	user.Jti += 1
+	return sqlDb.Save(&user).Error
+	// return sqlDb.Model(&models.User{}).
+	// 	Where("id = ?", uid).
+	// 	Update("jwtId").Error
+}
+
+func UpdatePasswd(user *models.User) error {
+	return sqlDb.Save(&user).Error
 }

@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
+	"form_pf_backend/models"
 	"net/smtp"
 	"os"
 	"strings"
@@ -237,8 +238,8 @@ func GenerateRefreshToken(userId string) (string, error) {
 		"iat":        time.Now().Unix(),
 		"email":      user.Email,
 		"role":       user.AccessType,
-		"jti":        user.JwtId,
-		"aud":        user.ClientCode,
+		"jti":        user.Jti,
+		"aud":        user.ID,
 		"iss":        cfg.Issuer,
 		"AccessType": user.AccessType,
 	})
@@ -332,9 +333,9 @@ func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 		logger.Log("ERROR", "Access type is missing for refresh token!")
 	}
 
-	jti, ok := claims["jti"].(string)
+	jti, ok := claims["jti"]
 	if !ok {
-		logger.Log("ERROR", "Access type is missing for refresh token!")
+		logger.Log("ERROR", "JWT id is missing for refresh token!")
 	}
 	// Generate access token
 
@@ -357,10 +358,12 @@ func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 	}
 
 	logger.Log("INFO", "GenerateAccessToken: successfully generated access token for user "+userId)
+	fmt.Println(userId)
 	return signedToken, err
+
 }
 
-func VerifyAccessToken(token string) (string, error) {
+func VerifyAccessToken(token string) (models.User, error) {
 	/*
 		VerifyAccessToken validates a JWT access token and extracts the user ID.
 
@@ -384,7 +387,12 @@ func VerifyAccessToken(token string) (string, error) {
 	cfg := config.Token()
 	if cfg.TokenSecret == "" {
 		logger.Log("CRITICAL", "VerifyAccessToken: missing token secret in configuration")
-		return "", nil
+		return models.User{}, nil
+	}
+
+	token, err := DecryptToken(token, cfg.TokenSecret)
+	if err != nil {
+		logger.log("Error", "Decryption error:"+err.Error())
 	}
 
 	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
@@ -396,34 +404,52 @@ func VerifyAccessToken(token string) (string, error) {
 
 	if err != nil {
 		logger.Log("ERROR", "VerifyAccessToken: failed to parse token - "+err.Error())
-		return "", err
+		return models.User{}, err
 	}
 
 	if !parsedToken.Valid {
 		logger.Log("ERROR", "VerifyAccessToken: token is invalid")
-		return "", err
+		return models.User{}, err
 	}
 
 	claims, ok := parsedToken.Claims.(jwt.MapClaims)
 	if !ok {
 		logger.Log("ERROR", "VerifyAccessToken: invalid token claims")
-		return "", err
+		return models.User{}, err
 	}
 
 	// Check if it's an access token
 	tokenType, ok := claims["type"].(string)
 	if !ok || tokenType != "access" {
 		logger.Log("ERROR", "VerifyAccessToken: provided token is not an access token")
-		return "", err
+		return models.User{}, err
 	}
 
 	// Get userId from claims
 	userId, ok := claims["userId"].(string)
 	if !ok {
 		logger.Log("ERROR", "VerifyAccessToken: token missing userId claim")
-		return "", err
+		return models.User{}, err
+	}
+
+	AccessType, ok := claims["AccessType"].(string)
+	if !ok {
+		logger.Log("ERROR", "VerifyAccessToken: token missing AccessType claim")
+		return models.User{}, err
+	}
+
+	email, ok := claims["email"].(string)
+	if !ok {
+		logger.Log("ERROR", "VerifyAccessToken: token missing userId claim")
+		return models.User{}, err
+	}
+	user := models.User{
+		ID:         userId,
+		AccessType: AccessType,
+		Email:      email,
 	}
 
 	logger.Log("INFO", "VerifyAccessToken: successfully verified access token for user ")
-	return userId, err
+	fmt.Println(user.ID)
+	return user, nil
 }
