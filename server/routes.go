@@ -58,6 +58,12 @@ func setupProfileRoutes(api *gin.RouterGroup) {
 	prof.POST("/reset", ctrl.UpdatePasswd)
 }
 
+func setupFundRoutes(api *gin.RouterGroup) {
+	fund := api.Group("/fund")
+	fund.Use(middleware.Authenticate(""))
+	fund.GET("/fund_details", ctrl.GetFunds)
+}
+
 func setupAdminRoutes(api *gin.RouterGroup) {
 	admin := api.Group("/admin")
 	admin.Use(middleware.Authenticate("admin"))
