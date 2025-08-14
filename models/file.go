@@ -10,7 +10,7 @@ type FilingTracker struct {
 	IsSubmitted bool      `gorm:"not null;column:isSubmitted"`
 	IsDeleted   bool      `gorm:"not null;column:isDeleted"`
 	CreatedAt   time.Time `gorm:"not null;column:createdAt"`
-	CreatedBy   iint      `gorm:"not null;column:createdBy"`
+	CreatedBy   int       `gorm:"not null;column:createdBy"`
 	UpdatedAt   time.Time `gorm:"column:updatedAt"`
 	UpdatedBy   int       `gorm:"column:updatedBy"`
 }
