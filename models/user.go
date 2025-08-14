@@ -29,21 +29,3 @@ type Session struct {
 func (Session) TableName() string {
 	return "session_logs"
 }
-
-type FilingTracker struct {
-	ID          uint   `gorm:"primaryKey;autoIncrement"`
-	FilingName  string `gorm:"column:filingName;not null"`
-	ClientCode  string `gorm:"column:clientCode;not null"`
-	UploadCount int    `gorm:"column:uploadCount;not null;default:0"`
-	IsSubmitted bool   `gorm:"column:isSubmitted;not null;default:false"`
-	IsDeleted   bool   `gorm:"column:isDeleted;not null;default:false"`
-	// UserID      string    `gorm:"column:userId;not null"`    // FK  users.id
-	CreatedBy string    `gorm:"column:createdBy;not null"` // FK  users.userName
-	UpdatedBy string    `gorm:"column:updatedBy"`
-	CreatedAt time.Time `gorm:"column:createdAt;not null;autoCreateTime"`
-	UpdatedAt time.Time `gorm:"column:updatedAt;not null;autoUpdateTime"`
-}
-
-func (FilingTracker) TableName() string {
-	return "filing_tracker"
-}
