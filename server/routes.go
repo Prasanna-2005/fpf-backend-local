@@ -38,6 +38,7 @@ func SetupRoutes(cfg *config.RouteConfig) *gin.Engine {
 func setupAPIRoutes(r *gin.Engine, version string) {
 	api := r.Group("/api/" + version)
 	setupAuthRoutes(api)
+	setUpGeneralRoutes(api)
 	setupProfileRoutes(api)
 	setupAdminRoutes(api)
 }
@@ -50,6 +51,12 @@ func setupAuthRoutes(api *gin.RouterGroup) {
 	auth.POST("/resend_otp", ctrl.ResendOTP)
 	auth.POST("/logout", ctrl.Logout)
 	auth.POST("/access_token", ctrl.NewAccessToken)
+}
+
+func setUpGeneralRoutes(api *gin.RouterGroup) {
+	gen := api.Group("")
+	gen.Use(middleware.Authenticate(""))
+	gen.GET("/filings_list", ctrl.GetFilings)
 }
 
 func setupProfileRoutes(api *gin.RouterGroup) {
