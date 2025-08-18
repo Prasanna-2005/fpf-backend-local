@@ -62,7 +62,7 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 func setupProfileRoutes(api *gin.RouterGroup) {
 	prof := api.Group("/profile")
 	prof.Use(middleware.Authenticate(""))
-	prof.POST("/reset", ctrl.UpdatePasswd)
+	prof.POST("/reset_password", ctrl.UpdatePasswd)
 }
 
 func setupAdminRoutes(api *gin.RouterGroup) {

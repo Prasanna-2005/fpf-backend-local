@@ -21,8 +21,6 @@ func GetFilings(c *gin.Context) {
 	type respFiling struct {
 		ID          uint      `json:"id"`
 		FilingName  string    `json:"filing_name"`
-		ClientCode  string    `json:"client_code"`
-		UploadCount int       `json:"upload_count"`
 		IsSubmitted bool      `json:"is_submitted"`
 		IsDeleted   bool      `json:"is_deleted"`
 		CreatedAt   time.Time `json:"created_at"`
@@ -36,8 +34,6 @@ func GetFilings(c *gin.Context) {
 		list = append(list, respFiling{
 			ID:          f.ID,
 			FilingName:  f.FilingName,
-			ClientCode:  f.ClientCode,
-			UploadCount: f.UploadCount,
 			IsSubmitted: f.IsSubmitted,
 			IsDeleted:   f.IsDeleted,
 			CreatedAt:   f.CreatedAt,
@@ -47,5 +43,5 @@ func GetFilings(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"filings": list})
+	c.JSON(http.StatusOK, gin.H{"data": list})
 }
