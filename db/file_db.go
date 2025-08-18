@@ -9,3 +9,19 @@ func GetAllFilings() (*[]models.FilingTracker, error) {
 		Find(&filings).Error
 	return &filings, err
 }
+
+func GetFilingStatus(filingId string) (*[]models.FilingStatus, error) {
+	var filings []models.FilingStatus
+	err := sqlDb.Model(&models.FilingStatus{}).
+		Where("id = ?", filingId).
+		Find(&filings).Error
+	return &filings, err
+}
+
+func GetFilingTracker(filingId string) (*[]models.FilingTracker, error) {
+	var filings []models.FilingTracker
+	err := sqlDb.Model(&models.FilingTracker{}).
+		Where("id = ?", filingId).
+		Find(&filings).Error
+	return &filings, err
+}
