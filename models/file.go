@@ -20,7 +20,7 @@ func (FilingTracker) TableName() string {
 }
 
 type FilingStatus struct {
-	Id                uint      `gorm:"column:id;primaryKey;autoIncrement"`
+	Id                int       `gorm:"column:id;primaryKey;autoIncrement"`
 	FilingID          string    `gorm:"column:filing_id"`
 	ExtractionStatus  string    `gorm:"column:extraction_status"`
 	UpdatedAt         time.Time `gorm:"column:updated_at"`

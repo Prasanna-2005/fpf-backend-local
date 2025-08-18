@@ -1,6 +1,8 @@
 package db
 
-import "form_pf_backend/models"
+import (
+	"form_pf_backend/models"
+)
 
 // GetAllFilings returns a pointer-slice of every row in filing_tracker.
 func GetAllFilings() (*[]models.FilingTracker, error) {
@@ -10,18 +12,22 @@ func GetAllFilings() (*[]models.FilingTracker, error) {
 	return &filings, err
 }
 
-func GetFilingStatus(filingId string) (*[]models.FilingStatus, error) {
-	var filings []models.FilingStatus
-	err := sqlDb.Model(&models.FilingStatus{}).
-		Where("id = ?", filingId).
-		Find(&filings).Error
-	return &filings, err
+// FilingStatus
+func GetFilingStatus(filingID string) (*models.FilingStatus, error) {
+	var fs models.FilingStatus
+	err := sqlDb.Where("id = ?", filingID).First(&fs).Error
+	if err != nil {
+		return nil, err
+	}
+	return &fs, nil
 }
 
-func GetFilingTracker(filingId string) (*[]models.FilingTracker, error) {
-	var filings []models.FilingTracker
-	err := sqlDb.Model(&models.FilingTracker{}).
-		Where("id = ?", filingId).
-		Find(&filings).Error
-	return &filings, err
+// FilingTracker
+func GetFilingTracker(filingID string) (*models.FilingTracker, error) {
+	var ft models.FilingTracker
+	err := sqlDb.Where("id = ?", filingID).First(&ft).Error
+	if err != nil {
+		return nil, err
+	}
+	return &ft, nil
 }

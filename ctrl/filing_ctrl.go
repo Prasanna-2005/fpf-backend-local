@@ -23,7 +23,7 @@ func GetFilings(c *gin.Context) {
 
 	// success payload
 	type respFiling struct {
-		ID          uint      `json:"id"`
+		ID          int       `json:"id"`
 		FilingName  string    `json:"filing_name"`
 		IsSubmitted bool      `json:"is_submitted"`
 		IsDeleted   bool      `json:"is_deleted"`
@@ -36,7 +36,7 @@ func GetFilings(c *gin.Context) {
 	var list []respFiling
 	for _, f := range *filingsPtr {
 		list = append(list, respFiling{
-			ID:          f.ID,
+			ID:          f.Id,
 			FilingName:  f.FilingName,
 			IsSubmitted: f.IsSubmitted,
 			IsDeleted:   f.IsDeleted,
@@ -50,8 +50,7 @@ func GetFilings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
 
-// DerivedStatus now expects single structs, not pointers
-func DerivedStatus(fs models.FilingStatus, ft models.FilingTracker) string {
+func DerivedStatus(fs *models.FilingStatus, ft *models.FilingTracker) string {
 	if ft.IsDeleted {
 		return "deleted"
 	}
@@ -79,20 +78,20 @@ func FilingStatus(c *gin.Context) {
 	filingID := c.Param("filing_id")
 
 	fss, err := db.GetFilingStatus(filingID)
-	if err != nil || len(fss) == 0 {
+	if err != nil {
 		logger.Log("ERROR", "filing_status not found: "+err.Error())
 		c.JSON(http.StatusNotFound, gin.H{"message": FileNotFnd})
 		return
 	}
 
 	fts, err := db.GetFilingTracker(filingID)
-	if err != nil || len(fts) == 0 {
+	if err != nil {
 		logger.Log("ERROR", "filing_tracker not found: "+err.Error())
 		c.JSON(http.StatusNotFound, gin.H{"message": FileNotFnd})
 		return
 	}
 
-	state := DerivedStatus(fss[0], fts[0])
+	state := DerivedStatus(fss, fts)
 
 	c.JSON(http.StatusOK, gin.H{
 		"filing_id": filingID,
