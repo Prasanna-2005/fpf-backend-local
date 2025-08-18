@@ -57,12 +57,14 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 	gen := api.Group("")
 	gen.Use(middleware.Authenticate(""))
 	gen.GET("/filings_list", ctrl.GetFilings)
+	gen.GET("/status", ctrl.FilingStatus)
 }
 
 func setupProfileRoutes(api *gin.RouterGroup) {
 	prof := api.Group("/profile")
 	prof.Use(middleware.Authenticate(""))
 	prof.POST("/reset_password", ctrl.UpdatePasswd)
+
 }
 
 func setupAdminRoutes(api *gin.RouterGroup) {
