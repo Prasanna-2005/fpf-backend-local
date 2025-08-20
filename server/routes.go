@@ -39,6 +39,7 @@ func setupAPIRoutes(r *gin.Engine, version string) {
 	api := r.Group("/api/" + version)
 	setupAuthRoutes(api)
 	setUpGeneralRoutes(api)
+	setUpSubmission(api)
 	setupProfileRoutes(api)
 	setupAdminRoutes(api)
 	// setupFundRoutes(api)
@@ -66,12 +67,12 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 
 func setUpSubmission(api *gin.RouterGroup) {
 	sub := api.Group("/submissions")
-	// 	sub.Use(middleware.Authenticate(""))
-	sub.PUT("/:filing_id", ctrl.SubmitFormData)
+	sub.Use(middleware.Authenticate(""))
+	sub.PUT("/:filing_id", ctrl.AcceptItemValue)
 	// 	sub.GET("/:filing_id/revert", ctrl.RevertLatest)
 	// 	sub.POST("/:filing_id/draft", ctrl.SaveDraft)
 	// sub.PUT("/:filing_id/approval", ctrl.SendForApproval)
-	sub.PUT("/:filing_id/approved", ctrl.MarkApproved)
+	// sub.PUT("/:filing_id/approved", ctrl.MarkApproved)
 }
 
 func setupProfileRoutes(api *gin.RouterGroup) {
@@ -94,8 +95,8 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 // 	file := api.Group("/files")
 
 // 	file.POST("/upload", ctrl.UploadDoc)
-// 	file.POST("/mapper",ctrl.MapFiles)
-// 	file.POST("/submit",ctrl.SubmitFiles)
+// 	// 	file.POST("/mapper",ctrl.MapFiles)
+// 	// 	file.POST("/submit",ctrl.SubmitFiles)
 // }
 
 // SetupRoutesWithDefaults loads config from file and sets up routes with default configuration

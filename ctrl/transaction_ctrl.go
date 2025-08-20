@@ -23,28 +23,25 @@ type AcceptPayload struct {
 func AcceptItemValue(c *gin.Context) {
 	filingID := c.Param("filing_id")
 	if filingID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "FILING_NOT_FOUND"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "No filing found for the provided filing_id"})
 		return
 	}
 
 	var payload AcceptPayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "INVALID_FORMAT"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid data format for the provided data field"})
 		return
 	}
 
-	// Ensure the filing_id in the path and body match
 	if payload.FilingID != filingID {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "FILING_NOT_FOUND"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "No filing found for the provided filing_id"})
 		return
 	}
 
-	// Validate timestamp layout
 	if _, err := time.Parse(time.RFC3339Nano, payload.Timestamp); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "INVALID_FORMAT"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid data format for the provided data field"})
 		return
 	}
 
-	// Dummy success
 	c.JSON(http.StatusOK, gin.H{"message": "Changes accepted successfully"})
 }
