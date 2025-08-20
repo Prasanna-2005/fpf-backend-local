@@ -41,7 +41,7 @@ func setupAPIRoutes(r *gin.Engine, version string) {
 	setUpGeneralRoutes(api)
 	setupProfileRoutes(api)
 	setupAdminRoutes(api)
-	setupFundRoutes(api)
+	// setupFundRoutes(api)
 }
 
 // setupAuthRoutes configures authentication-related routes
@@ -59,7 +59,19 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 	gen := api.Group("")
 	gen.Use(middleware.Authenticate(""))
 	gen.GET("/filings_list", ctrl.GetFilings)
+	// gen.GET("/response/:filing_id", ctrl.EditDoc)
+	gen.GET("/fund_details", ctrl.GetFunds)
 	gen.GET("/status", ctrl.FilingStatus)
+}
+
+func setUpSubmission(api *gin.RouterGroup) {
+	sub := api.Group("/submissions")
+	// 	sub.Use(middleware.Authenticate(""))
+	sub.PUT("/:filing_id", ctrl.SubmitFormData)
+	// 	sub.GET("/:filing_id/revert", ctrl.RevertLatest)
+	// 	sub.POST("/:filing_id/draft", ctrl.SaveDraft)
+	sub.PUT("/:filing_id/approval", ctrl.SendForApproval)
+	sub.PUT("/:filing_id/approved", ctrl.MarkApproved)
 }
 
 func setupProfileRoutes(api *gin.RouterGroup) {
@@ -67,12 +79,6 @@ func setupProfileRoutes(api *gin.RouterGroup) {
 	prof.Use(middleware.Authenticate(""))
 	prof.POST("/reset_password", ctrl.UpdatePasswd)
 
-}
-
-func setupFundRoutes(api *gin.RouterGroup) {
-	fund := api.Group("/fund")
-	fund.Use(middleware.Authenticate(""))
-	fund.GET("/fund_details", ctrl.GetFunds)
 }
 
 func setupAdminRoutes(api *gin.RouterGroup) {
@@ -84,9 +90,12 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 
 }
 
-// func setupFileRoutes(api *gin.RouterGroup){
-// 	file:=api.Group("/files")
-// 	files.POST("")
+// func setupFileRoutes(api *gin.RouterGroup) {
+// 	file := api.Group("/files")
+
+// 	file.POST("/upload", ctrl.UploadDoc)
+// 	file.POST("/mapper",ctrl.MapFiles)
+// 	file.POST("/submit",ctrl.SubmitFiles)
 // }
 
 // SetupRoutesWithDefaults loads config from file and sets up routes with default configuration
