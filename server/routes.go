@@ -70,7 +70,7 @@ func setUpSubmission(api *gin.RouterGroup) {
 	sub.PUT("/:filing_id", ctrl.SubmitFormData)
 	// 	sub.GET("/:filing_id/revert", ctrl.RevertLatest)
 	// 	sub.POST("/:filing_id/draft", ctrl.SaveDraft)
-	sub.PUT("/:filing_id/approval", ctrl.SendForApproval)
+	// sub.PUT("/:filing_id/approval", ctrl.SendForApproval)
 	sub.PUT("/:filing_id/approved", ctrl.MarkApproved)
 }
 
