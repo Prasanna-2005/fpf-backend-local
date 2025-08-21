@@ -91,13 +91,13 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 
 }
 
-// func setupFileRoutes(api *gin.RouterGroup) {
-// 	file := api.Group("/files")
+func setupFileRoutes(api *gin.RouterGroup) {
+	file := api.Group("/files")
 
-// 	file.POST("/upload", ctrl.UploadDoc)
-// 	// 	file.POST("/mapper",ctrl.MapFiles)
-// 	// 	file.POST("/submit",ctrl.SubmitFiles)
-// }
+	file.POST("/upload", ctrl.UploadDoc(cfg.UploadVolumePath))
+	// 	file.POST("/mapper",ctrl.MapFiles)
+	// 	file.POST("/submit",ctrl.SubmitFiles)
+}
 
 // SetupRoutesWithDefaults loads config from file and sets up routes with default configuration
 func SetupRoutesWithDefaults() *gin.Engine {
