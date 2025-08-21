@@ -12,9 +12,10 @@ import (
 )
 
 type RouteConfig struct {
-	APIVersion  string
-	EnableCORS  bool
-	CORSOrigins []string
+	APIVersion       string
+	EnableCORS       bool
+	CORSOrigins      []string
+	UploadVolumePath string
 }
 
 type SMTPconfig struct {
@@ -60,6 +61,17 @@ func Token() Tokenconfig {
 		TokenExpiry:        GetEnvAsDuration("TOKEN_EXPIRY", 4*3600),
 		RefreshTokenExpiry: GetEnvAsDuration("REFRESH_TOKEN_EXPIRY", 120*60*60),
 		Issuer:             os.Getenv("ISS"),
+	}
+}
+
+type Config struct {
+	UploadVolumePath string
+	// …other keys…
+}
+
+func Load() *Config {
+	return &Config{
+		UploadVolumePath: os.Getenv("UPLOAD_VOLUME_PATH"),
 	}
 }
 
@@ -158,6 +170,7 @@ func LoadConfig(filePath string) (*RouteConfig, error) {
 	origins := cfg.Section("cors").Key("origins").String()
 	config.CORSOrigins = splitOrigins(origins)
 
+	config.UploadVolumePath = cfg.Section("").Key("upload_volume_path").MustString(os.Getenv("UPLOAD_VOLUME_PATH"))
 	return config, nil
 }
 
