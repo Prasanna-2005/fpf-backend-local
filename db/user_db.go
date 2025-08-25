@@ -10,7 +10,10 @@ import (
 )
 
 // var logger = utility.LoggerFunc()
-var DbError = "Internal server error: "
+const (
+	DbError = "Internal server error: "
+	idQuery = "id = ?"
+)
 
 func ValidateCredentials(name, password string) (models.User, error) {
 	var u models.User
@@ -31,7 +34,7 @@ func GetUser(userId string) (*models.User, error) {
 
 	var user models.User
 	// Correct the Where clause and pass the userId as a separate argument
-	if err := sqlDb.Where("id = ?", userId).First(&user).Error; err != nil {
+	if err := sqlDb.Where(idQuery, userId).First(&user).Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
 			return nil, fmt.Errorf("record not found")
 		}
@@ -88,4 +91,52 @@ func UpdateLogout(uid, expiry string) error {
 
 func UpdatePasswd(user *models.User) error {
 	return sqlDb.Save(&user).Error
+}
+
+func CreateUser(user *models.User) (string, error) {
+	if err := sqlDb.Create(&user).Error; err != nil {
+		return "", err
+	}
+	return user.ID, nil
+}
+
+func GetUserEmail(email string) (bool, error) {
+	var exists bool
+	err := sqlDb.Model(&models.User{}).
+		Select("count(*) > 0").
+		Where("emailAddress = ?", email).
+		Find(&exists).Error
+	if err != nil {
+		return false, err // DB failure
+	}
+	if exists {
+		return true, nil
+	}
+	return false, nil
+}
+
+func GetAllUser() (*[]models.User, error) {
+	var users []models.User
+	err := sqlDb.Model(&models.User{}).
+		Select("id", "userName", "emailAddress", "accessType", "clientId", "createdAt", "updatedAt", "updatedBy").
+		Find(&users).Error
+	return &users, err
+}
+
+func RemoveUser(uid string) error {
+	// 1. fetch the user row
+	var u models.User
+	if err := sqlDb.First(&u, idQuery, uid).Error; err != nil {
+		return err
+	}
+
+	// 2. update filing_tracker rows: copy createdBy (int) -> userName (varchar)
+	if err := sqlDb.Model(&models.FilingTracker{}).
+		Where("created_by = ?", uid).
+		Update("user_name", u.UserName+"(deleted)").Error; err != nil {
+		return err
+	}
+
+	// 3. delete the user (which cascades to session_logs & filing_tracker)
+	return sqlDb.Delete(&models.User{}, "id = ?", uid).Error
 }

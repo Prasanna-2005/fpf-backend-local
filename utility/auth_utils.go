@@ -230,7 +230,6 @@ func GenerateRefreshToken(userId string) (string, error) {
 		logger.Log("ERROR", "GenerateRefreshToken: failed to get user  from database: "+err.Error())
 		return "", err
 	}
-
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"userId":     userId,
 		"type":       "refresh",
@@ -239,9 +238,9 @@ func GenerateRefreshToken(userId string) (string, error) {
 		"email":      user.Email,
 		"role":       user.AccessType,
 		"jti":        user.Jti,
-		"aud":        user.ID,
 		"iss":        cfg.Issuer,
 		"AccessType": user.AccessType,
+		"cid":        user.ClientID,
 	})
 
 	signedToken, err := token.SignedString([]byte(cfg.TokenSecret))
@@ -338,6 +337,10 @@ func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 		logger.Log("ERROR", "JWT id is missing for refresh token!")
 	}
 	// Generate access token
+	cid, ok := claims["cid"].(float64)
+	if !ok {
+		logger.Log("ERROR", "client id not present in refresh token")
+	}
 
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"AccessType": accessType,
@@ -349,6 +352,7 @@ func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 		"email":      email,
 		"userId":     userId,
 		"jti":        jti,
+		"cid":        cid,
 	})
 
 	signedToken, err := accessToken.SignedString([]byte(cfg.TokenSecret))
@@ -358,7 +362,6 @@ func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 	}
 
 	logger.Log("INFO", "GenerateAccessToken: successfully generated access token for user "+userId)
-	fmt.Println(userId)
 	return signedToken, err
 
 }
@@ -443,13 +446,18 @@ func VerifyAccessToken(token string) (models.User, error) {
 		logger.Log("ERROR", "VerifyAccessToken: token missing userId claim")
 		return models.User{}, err
 	}
+	cid, ok := claims["cid"].(float64)
+	if !ok {
+		logger.Log("ERROR", "No client id present")
+	}
 	user := models.User{
 		ID:         userId,
 		AccessType: AccessType,
 		Email:      email,
+		ClientID:   int(cid),
 	}
 
 	logger.Log("INFO", "VerifyAccessToken: successfully verified access token for user ")
-	fmt.Println(user.ID)
+
 	return user, nil
 }

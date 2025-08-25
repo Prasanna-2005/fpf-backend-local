@@ -39,6 +39,7 @@ func setupAPIRoutes(r *gin.Engine, version string) {
 	api := r.Group("/api/" + version)
 	setupAuthRoutes(api)
 	setupProfileRoutes(api)
+	setupAdminRoutes(api)
 }
 
 // setupAuthRoutes configures authentication-related routes
@@ -55,6 +56,15 @@ func setupProfileRoutes(api *gin.RouterGroup) {
 	prof := api.Group("/profile")
 	prof.Use(middleware.Authenticate(""))
 	prof.POST("/reset", ctrl.UpdatePasswd)
+}
+
+func setupAdminRoutes(api *gin.RouterGroup) {
+	admin := api.Group("/admin")
+	admin.Use(middleware.Authenticate("admin"))
+	admin.GET("/users", ctrl.GetUsers)
+	admin.POST("/create_user", ctrl.NewUser)
+	// admin.DELETE("/delete_user/:user_id", ctrl.DeleteUser)
+
 }
 
 // func setupFileRoutes(api *gin.RouterGroup){
