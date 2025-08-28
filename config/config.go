@@ -156,21 +156,19 @@ func GetEnvAsInt(key string, defaultValue int) int {
 	return int(res)
 }
 
-func LoadConfig(filePath string) (*RouteConfig, error) {
+func LoadConfig() (*RouteConfig, error) {
 	cfg, err := ini.Load("config/config.ini")
 	if err != nil {
 		return nil, err
 	}
 
 	config := &RouteConfig{
-		APIVersion: cfg.Section("api").Key("version").String(),
-		EnableCORS: cfg.Section("cors").Key("enable").MustBool(false),
+		APIVersion:       cfg.Section("api").Key("version").String(),
+		EnableCORS:       cfg.Section("cors").Key("enable").MustBool(false),
+		UploadVolumePath: cfg.Section("storage").Key("upload_volume_path").MustString(os.Getenv("UPLOAD_VOLUME_PATH")),
 	}
-
 	origins := cfg.Section("cors").Key("origins").String()
 	config.CORSOrigins = splitOrigins(origins)
-
-	config.UploadVolumePath = cfg.Section("").Key("upload_volume_path").MustString(os.Getenv("UPLOAD_VOLUME_PATH"))
 	return config, nil
 }
 
