@@ -1,44 +1,49 @@
+// ctrl/document_ctrl.go
 package ctrl
 
 import (
 	"fmt"
-	"form_pf_backend/modules"
-	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
+
+	"form_pf_backend/modules"
 
 	"github.com/gin-gonic/gin"
 )
 
-// UploadDoc returns a gin.HandlerFunc (fresh + re-upload).
+// UploadDoc handles document upload requests with optimized flow
 func UploadDoc(volumeRoot string) gin.HandlerFunc {
-	_ = os.MkdirAll(volumeRoot, 0755)
-
 	return func(c *gin.Context) {
-		req, ok := modules.ValidateRequest(c)
+		logger.Log("DEBUG", fmt.Sprintf("UploadDoc invoked, volumeRoot=%s", volumeRoot))
+
+		// Pipeline approach: each step returns early on failure
+		if !ensureUploadDirectory(c, volumeRoot) {
+			return
+		}
+
+		req, ok := modules.ValidateAndBind(c)
 		if !ok {
-			return
+			return // ValidateAndBind already handled the response
 		}
 
-		clientID, _ := c.Get("clientId")
-		filingDir, ok := modules.ResolveFilingDir(c, volumeRoot, fmt.Sprintf("%v", clientID), req)
-		if !ok {
-			return
+		logger.Log("INFO", fmt.Sprintf("Validated request: user_id=%s, new_filing=%t, filing_name=%s",
+			req.UserID, req.NewFiling, req.FilingName))
+
+		if err := modules.ProcessUpload(c, volumeRoot, req); err != nil {
+			logger.Log("ERROR", fmt.Sprintf("ProcessUpload failed: %v", err))
+			return // ProcessUpload already handled the response
 		}
 
-		if err := modules.SaveFiles(req.Files, filingDir); err != nil {
-			c.JSON(http.StatusInternalServerError,
-				gin.H{"message": "Internal Server Error. Please reach out to your admin"})
-			return
-		}
-
-		filingID := filepath.Base(filingDir)[0:strings.Index(filepath.Base(filingDir), "+")]
-		c.JSON(http.StatusOK, gin.H{
-			"message":   "Successfully uploaded",
-			"filing_id": filingID,
-		})
+		logger.Log("INFO", fmt.Sprintf("Upload successful for filing_name=%s", req.FilingName))
 	}
+}
+
+// ensureUploadDirectory ensures the upload directory exists
+func ensureUploadDirectory(c *gin.Context, volumeRoot string) bool {
+	if err := modules.EnsureVolumeDir(volumeRoot); err != nil {
+		logger.Log("ERROR", fmt.Sprintf("EnsureVolumeDir failed: %v", err))
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "cannot create upload directory"})
+		return false
+	}
+	logger.Log("DEBUG", "Upload volume directory OK")
+	return true
 }
