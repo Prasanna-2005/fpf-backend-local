@@ -3,7 +3,12 @@ package modules
 
 import (
 	"archive/zip"
+	"bytes"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 )
 
 // ExtractAndValidateZip extracts all contents of a ZIP file to a dedicated target directory
@@ -126,4 +131,86 @@ func validatePath(path string) error {
 		return errInvalidFile
 	}
 	return nil
+}
+
+// createDirectory creates a directory from a ZIP entry
+func createDirectory(f *zip.File, targetDir string) error {
+	if err := validatePath(f.Name); err != nil {
+		return err
+	}
+
+	dirPath := filepath.Join(targetDir, f.Name)
+	logger.Log("DEBUG", fmt.Sprintf("[createDirectory] Creating directory: %s", dirPath))
+	return os.MkdirAll(dirPath, f.FileInfo().Mode())
+}
+
+// extractFile extracts a single file from the ZIP archive
+func extractFile(f *zip.File, targetDir string) (string, error) {
+	if err := validatePath(f.Name); err != nil {
+		return "", err
+	}
+
+	targetPath := filepath.Join(targetDir, f.Name)
+
+	// Create parent directories if they don't exist
+	if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		return "", fmt.Errorf("failed to create parent directories for %s: %w", targetPath, err)
+	}
+
+	logger.Log("DEBUG", fmt.Sprintf("[extractFile] Extracting: %s → %s", f.Name, targetPath))
+
+	// Open source file in ZIP
+	rc, err := f.Open()
+	if err != nil {
+		return "", fmt.Errorf("failed to open file %s in zip: %w", f.Name, err)
+	}
+	defer rc.Close()
+
+	// Create destination file
+	outFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.FileInfo().Mode())
+	if err != nil {
+		return "", fmt.Errorf("failed to create file %s: %w", targetPath, err)
+	}
+	defer outFile.Close()
+
+	// Copy file contents
+	bytesWritten, err := io.Copy(outFile, rc)
+	if err != nil {
+		return "", fmt.Errorf("failed to extract file %s: %w", f.Name, err)
+	}
+
+	logger.Log("DEBUG", fmt.Sprintf("[extractFile] Successfully extracted %d bytes to %s", bytesWritten, targetPath))
+	return targetPath, nil
+}
+
+// processNestedZips finds and processes any nested ZIP files that were extracted
+func processNestedZips(extractedFiles []string, parentDir string) error {
+	for _, filePath := range extractedFiles {
+		if strings.EqualFold(filepath.Ext(filePath), ".zip") {
+			logger.Log("INFO", fmt.Sprintf("[processNestedZips] Processing nested zip: %s", filePath))
+
+			// Create subdirectory for nested ZIP (key change)
+			zipBaseName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+			nestedDir := filepath.Join(filepath.Dir(filePath), zipBaseName)
+
+			// Recursively extract the nested ZIP to its own directory
+			if err := ExtractAndValidateZip(filePath, nestedDir); err != nil {
+				logger.Log("ERROR", fmt.Sprintf("[processNestedZips] Failed to process nested zip %s: %v", filePath, err))
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// cleanup removes all files that were created during extraction (used on error)
+func cleanup(filePaths []string) {
+	logger.Log("WARNING", "[cleanup] Starting cleanup of extracted files due to error")
+	for _, path := range filePaths {
+		if err := os.Remove(path); err != nil {
+			logger.Log("WARNING", fmt.Sprintf("[cleanup] Failed to remove file %s: %v", path, err))
+		} else {
+			logger.Log("DEBUG", fmt.Sprintf("[cleanup] Removed file: %s", path))
+		}
+	}
 }
