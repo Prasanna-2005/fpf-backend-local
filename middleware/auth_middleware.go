@@ -42,7 +42,6 @@ func Authenticate(requiredRole string) gin.HandlerFunc {
 		}
 
 		logger.Log("DEBUG", fmt.Sprintf("clientID:%v ", claims.ClientID))
-
 		c.Set("userId", claims.ID)
 		c.Set("role", claims.AccessType)
 		c.Set("clientId", claims.ClientID)

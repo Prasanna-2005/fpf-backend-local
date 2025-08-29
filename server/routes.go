@@ -43,6 +43,7 @@ func setupAPIRoutes(r *gin.Engine, version string) {
 	setupProfileRoutes(api)
 	setupAdminRoutes(api)
 	// setupFundRoutes(api)
+	setupFileRoutes(api)
 }
 
 // setupAuthRoutes configures authentication-related routes
@@ -93,6 +94,11 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 
 func setupFileRoutes(api *gin.RouterGroup) {
 	file := api.Group("/files")
+	file.Use(middleware.Authenticate("contributor"))
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
 	file.POST("/upload", ctrl.UploadDoc(cfg.UploadVolumePath))
 	// 	file.POST("/mapper",ctrl.MapFiles)
@@ -101,7 +107,7 @@ func setupFileRoutes(api *gin.RouterGroup) {
 
 // SetupRoutesWithDefaults loads config from file and sets up routes with default configuration
 func SetupRoutesWithDefaults() *gin.Engine {
-	config, err := config.LoadConfig("config.ini")
+	config, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
