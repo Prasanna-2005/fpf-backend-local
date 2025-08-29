@@ -40,7 +40,7 @@ func InitVolume(root string) { _ = os.MkdirAll(root, 0755) }
 
 // ValidateAndBind validates and binds the incoming request
 func ValidateAndBind(c *gin.Context) (*UploadRequest, bool) {
-	logger.Log("DEBUG", "[ValidateAndBind] Starting request validation")
+	logger.Log("INFO", "[ValidateAndBind] Starting request validation")
 
 	if err := c.Request.ParseMultipartForm(maxUploadBytes); err != nil {
 		handleParseError(c, err)
@@ -59,7 +59,7 @@ func ValidateAndBind(c *gin.Context) (*UploadRequest, bool) {
 		return nil, false
 	}
 
-	logger.Log("DEBUG", fmt.Sprintf("[ValidateAndBind] Successfully validated request with %d files", len(req.Files)))
+	logger.Log("INFO", fmt.Sprintf("[ValidateAndBind] Successfully validated request with %d files", len(req.Files)))
 	return &req, true
 }
 
@@ -68,7 +68,7 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 	clientID, _ := c.Get("clientId")
 	clientDir := filepath.Join(root, fmt.Sprintf("%v", clientID))
 
-	logger.Log("DEBUG", fmt.Sprintf("[ProcessUpload] Processing upload - client=%v, filing=%s, new=%t, files=%d",
+	logger.Log("INFO", fmt.Sprintf("[ProcessUpload] Processing upload - client=%v, filing=%s, new=%t, files=%d",
 		clientID, req.FilingName, req.NewFiling, len(req.Files)))
 
 	if err := EnsureVolumeDir(clientDir); err != nil {
@@ -147,7 +147,7 @@ func handleSaveError(c *gin.Context, targetDir string, err error) {
 	if cleanupErr := os.RemoveAll(targetDir); cleanupErr != nil {
 		logger.Log("WARNING", fmt.Sprintf("[ProcessUpload] Failed to cleanup directory %s: %v", targetDir, cleanupErr))
 	} else {
-		logger.Log("DEBUG", fmt.Sprintf("[ProcessUpload] Cleaned up directory: %s", targetDir))
+		logger.Log("INFO", fmt.Sprintf("[ProcessUpload] Cleaned up directory: %s", targetDir))
 	}
 
 	if errors.Is(err, errInvalidFile) {
@@ -167,7 +167,7 @@ func filingExists(clientDir, filingName string) bool {
 
 	for _, e := range entries {
 		if e.IsDir() && e.Name() == targetDirName {
-			logger.Log("DEBUG", fmt.Sprintf("[filingExists] Found existing filing: %s", e.Name()))
+			logger.Log("INFO", fmt.Sprintf("[filingExists] Found existing filing: %s", e.Name()))
 			return true
 		}
 	}
@@ -176,7 +176,7 @@ func filingExists(clientDir, filingName string) bool {
 
 func sanitize(name string) string {
 	sanitized := strings.NewReplacer("/", "_", "\\", "_", " ", "_").Replace(name)
-	logger.Log("DEBUG", fmt.Sprintf("[sanitize] '%s' -> '%s'", name, sanitized))
+	logger.Log("INFO", fmt.Sprintf("[sanitize] '%s' -> '%s'", name, sanitized))
 	return sanitized
 }
 
@@ -184,7 +184,7 @@ func saveAndExtract(files []*multipart.FileHeader, dir string) error {
 	logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Processing %d files for directory: %s", len(files), dir))
 
 	for i, fh := range files {
-		logger.Log("DEBUG", fmt.Sprintf("[saveAndExtract] Processing file %d/%d: %s (size: %d bytes)",
+		logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Processing file %d/%d: %s (size: %d bytes)",
 			i+1, len(files), fh.Filename, fh.Size))
 
 		if !allowedExt(fh.Filename) {
@@ -233,7 +233,7 @@ func saveUploadedFile(src *multipart.FileHeader, dst string) error {
 		return fmt.Errorf("failed to copy file content: %w", err)
 	}
 
-	logger.Log("DEBUG", fmt.Sprintf("[saveUploadedFile] Copied %d bytes to %s", bytesWritten, dst))
+	logger.Log("INFO", fmt.Sprintf("[saveUploadedFile] Copied %d bytes to %s", bytesWritten, dst))
 	return nil
 }
 
@@ -241,7 +241,7 @@ func allowedExt(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	allowed := allowedExts[ext]
 	if !allowed {
-		logger.Log("DEBUG", fmt.Sprintf("[allowedExt] Extension '%s' not allowed for file: %s", ext, filename))
+		logger.Log("INFO", fmt.Sprintf("[allowedExt] Extension '%s' not allowed for file: %s", ext, filename))
 	}
 	return allowed
 }
@@ -254,13 +254,13 @@ func EnsureVolumeDir(path string) error {
 
 	var firstErr error
 	once.Do(func() {
-		logger.Log("DEBUG", fmt.Sprintf("[EnsureVolumeDir] Creating directory: %s", key))
+		logger.Log("INFO", fmt.Sprintf("[EnsureVolumeDir] Creating directory: %s", key))
 		firstErr = os.MkdirAll(key, 0755)
 		if firstErr != nil {
 			dirErrors.Store(key, firstErr)
 			logger.Log("ERROR", fmt.Sprintf("[EnsureVolumeDir] Failed to create directory %s: %v", key, firstErr))
 		} else {
-			logger.Log("DEBUG", fmt.Sprintf("[EnsureVolumeDir] Successfully created directory: %s", key))
+			logger.Log("INFO", fmt.Sprintf("[EnsureVolumeDir] Successfully created directory: %s", key))
 		}
 	})
 
