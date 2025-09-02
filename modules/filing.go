@@ -32,7 +32,7 @@ var (
 	errInvalidFile = errors.New("invalid file")
 	dirOnce        sync.Map
 	dirErrors      sync.Map
-	allowedExts    = map[string]bool{".zip": true, ".xls": true, ".xlsx": true}
+	allowedExts    = map[string]bool{".zip": true, ".xls": true, ".xlsx": true, ".pdf": true}
 )
 
 // InitVolume creates the root directory (left for backward-compatibility)
