@@ -12,9 +12,10 @@ import (
 )
 
 type RouteConfig struct {
-	APIVersion  string
-	EnableCORS  bool
-	CORSOrigins []string
+	APIVersion       string
+	EnableCORS       bool
+	CORSOrigins      []string
+	UploadVolumePath string
 }
 
 type SMTPconfig struct {
@@ -60,6 +61,17 @@ func Token() Tokenconfig {
 		TokenExpiry:        GetEnvAsDuration("TOKEN_EXPIRY", 4*3600),
 		RefreshTokenExpiry: GetEnvAsDuration("REFRESH_TOKEN_EXPIRY", 120*60*60),
 		Issuer:             os.Getenv("ISS"),
+	}
+}
+
+type Config struct {
+	UploadVolumePath string
+	// …other keys…
+}
+
+func Load() *Config {
+	return &Config{
+		UploadVolumePath: os.Getenv("UPLOAD_VOLUME_PATH"),
 	}
 }
 
@@ -144,20 +156,19 @@ func GetEnvAsInt(key string, defaultValue int) int {
 	return int(res)
 }
 
-func LoadConfig(filePath string) (*RouteConfig, error) {
+func LoadConfig() (*RouteConfig, error) {
 	cfg, err := ini.Load("config/config.ini")
 	if err != nil {
 		return nil, err
 	}
 
 	config := &RouteConfig{
-		APIVersion: cfg.Section("api").Key("version").String(),
-		EnableCORS: cfg.Section("cors").Key("enable").MustBool(false),
+		APIVersion:       cfg.Section("api").Key("version").String(),
+		EnableCORS:       cfg.Section("cors").Key("enable").MustBool(false),
+		UploadVolumePath: cfg.Section("storage").Key("upload_volume_path").MustString(os.Getenv("UPLOAD_VOLUME_PATH")),
 	}
-
 	origins := cfg.Section("cors").Key("origins").String()
 	config.CORSOrigins = splitOrigins(origins)
-
 	return config, nil
 }
 

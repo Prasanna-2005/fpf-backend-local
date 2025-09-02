@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"fmt"
 	"form_pf_backend/utility"
 	"net/http"
 
@@ -20,7 +21,7 @@ func Authenticate(requiredRole string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		uid, err := ExtractUserID(c)
 		if err != nil {
-			abortWithMsg(c, http.StatusBadRequest, UidError, "Payload doesn't have user id: "+err.Error())
+			abortWithMsg(c, http.StatusBadRequest, UidError, "Header doesn't have user id: "+err.Error())
 			return
 		}
 
@@ -40,6 +41,7 @@ func Authenticate(requiredRole string) gin.HandlerFunc {
 			return
 		}
 
+		logger.Log("DEBUG", fmt.Sprintf("clientID:%v ", claims.ClientID))
 		c.Set("userId", claims.ID)
 		c.Set("role", claims.AccessType)
 		c.Set("clientId", claims.ClientID)
