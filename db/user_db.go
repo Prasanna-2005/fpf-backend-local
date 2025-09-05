@@ -16,8 +16,12 @@ const (
 )
 
 func ValidateCredentials(name, password string) (models.User, error) {
+
 	var u models.User
-	if err := sqlDb.Where("username = ?", name).First(&u).Error; err != nil {
+	if !dbAlive(sqlDb) {
+		return models.User{}, fmt.Errorf("db connection lost")
+	}
+	if err := sqlDb.Where("emailAddress = ?", name).First(&u).Error; err != nil {
 		return models.User{}, fmt.Errorf("invalid username ")
 	}
 
