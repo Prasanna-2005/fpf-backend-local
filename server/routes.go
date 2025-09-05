@@ -94,15 +94,15 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 
 func setupFileRoutes(api *gin.RouterGroup) {
 	file := api.Group("/files")
-	file.Use(middleware.Authenticate("contributor"))
+	file.Use(middleware.Authenticate(""))
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	file.POST("/upload", ctrl.UploadDoc(cfg.UploadVolumePath))
-	// 	file.POST("/mapper",ctrl.MapFiles)
-	// 	file.POST("/submit",ctrl.SubmitFiles)
+	file.POST("/mapper", ctrl.MapFiles)
+	// file.POST("/submit",ctrl.SubmitFiles)
 }
 
 // SetupRoutesWithDefaults loads config from file and sets up routes with default configuration
