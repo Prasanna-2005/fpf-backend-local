@@ -22,7 +22,7 @@ func ValidateCredentials(name, password string) (models.User, error) {
 		return models.User{}, fmt.Errorf("db connection lost")
 	}
 	if err := sqlDb.Where("emailAddress = ?", name).First(&u).Error; err != nil {
-		return models.User{}, fmt.Errorf("invalid username ")
+		return models.User{}, fmt.Errorf("invalid Email Address")
 	}
 
 	match := func(h, p string) bool {
