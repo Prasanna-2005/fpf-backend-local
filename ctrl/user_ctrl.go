@@ -66,7 +66,7 @@ func Login(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "record not found" {
 			logger.Log("WARNING", LoginFailed+err.Error())
-			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
+			c.JSON(http.StatusUnauthorized, gin.H{"message": err.Error()})
 		} else {
 			logger.Log("ERROR", LoginFailed+err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})

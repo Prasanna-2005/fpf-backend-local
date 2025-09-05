@@ -76,4 +76,5 @@ func GetDB() *gorm.DB {
 		connect()
 	})
 	return sqlDb
+
 }
