@@ -1,6 +1,8 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
 // Fund maps to the table that stores fund information.
 type Fund struct {
