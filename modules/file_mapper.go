@@ -2,6 +2,7 @@ package modules
 
 import (
 	"fmt"
+	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"form_pf_backend/utility"
@@ -20,11 +21,10 @@ type DocumentProcessingService struct {
 
 func NewDocumentProcessingService() *DocumentProcessingService {
 	return &DocumentProcessingService{
-		logger: utility.LoggerFunc(), // <-- your logger
+		logger: utility.LoggerFunc(),
 	}
 }
 
-// ----------  main entry point  ----------
 func (s *DocumentProcessingService) IdentifyFiles(req *models.FileIdentificationRequest) (
 	*models.FileIdentificationResponse, error) {
 
@@ -35,13 +35,13 @@ func (s *DocumentProcessingService) IdentifyFiles(req *models.FileIdentification
 		s.logger.Log("ERROR", "cannot load funds: "+err.Error())
 		return nil, fmt.Errorf("cannot load funds: %w", err)
 	}
-	headers, err := db.GetAllFegFileIdentifications()
+	headers, err := db.GetAllFegFileIdentifications() // why here
 	if err != nil {
 		s.logger.Log("ERROR", "cannot load headers: "+err.Error())
 		return nil, fmt.Errorf("cannot load headers: %w", err)
 	}
-
-	baseDir := filepath.Join("../data", req.ClientID, req.FilingName)
+	cfg, err := config.LoadConfig()
+	baseDir := filepath.Join(cfg.UploadVolumePath, req.ClientID, req.FilingName)
 	excels, err := s.findExcelFiles(baseDir)
 	if err != nil {
 		s.logger.Log("ERROR", "cannot walk dir: "+err.Error())
@@ -119,7 +119,6 @@ func (s *DocumentProcessingService) findExcelFiles(root string) ([]string, error
 
 func (s *DocumentProcessingService) matchFile(path, name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
 	if d, ok := s.matchByFilename(name, funds); ok {
-		logger.Log("DEBUG", fmt.Sprintf("name: %v, ok: %v", name, ok))
 		return d, true
 	}
 	return s.matchByExcelContent(path, name, funds)
@@ -180,20 +179,27 @@ func (s *DocumentProcessingService) matchByFilename(name string, funds []models.
 }
 
 func (s *DocumentProcessingService) matchByExcelContent(path, name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
+	logger.Log("DEBUG", "Inside excel content")
 	f, err := excelize.OpenFile(path)
 	if err != nil {
+		logger.Log("DEBUG", "fileopen error")
+
 		return models.FileMappingDetail{}, false
 	}
 
 	var best models.FileMappingDetail
 	for _, sheet := range f.GetSheetList() {
+		logger.Log("DEBUG", fmt.Sprintf("sheet: %v", sheet))
 		rows, _ := f.GetRows(sheet)
+
 		for _, row := range rows {
 			for ci, cell := range row {
-				if !strings.Contains(strings.ToLower(cell), "entity") {
-					continue
-				}
-				val := strings.TrimSpace(s.adjacent(rows, ci))
+				// cell=strings.TrimSpace(cell)
+				// if !strings.Contains(strings.ToLower(cell), "entity:") {
+				// 	continue
+				// }
+				// val := strings.TrimSpace(s.adjacent(rows, ci))
+				val := strings.TrimSpace(cell)
 				if val == "" {
 					continue
 				}

@@ -9,7 +9,7 @@ func GetAllFegFileIdentifications() ([]models.FegFileIdentification, error) {
 	return list, err
 }
 
-// GetFegFileIdentificationByFund -> models.FegFileIdentification
+// GetFegFileIdentificationByFund -> models.FegFileIdentification   //not needed
 func GetFegFileIdentificationByFund(fundName string, quarter int) (*models.FegFileIdentification, error) {
 	var h models.FegFileIdentification
 	err := GetDB().Where("fund_name = ? AND quarter = ?", fundName, quarter).First(&h).Error
