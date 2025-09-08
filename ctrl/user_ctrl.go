@@ -64,13 +64,13 @@ func Login(c *gin.Context) {
 	// Validate user credentials
 	user, err := db.ValidateCredentials(payload.Username, payload.Password)
 	if err != nil {
-		if err.Error() == "record not found" {
-			logger.Log("WARNING", LoginFailed+err.Error())
-			c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect Username or Password"})
-		} else {
-			logger.Log("ERROR", LoginFailed+err.Error())
+		if err == fmt.Errorf("db connection lost") {
+			logger.Log("WARNING", "SQL Db is down")
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+			return
 		}
+		logger.Log("INFO", "Invalid credentials: "+err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 		return
 	}
 

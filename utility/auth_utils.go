@@ -450,6 +450,18 @@ func VerifyAccessToken(token string) (models.User, error) {
 	if !ok {
 		logger.Log("ERROR", "No client id present")
 	}
+	jwtId, ok := claims["jti"].(float64)
+	if !ok {
+		logger.Log("ERROR", "No jwt id present in claims")
+	}
+	usr, err := db.GetUser(userId)
+	if err != nil {
+		logger.Log("ERROR", "couldn't fetch uid from DB")
+	}
+	if jwtId != float64(usr.Jti) {
+		logger.Log("WARNING", "JwtId expired. user session terminated")
+		return models.User{}, fmt.Errorf("expired JwtId present in token")
+	}
 	user := models.User{
 		ID:         userId,
 		AccessType: AccessType,
