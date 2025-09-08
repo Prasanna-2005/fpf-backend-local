@@ -2,6 +2,7 @@
 package server
 
 import (
+	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/ctrl"
 	"form_pf_backend/middleware"
@@ -27,6 +28,8 @@ func SetupRoutes(cfg *config.RouteConfig) *gin.Engine {
 			MaxAge:           12 * time.Hour,
 		}
 		r.Use(cors.New(corsConfig))
+		msg := fmt.Sprintf("cors headers: %v", cfg.CORSHeaders)
+		fmt.Println(msg)
 	}
 
 	setupAPIRoutes(r, cfg.APIVersion)
