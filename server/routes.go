@@ -22,7 +22,7 @@ func SetupRoutes(cfg *config.RouteConfig) *gin.Engine {
 		corsConfig := cors.Config{
 			AllowOrigins:     cfg.CORSOrigins,
 			AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
-			AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+			AllowHeaders:     cfg.CORSHeaders,
 			AllowCredentials: true,
 			MaxAge:           12 * time.Hour,
 		}
