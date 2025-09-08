@@ -15,39 +15,25 @@ import (
 	"github.com/texttheater/golang-levenshtein/levenshtein"
 )
 
-type DocumentProcessingService struct {
-	logger *utility.Logger
-}
-
-func NewDocumentProcessingService() *DocumentProcessingService {
-	return &DocumentProcessingService{
-		logger: utility.LoggerFunc(),
-	}
-}
-
-func (s *DocumentProcessingService) IdentifyFiles(req *models.FileIdentificationRequest) (
+func IdentifyFiles(req *models.FileIdentificationRequest) (
 	*models.FileIdentificationResponse, error) {
 
-	s.logger.Log("INFO", fmt.Sprintf("start identification: %s / %s", req.ClientID, req.FilingName))
+	logger.Log("INFO", fmt.Sprintf("start identification: %s / %s", req.ClientID, req.FilingName))
 
 	funds, err := db.GetAllFegFileIdentifications()
 	if err != nil {
-		s.logger.Log("ERROR", "cannot load funds: "+err.Error())
+		logger.Log("ERROR", "cannot load funds: "+err.Error())
 		return nil, fmt.Errorf("cannot load funds: %w", err)
 	}
-	headers, err := db.GetAllFegFileIdentifications() // why here
-	if err != nil {
-		s.logger.Log("ERROR", "cannot load headers: "+err.Error())
-		return nil, fmt.Errorf("cannot load headers: %w", err)
-	}
+
 	cfg, err := config.LoadConfig()
 	baseDir := filepath.Join(cfg.UploadVolumePath, req.ClientID, req.FilingName)
-	excels, err := s.findExcelFiles(baseDir)
+	excels, err := findExcelFiles(baseDir)
 	if err != nil {
-		s.logger.Log("ERROR", "cannot walk dir: "+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("cannot walk dir: %v", err.Error()))
 		return nil, fmt.Errorf("cannot walk dir: %w", err)
 	}
-	s.logger.Log("INFO", fmt.Sprintf("found %d Excel files", len(excels)))
+	logger.Log("INFO", fmt.Sprintf("found %d Excel files", len(excels)))
 
 	var mapped []models.FileMappingDetail
 	var unmapped []string
@@ -55,19 +41,19 @@ func (s *DocumentProcessingService) IdentifyFiles(req *models.FileIdentification
 
 	for _, path := range excels {
 		name := filepath.Base(path)
-		detail, ok := s.matchFile(path, name, funds)
+		detail, ok := matchFile(path, name, funds)
 		if !ok {
 			unmapped = append(unmapped, name)
-			s.logger.Log("WARNING", "unmapped file: "+name)
+			logger.Log("WARNING", "unmapped file: "+name)
 			continue
 		}
 		detail.FileName = name
 		detail.FilePath = path
 		mapped = append(mapped, detail)
 
-		headerID, err := s.findOrCreateHeader(detail.FundName, detail.QuarterEndDate, headers)
+		headerID, err := findOrCreateHeader(detail.FundName, detail.QuarterEndDate, headers)
 		if err != nil {
-			s.logger.Log("ERROR", "header create: "+err.Error())
+			logger.Log("ERROR", "header create: "+err.Error())
 			continue
 		}
 
@@ -79,16 +65,16 @@ func (s *DocumentProcessingService) IdentifyFiles(req *models.FileIdentification
 		// 	QuarterEndDate: detail.QuarterEndDate,
 		// 	EntityFound:    detail.EntityFound,
 		// })
-		s.logger.Log("DEBUG", fmt.Sprintf("headerID: %v", headerID))
-		s.logger.Log("INFO", fmt.Sprintf("mapped %s -> %s (%.1f%%)", name, detail.FundName, detail.MatchScore))
+		logger.Log("DEBUG", fmt.Sprintf("headerID: %v", headerID))
+		logger.Log("INFO", fmt.Sprintf("mapped %s -> %s (%.1f%%)", name, detail.FundName, detail.MatchScore))
 	}
 
 	if len(dbRows) > 0 {
 		if err := db.BatchSaveFileMappings(dbRows); err != nil {
-			s.logger.Log("ERROR", "batch insert: "+err.Error())
+			logger.Log("ERROR", "batch insert: "+err.Error())
 			return nil, fmt.Errorf("batch insert: %w", err)
 		}
-		s.logger.Log("INFO", fmt.Sprintf("saved %d mappings to DB", len(dbRows)))
+		logger.Log("INFO", fmt.Sprintf("saved %d mappings to DB", len(dbRows)))
 	}
 
 	return &models.FileIdentificationResponse{
@@ -102,7 +88,7 @@ func (s *DocumentProcessingService) IdentifyFiles(req *models.FileIdentification
 }
 
 // ----------  helpers  ----------
-func (s *DocumentProcessingService) findExcelFiles(root string) ([]string, error) {
+func findExcelFiles(root string) ([]string, error) {
 	var out []string
 	err := filepath.Walk(root, func(p string, i os.FileInfo, e error) error {
 		if e != nil || i.IsDir() {
@@ -117,68 +103,40 @@ func (s *DocumentProcessingService) findExcelFiles(root string) ([]string, error
 	return out, err
 }
 
-func (s *DocumentProcessingService) matchFile(path, name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-	if d, ok := s.matchByFilename(name, funds); ok {
+func matchFile(path, name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
+	if d, ok := matchByFilename(name, funds); ok {
 		return d, true
 	}
-	return s.matchByExcelContent(path, name, funds)
+	return matchByExcelContent(path, name, funds)
 }
 
-// func (s *DocumentProcessingService) matchByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-// 	parts := strings.Split(strings.TrimSuffix(name, filepath.Ext(name)), "_")
-// 	if len(parts) < 3 {
-// 		return models.FileMappingDetail{}, false
-// 	}
-// 	candidate := strings.ToLower(parts[2])
-// 	logger.Log("DEBUG", fmt.Sprintf("candidate:%v", candidate))
-// 	for _, f := range funds {
-// 		logger.Log("DEBUG", fmt.Sprintf("funds: %v", funds))
-// 		logger.Log("DEBUG", "Entered for loop")
-// 		if f.ShortCode == "" {
-// 			logger.Log("DEBUG", "no short code present")
-// 			continue
-// 		}
-// 		score := s.similarity(candidate, strings.ToLower(f.ShortCode))
-
-// 		logger.Log("DEBUG", fmt.Sprintf("shortCode:%v", strings.ToLower(f.ShortCode)))
-// 		logger.Log("DEBUG", fmt.Sprintf("score:%v", score))
-// 		if score >= 85 {
-// 			return models.FileMappingDetail{
-// 				FundName:    f.FundName,
-// 				ShortCode:   f.ShortCode,
-// 				MatchMethod: "filename",
-// 				MatchScore:  score,
-// 			}, true
-// 		}
-// 	}
-// 	return models.FileMappingDetail{}, false
-// }
-
-func (s *DocumentProcessingService) matchByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
+func matchByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
 	parts := strings.Split(strings.TrimSuffix(name, filepath.Ext(name)), "_")
-	if len(parts) < 3 { // <-- guard first
-		return models.FileMappingDetail{}, false
-	}
-	candidate := strings.ToLower(parts[2]) // <-- now safe
-	s.logger.Log("DEBUG", fmt.Sprintf("candidate:%v", candidate))
-	for _, f := range funds {
-		if f.ShortCode == "" {
-			continue
-		}
-		score := s.similarity(candidate, strings.ToLower(f.ShortCode))
-		if score >= 85 {
-			return models.FileMappingDetail{
-				FundName:    f.FundName,
-				ShortCode:   f.ShortCode,
-				MatchMethod: "filename",
-				MatchScore:  score,
-			}, true
+	logger.Log("DEBUG", fmt.Sprintf("parts: %v", parts))
+	q, m := utility.ThisYear()
+	for _, part := range parts {
+		candidate := strings.ToLower(part) // <-- now safe
+		logger.Log("DEBUG", fmt.Sprintf("candidate:%v", candidate))
+		for _, f := range funds {
+			if f.ShortCode == "" || f.Quarter == 0 {
+				continue
+			}
+			score := similarity(candidate, strings.ToLower(f.ShortCode))
+			quarterScore := similarity(candidate())
+			if score >= 85 {
+				return models.FileMappingDetail{
+					FundName:    f.FundName,
+					ShortCode:   f.ShortCode,
+					MatchMethod: "filename",
+					MatchScore:  score,
+				}, true
+			}
 		}
 	}
 	return models.FileMappingDetail{}, false // explicit failure → triggers Excel scan
 }
 
-func (s *DocumentProcessingService) matchByExcelContent(path, name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
+func matchByExcelContent(path, name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
 	logger.Log("DEBUG", "Inside excel content")
 	f, err := excelize.OpenFile(path)
 	if err != nil {
@@ -204,13 +162,13 @@ func (s *DocumentProcessingService) matchByExcelContent(path, name string, funds
 					continue
 				}
 				for _, fund := range funds {
-					nameScore := s.similarity(strings.ToLower(val), strings.ToLower(fund.FundName))
-					codeScore := s.similarity(strings.ToLower(val), strings.ToLower(fund.ShortCode))
+					nameScore := similarity(strings.ToLower(val), strings.ToLower(fund.FundName))
+					codeScore := similarity(strings.ToLower(val), strings.ToLower(fund.ShortCode))
 					if nameScore >= 90 && nameScore > best.MatchScore {
-						best = models.FileMappingDetail{FundName: fund.FundName, ShortCode: fund.ShortCode, MatchMethod: "entity", MatchScore: nameScore, EntityFound: val}
+						best = models.FileMappingDetail{FundName: fund.FundName, ShortCode: fund.ShortCode, MatchMethod: "ExcelContent", MatchScore: nameScore, EntityFound: val, CellNo: ci}
 					}
 					if codeScore >= 90 && codeScore > best.MatchScore {
-						best = models.FileMappingDetail{FundName: fund.FundName, ShortCode: fund.ShortCode, MatchMethod: "entity", MatchScore: codeScore, EntityFound: val}
+						best = models.FileMappingDetail{FundName: fund.FundName, ShortCode: fund.ShortCode, MatchMethod: "ExcelContentShort", MatchScore: codeScore, EntityFound: val, CellNo: ci}
 					}
 				}
 			}
@@ -219,8 +177,8 @@ func (s *DocumentProcessingService) matchByExcelContent(path, name string, funds
 	return best, best.MatchScore > 0
 }
 
-func (s *DocumentProcessingService) findOrCreateHeader(fundName string, qdate *time.Time, cache []models.FegFileIdentification) (uint, error) {
-	q := s.quarterFromDate(qdate)
+func findOrCreateHeader(fundName string, qdate *time.Time, cache []models.FegFileIdentification) (uint, error) {
+	q := quarterFromDate(qdate)
 	for _, h := range cache {
 		if h.FundName == fundName && h.Quarter == q {
 			return h.ID, nil
@@ -236,11 +194,11 @@ func (s *DocumentProcessingService) findOrCreateHeader(fundName string, qdate *t
 	if err := db.CreateFegFileIdentification(&newH); err != nil {
 		return 0, err
 	}
-	s.logger.Log("INFO", fmt.Sprintf("created new FegFileIdentification %s Q%d (id=%d)", fundName, q, newH.ID))
+	logger.Log("INFO", fmt.Sprintf("created new FegFileIdentification %s Q%d (id=%d)", fundName, q, newH.ID))
 	return newH.ID, nil
 }
 
-func (s *DocumentProcessingService) quarterFromDate(t *time.Time) int {
+func quarterFromDate(t *time.Time) int {
 	if t == nil {
 		return 0
 	}
@@ -256,7 +214,7 @@ func (s *DocumentProcessingService) quarterFromDate(t *time.Time) int {
 	}
 }
 
-func (s *DocumentProcessingService) similarity(a, b string) float64 {
+func similarity(a, b string) float64 {
 	if a == b {
 		return 100
 	}
@@ -269,11 +227,4 @@ func (s *DocumentProcessingService) similarity(a, b string) float64 {
 	}
 	d := levenshtein.DistanceForStrings([]rune(a), []rune(b), levenshtein.DefaultOptions)
 	return (1 - float64(d)/float64(maxLen)) * 100
-}
-
-func (s *DocumentProcessingService) adjacent(rows [][]string, col int) string {
-	if col+1 < len(rows[0]) {
-		return rows[0][col+1]
-	}
-	return ""
 }
