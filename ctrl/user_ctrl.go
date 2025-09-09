@@ -260,8 +260,6 @@ func VerifyOTP(c *gin.Context) {
 	accessTokenExpiry := int(tokenCfg.TokenExpiry.Seconds())
 	refreshTokenExpiry := int(tokenCfg.RefreshTokenExpiry.Seconds())
 
-	// Set access token cookie using configuration
-	// Add this debug logging in VerifyOTP right before c.SetCookie calls
 	logger.Log("DEBUG", fmt.Sprintf("Cookie config - Domain: '%s', Path: '%s'",
 		CookieCfg.AccessToken.Domain, CookieCfg.AccessToken.Path))
 
