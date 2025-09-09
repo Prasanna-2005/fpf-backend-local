@@ -15,6 +15,7 @@ type RouteConfig struct {
 	APIVersion       string
 	EnableCORS       bool
 	CORSOrigins      []string
+	CORSHeaders      []string
 	UploadVolumePath string
 }
 
@@ -169,6 +170,8 @@ func LoadConfig() (*RouteConfig, error) {
 	}
 	origins := cfg.Section("cors").Key("origins").String()
 	config.CORSOrigins = splitOrigins(origins)
+	headers := cfg.Section("cors").Key("headers").String()
+	config.CORSHeaders = splitOrigins(headers)
 	return config, nil
 }
 

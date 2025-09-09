@@ -2,6 +2,7 @@
 package server
 
 import (
+	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/ctrl"
 	"form_pf_backend/middleware"
@@ -22,11 +23,13 @@ func SetupRoutes(cfg *config.RouteConfig) *gin.Engine {
 		corsConfig := cors.Config{
 			AllowOrigins:     cfg.CORSOrigins,
 			AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
-			AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+			AllowHeaders:     cfg.CORSHeaders,
 			AllowCredentials: true,
 			MaxAge:           12 * time.Hour,
 		}
 		r.Use(cors.New(corsConfig))
+		msg := fmt.Sprintf("cors headers: %v", cfg.CORSHeaders)
+		fmt.Println(msg)
 	}
 
 	setupAPIRoutes(r, cfg.APIVersion)
@@ -78,7 +81,7 @@ func setUpSubmission(api *gin.RouterGroup) {
 
 func setupProfileRoutes(api *gin.RouterGroup) {
 	prof := api.Group("/profile")
-	prof.Use(middleware.Authenticate(""))
+	prof.Use(middleware.Authenticate())
 	prof.POST("/reset_password", ctrl.UpdatePasswd)
 
 }
