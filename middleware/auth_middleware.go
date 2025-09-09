@@ -83,7 +83,8 @@ func abortWithMsg(c *gin.Context, code int, msg, logMsg string) {
 func findAccessToken(c *gin.Context, uid string) (string, bool) {
 	cookieName := uid + "access"
 	if _, err := c.Cookie(cookieName); err != nil {
-		abortWithMsg(c, http.StatusUnauthorized, "access cookie not found", "")
+		logger.Log("DEBUG", cookieName)
+		abortWithMsg(c, http.StatusUnauthorized, "access cookie not found", err.Error())
 		return "", false
 	}
 	token, _ := c.Cookie(cookieName) // err already checked above
