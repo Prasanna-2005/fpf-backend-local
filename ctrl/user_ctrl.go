@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
+	"form_pf_backend/middleware"
 	"form_pf_backend/modules"
 	"form_pf_backend/utility"
 	"net/http"
@@ -260,8 +261,12 @@ func VerifyOTP(c *gin.Context) {
 	refreshTokenExpiry := int(tokenCfg.RefreshTokenExpiry.Seconds())
 
 	// Set access token cookie using configuration
-	fmt.Println(accessTokenExpiry)
-	fmt.Println(refreshTokenExpiry)
+	// Add this debug logging in VerifyOTP right before c.SetCookie calls
+	logger.Log("DEBUG", fmt.Sprintf("Cookie config - Domain: '%s', Path: '%s'",
+		CookieCfg.AccessToken.Domain, CookieCfg.AccessToken.Path))
+
+	fmt.Printf("Setting access cookie with domain: '%s'\n", CookieCfg.AccessToken.Domain)
+
 	c.SetCookie(
 		user.ID+"access",               // name
 		hashedAccess,                   // value
@@ -271,7 +276,17 @@ func VerifyOTP(c *gin.Context) {
 		CookieCfg.AccessToken.Secure,   // secure from config
 		CookieCfg.AccessToken.HTTPOnly, // httpOnly from config
 	)
-
+	c.SetSameSite(http.SameSiteLaxMode)
+	// cookie := http.Cookie{
+	// 	Name:     user.ID + "access",
+	// 	Value:    hashedAccess,
+	// 	Path:     "/",
+	// 	MaxAge:   3600,
+	// 	HttpOnly: true,
+	// 	Secure:   true,
+	// 	SameSite: http.SameSiteLaxMode,
+	// }
+	// http.SetCookie(c.Writer, &cookie)
 	// Set refresh token cookie using configuration
 	c.SetCookie(
 		user.ID+"refresh",               // name
@@ -282,7 +297,7 @@ func VerifyOTP(c *gin.Context) {
 		CookieCfg.RefreshToken.Secure,   // secure from config
 		CookieCfg.RefreshToken.HTTPOnly, // httpOnly from config
 	)
-
+	c.SetSameSite(http.SameSiteLaxMode)
 	logger.Log("INFO", "Authentication completed successfully for user")
 
 	c.JSON(http.StatusOK, gin.H{
@@ -337,6 +352,7 @@ func NewAccessToken(c *gin.Context) {
 		logger.Log("ERROR", CookieError+err.Error())
 		return
 	}
+
 	c.SetCookie(
 		payload.UserId+"access",        // name
 		hashedAccess,                   // value
@@ -346,7 +362,7 @@ func NewAccessToken(c *gin.Context) {
 		CookieCfg.AccessToken.Secure,   // secure from config
 		CookieCfg.AccessToken.HTTPOnly, // httpOnly from config
 	)
-
+	c.SetSameSite(http.SameSiteLaxMode)
 	logger.Log("INFO", "Authentication completed successfully for user")
 
 	c.JSON(http.StatusOK, gin.H{
@@ -359,17 +375,20 @@ func NewAccessToken(c *gin.Context) {
 
 func UpdatePasswd(c *gin.Context) {
 	var payload struct {
-		UserId  string `json:"user_id" binding:"required"`
 		NewPswd string `json:"new_password" binding:"required"`
 	}
-
+	uid, err := middleware.ExtractUserID(c)
+	if err != nil {
+		logger.Log("ERROR", "Header doesn't have uid")
+		return
+	}
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		logger.Log("ERROR", PayloadError+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
 	cost := config.BcryptCost()
-	user, err := db.GetUser(payload.UserId)
+	user, err := db.GetUser(uid)
 	if err != nil {
 		logger.Log("ERROR", "user not found"+err.Error())
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Incorrect UserId"})
