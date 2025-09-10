@@ -185,6 +185,7 @@ func extractFile(f *zip.File, targetDir string) (string, error) {
 
 // processNestedZips finds and processes any nested ZIP files that were extracted
 func processNestedZips(extractedFiles []string, parentDir string) error {
+	logger.Log("INFO", fmt.Sprintf("parentDir: %v", parentDir))
 	for _, filePath := range extractedFiles {
 		if strings.EqualFold(filepath.Ext(filePath), ".zip") {
 			logger.Log("INFO", fmt.Sprintf("[processNestedZips] Processing nested zip: %s", filePath))

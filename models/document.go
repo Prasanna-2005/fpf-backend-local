@@ -4,39 +4,45 @@ import (
 	"time"
 )
 
+/* ---------- request / response DTOs ---------- */
 type FileIdentificationRequest struct {
-	ClientID   string `gorm:"column:client_id"`
-	FilingName string `gorm:"column:filing_name"`
+	ClientID   string `json:"client_id"   gorm:"-"` // incoming payload only
+	FilingName string `json:"filing_name" gorm:"-"` // incoming payload only
 }
 
 type FileIdentificationResponse struct {
-	Success        bool                `gorm:"column:success"`
-	Message        string              `gorm:"column:message"`
-	FileMappings   []FileMappingDetail `gorm:"-"` // slice ignored by GORM
-	UnmappedFiles  []string            `gorm:"-"`
-	ProcessedCount int                 `gorm:"column:processed_count"`
-	MappedCount    int                 `gorm:"column:mapped_count"`
+	Success        bool                `json:"success,omitempty"        gorm:"-"`
+	Message        string              `json:"message,omitempty"        gorm:"-"`
+	FilingName     string              `json:"filing_name,omitempty"    gorm:"-"` // NEW
+	FileMappings   []FileMappingDetail `json:"file_mappings,omitempty"  gorm:"-"`
+	UnmappedFiles  []string            `json:"unmapped_files,omitempty" gorm:"-"`
+	InvalidFiles   []string            `json:"invalid_files,omitempty"  gorm:"-"` // NEW (400)
+	FailedFiles    []string            `json:"failed_files,omitempty"   gorm:"-"` // NEW (302)
+	ProcessedCount int                 `json:"processed_count,omitempty" gorm:"-"`
+	MappedCount    int                 `json:"mapped_count,omitempty"    gorm:"-"`
 }
 
+/* ---------- single-file mapping row (same columns as before) ---------- */
 type FileMappingDetail struct {
-	DateCellNo     int     `gorm:"column:dateCellNo"`
-	FundCellNo     int     `gorm:"column:fundCellNo"`
-	FileName       string  `gorm:"column:fileName"`
-	FilePath       string  `gorm:"column:filePath"`
-	FundName       string  `gorm:"column:fundName"`
-	ShortCode      string  `gorm:"column:shortCode"`
-	MatchMethod    string  `gorm:"column:matchMethod"`
-	MatchScore     float64 `gorm:"column:matchScore"`
-	QuarterEndDate int     `gorm:"column:quarterEndDate"`
-	EntityFound    string  `gorm:"column:entity_found"`
+	DateCellNo     int     `json:"date_cell_no"  gorm:"column:dateCellNo"`
+	FundCellNo     int     `json:"fund_cell_no"  gorm:"column:fundCellNo"`
+	FileName       string  `json:"file_name"     gorm:"column:fileName"`
+	FilePath       string  `json:"file_path"     gorm:"column:filePath"`
+	FundName       string  `json:"fund_name"     gorm:"column:fundName"`
+	ShortCode      string  `json:"short_code"    gorm:"column:shortCode"`
+	MatchMethod    string  `json:"match_method"  gorm:"column:matchMethod"`
+	MatchScore     float64 `json:"match_score"   gorm:"column:matchScore"`
+	QuarterEndDate int     `json:"quarter"       gorm:"column:quarterEndDate"`
+	EntityFound    string  `json:"entity_found"  gorm:"column:entity_found"`
 }
 
+/* ---------- DB table models (unchanged columns) ---------- */
 type FileMapper struct {
 	ID            uint      `gorm:"column:id;primaryKey;autoIncrement"`
 	FileName      string    `gorm:"column:fileName;not null"`
 	FilingPath    string    `gorm:"column:filingPath;not null"`
 	FundShortCode string    `gorm:"column:fundShortCode"`
-	FilingID      uint      `gorm:"column:filingId;not null"`
+	FilingID      uint      `gorm:"column:filingId;not null"` // legacy DB column – keep
 	FileMapID     uint      `gorm:"column:fileMapId"`
 	QuarterNo     int       `gorm:"column:quarterNo"`
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`

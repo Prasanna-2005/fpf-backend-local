@@ -162,6 +162,7 @@ func matchQuarterByFilename(name string) (int, int) {
 // ---------- excel extractor (returns both pieces) ----------
 func matchByExcelContent(path, name string, funds []models.FegFileIdentification) (fund models.FileMappingDetail, quarter int, qCell int) {
 	logger.Log("DEBUG", "Inside excel content")
+	logger.Log("INFO", fmt.Sprintf("filename: %v", name))
 
 	f, err := excelize.OpenFile(path)
 	if err != nil {

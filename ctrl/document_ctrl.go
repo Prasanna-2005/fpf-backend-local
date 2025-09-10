@@ -59,7 +59,8 @@ func MapFiles(c *gin.Context) {
 
 	resp, err := modules.IdentifyFiles(&req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": ServerError})
 		return
 	}
 	c.JSON(http.StatusOK, resp)
