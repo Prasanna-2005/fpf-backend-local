@@ -5,7 +5,6 @@ import (
 	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
-	"form_pf_backend/utility"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +26,9 @@ func IdentifyFiles(req *models.FileIdentificationRequest) (
 	}
 
 	cfg, err := config.LoadConfig()
+	if err != nil {
+		logger.Log("ERROR", "loadconfig failed")
+	}
 	baseDir := filepath.Join(cfg.UploadVolumePath, req.ClientID, req.FilingName)
 	excels, err := findExcelFiles(baseDir)
 	if err != nil {
@@ -51,21 +53,6 @@ func IdentifyFiles(req *models.FileIdentificationRequest) (
 		detail.FilePath = path
 		mapped = append(mapped, detail)
 
-		headerID, err := findOrCreateHeader(detail.FundName, detail.QuarterEndDate, headers)
-		if err != nil {
-			logger.Log("ERROR", "header create: "+err.Error())
-			continue
-		}
-
-		// dbRows = append(dbRows, models.FileMapper{
-		// 	FileName:       name,
-		// 	FilePath:       path,
-		// 	MatchMethod:    detail.MatchMethod,
-		// 	MatchScore:     detail.MatchScore,
-		// 	QuarterEndDate: detail.QuarterEndDate,
-		// 	EntityFound:    detail.EntityFound,
-		// })
-		logger.Log("DEBUG", fmt.Sprintf("headerID: %v", headerID))
 		logger.Log("INFO", fmt.Sprintf("mapped %s -> %s (%.1f%%)", name, detail.FundName, detail.MatchScore))
 	}
 
@@ -87,7 +74,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest) (
 	}, nil
 }
 
-// ----------  helpers  ----------
+// ---------- helpers ----------
 func findExcelFiles(root string) ([]string, error) {
 	var out []string
 	err := filepath.Walk(root, func(p string, i os.FileInfo, e error) error {
@@ -104,98 +91,167 @@ func findExcelFiles(root string) ([]string, error) {
 }
 
 func matchFile(path, name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-	if d, ok := matchByFilename(name, funds); ok {
-		return d, true
+	// 1. filename first
+	fundMatch, fundOk := matchFundByFilename(name, funds)
+	quarter, qCell := matchQuarterByFilename(name)
+	logger.Log("DEBuG", fmt.Sprintf("qcell: %v,fundOk: %v", fundOk, qCell))
+	// 2. excel fallback for missing pieces
+	if !fundOk || qCell == -1 {
+		excelFund, excelQuarter, excelQCell := matchByExcelContent(path, name, funds)
+		logger.Log("DEBUG", fmt.Sprintf("excelQuarter:%v", excelQuarter))
+		if !fundOk && excelFund.MatchScore > 0 {
+			fundMatch = excelFund
+			fundOk = true
+		}
+		if qCell == -1 && excelQuarter != 0 {
+			logger.Log("DEBUG", fmt.Sprintf("qt: %v", excelQuarter))
+			quarter, qCell = excelQuarter, excelQCell
+		}
 	}
-	return matchByExcelContent(path, name, funds)
+
+	// 3. merge
+	out := models.FileMappingDetail{
+		FileName: name, FilePath: path,
+		QuarterEndDate: quarter, DateCellNo: qCell,
+	}
+	if fundOk {
+		out.FundName = fundMatch.FundName
+		out.ShortCode = fundMatch.ShortCode
+		out.MatchMethod = fundMatch.MatchMethod
+		out.MatchScore = fundMatch.MatchScore
+		out.EntityFound = fundMatch.EntityFound
+		out.FundCellNo = fundMatch.FundCellNo
+	}
+	return out, quarter != 0 || fundOk
 }
 
-func matchByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
+// ---------- filename fund extractor ----------
+func matchFundByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
 	parts := strings.Split(strings.TrimSuffix(name, filepath.Ext(name)), "_")
 	logger.Log("DEBUG", fmt.Sprintf("parts: %v", parts))
-	q, m := utility.ThisYear()
 	for _, part := range parts {
-		candidate := strings.ToLower(part) // <-- now safe
-		logger.Log("DEBUG", fmt.Sprintf("candidate:%v", candidate))
+		candidate := strings.ToLower(part)
+		logger.Log("DEBUG", fmt.Sprintf("part: %v", candidate))
 		for _, f := range funds {
 			if f.ShortCode == "" || f.Quarter == 0 {
 				continue
 			}
-			score := similarity(candidate, strings.ToLower(f.ShortCode))
-			quarterScore := similarity(candidate())
-			if score >= 85 {
+			if similarity(candidate, strings.ToLower(f.ShortCode)) >= 85 {
 				return models.FileMappingDetail{
 					FundName:    f.FundName,
 					ShortCode:   f.ShortCode,
 					MatchMethod: "filename",
-					MatchScore:  score,
+					MatchScore:  similarity(candidate, strings.ToLower(f.ShortCode)),
 				}, true
 			}
 		}
 	}
-	return models.FileMappingDetail{}, false // explicit failure → triggers Excel scan
+	return models.FileMappingDetail{}, false
 }
 
-func matchByExcelContent(path, name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
+func matchQuarterByFilename(name string) (int, int) {
+	parts := strings.Split(strings.TrimSuffix(name, filepath.Ext(name)), "_")
+	for i, p := range parts {
+		if t, err := time.Parse("2006.01.02", strings.TrimSpace(p)); err == nil {
+			return quarterFromDate(&t), i
+		}
+	}
+	return 0, -1
+}
+
+// ---------- excel extractor (returns both pieces) ----------
+func matchByExcelContent(path, name string, funds []models.FegFileIdentification) (fund models.FileMappingDetail, quarter int, qCell int) {
 	logger.Log("DEBUG", "Inside excel content")
+
 	f, err := excelize.OpenFile(path)
 	if err != nil {
 		logger.Log("DEBUG", "fileopen error")
-
-		return models.FileMappingDetail{}, false
+		return models.FileMappingDetail{}, 0, -1
 	}
 
-	var best models.FileMappingDetail
-	for _, sheet := range f.GetSheetList() {
-		logger.Log("DEBUG", fmt.Sprintf("sheet: %v", sheet))
-		rows, _ := f.GetRows(sheet)
+	quarter, qCell = matchQuarterFromExcel(f)
+	fund, _ = matchFundFromExcel(f, funds)
+	return fund, quarter, qCell
+}
 
+func matchQuarterFromExcel(f *excelize.File) (int, int) {
+	parse := func(raw string) int {
+		raw = strings.TrimSpace(raw)
+		// normalise separators to "/"
+		raw = strings.NewReplacer(".", "/", "-", "/").Replace(raw)
+
+		// try the four common layouts
+		for _, l := range []string{"01/02/2006", "1/2/2006", "01/02/06", "1/2/06"} {
+			if t, err := time.Parse(l, raw); err == nil {
+				// two-digit-year fix: 00-29 → 20xx, 30-99 → 19xx
+				if l == "01/02/06" || l == "1/2/06" {
+					if t.Year() < 1970 {
+						t = t.AddDate(100, 0, 0)
+					}
+				}
+				return quarterFromDate(&t)
+			}
+		}
+		return 0
+	}
+	for _, sheet := range f.GetSheetList() {
+		rows, _ := f.GetRows(sheet)
 		for _, row := range rows {
 			for ci, cell := range row {
-				// cell=strings.TrimSpace(cell)
-				// if !strings.Contains(strings.ToLower(cell), "entity:") {
-				// 	continue
-				// }
-				// val := strings.TrimSpace(s.adjacent(rows, ci))
-				val := strings.TrimSpace(cell)
-				if val == "" {
+				logger.Log("DEBUG", cell)
+				if strings.Contains(strings.ToLower(strings.TrimSpace(cell)), "period to:") &&
+					ci+1 < len(row) {
+					logger.Log("DEBUG", "period found")
+					fmt.Println(row[ci+2])
+					fmt.Println(ci + 2)
+					fmt.Println(parse(row[ci+2]))
+					return parse(row[ci+2]), ci + 2
+				}
+			}
+		}
+	}
+	return 0, -1
+}
+
+func matchFundFromExcel(f *excelize.File, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
+	var best models.FileMappingDetail
+	for _, sheet := range f.GetSheetList() {
+		rows, _ := f.GetRows(sheet)
+		for _, row := range rows {
+			for ci, cell := range row {
+				if cell = strings.TrimSpace(cell); cell == "" {
 					continue
 				}
+				lc := strings.ToLower(cell)
 				for _, fund := range funds {
-					nameScore := similarity(strings.ToLower(val), strings.ToLower(fund.FundName))
-					codeScore := similarity(strings.ToLower(val), strings.ToLower(fund.ShortCode))
-					if nameScore >= 90 && nameScore > best.MatchScore {
-						best = models.FileMappingDetail{FundName: fund.FundName, ShortCode: fund.ShortCode, MatchMethod: "ExcelContent", MatchScore: nameScore, EntityFound: val, CellNo: ci}
+					nScore := similarity(lc, strings.ToLower(fund.FundName))
+					cScore := similarity(lc, strings.ToLower(fund.ShortCode))
+
+					if nScore >= 90 && nScore > best.MatchScore {
+						best = models.FileMappingDetail{
+							FundName:    fund.FundName,
+							ShortCode:   fund.ShortCode,
+							MatchMethod: "ExcelContent",
+							MatchScore:  nScore,
+							EntityFound: cell,
+							FundCellNo:  ci,
+						}
 					}
-					if codeScore >= 90 && codeScore > best.MatchScore {
-						best = models.FileMappingDetail{FundName: fund.FundName, ShortCode: fund.ShortCode, MatchMethod: "ExcelContentShort", MatchScore: codeScore, EntityFound: val, CellNo: ci}
+					if cScore >= 90 && cScore > best.MatchScore {
+						best = models.FileMappingDetail{
+							FundName:    fund.FundName,
+							ShortCode:   fund.ShortCode,
+							MatchMethod: "ExcelContentShort",
+							MatchScore:  cScore,
+							EntityFound: cell,
+							FundCellNo:  ci,
+						}
 					}
 				}
 			}
 		}
 	}
 	return best, best.MatchScore > 0
-}
-
-func findOrCreateHeader(fundName string, qdate *time.Time, cache []models.FegFileIdentification) (uint, error) {
-	q := quarterFromDate(qdate)
-	for _, h := range cache {
-		if h.FundName == fundName && h.Quarter == q {
-			return h.ID, nil
-		}
-	}
-	newH := models.FegFileIdentification{
-		FundName: fundName,
-		Quarter:  1,
-
-		Series:    "A",
-		CreatedBy: "system",
-	}
-	if err := db.CreateFegFileIdentification(&newH); err != nil {
-		return 0, err
-	}
-	logger.Log("INFO", fmt.Sprintf("created new FegFileIdentification %s Q%d (id=%d)", fundName, q, newH.ID))
-	return newH.ID, nil
 }
 
 func quarterFromDate(t *time.Time) int {
