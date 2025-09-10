@@ -11,17 +11,40 @@ import (
 
 const (
 	AuthError   = "User not found / Invalid User session"
-	Restriction = "Insufficient privellege.Contact admin"
+	Restriction = "Insufficient privilege. Contact admin"
 	UidError    = "User Id not present in Header"
 )
 
 var logger = utility.LoggerFunc()
 
-func Authenticate(requiredRole string) gin.HandlerFunc {
+/*
+	------------------------------------------------------------------
+	  Public API – three ways to call:
+	    auth.Authenticate("admin")
+	    auth.Authenticate([]string{"admin","user"})
+	    auth.Authenticate("admin","user")
+
+------------------------------------------------------------------
+*/
+func Authenticate(required ...interface{}) gin.HandlerFunc {
+	// normalise whatever the caller passed into a []string
+	allowed := make([]string, 0, len(required))
+	for _, r := range required {
+		switch v := r.(type) {
+		case string:
+			allowed = append(allowed, v)
+		case []string:
+			allowed = append(allowed, v...)
+		default:
+			panic(fmt.Sprintf("Authenticate: unsupported type %T", v))
+		}
+	}
+
 	return func(c *gin.Context) {
 		uid, err := ExtractUserID(c)
 		if err != nil {
-			abortWithMsg(c, http.StatusBadRequest, UidError, "Header doesn't have user id: "+err.Error())
+			abortWithMsg(c, http.StatusBadRequest, UidError,
+				"Header doesn't have user id: "+err.Error())
 			return
 		}
 
@@ -36,7 +59,7 @@ func Authenticate(requiredRole string) gin.HandlerFunc {
 			return
 		}
 
-		if !roleAllowed(claims.AccessType, requiredRole) {
+		if !roleAllowed(claims.AccessType, allowed) {
 			abortWithMsg(c, http.StatusForbidden, Restriction, "")
 			return
 		}
@@ -60,7 +83,8 @@ func abortWithMsg(c *gin.Context, code int, msg, logMsg string) {
 func findAccessToken(c *gin.Context, uid string) (string, bool) {
 	cookieName := uid + "access"
 	if _, err := c.Cookie(cookieName); err != nil {
-		abortWithMsg(c, http.StatusUnauthorized, "access cookie not found", "")
+		logger.Log("DEBUG", cookieName)
+		abortWithMsg(c, http.StatusUnauthorized, "access cookie not found", err.Error())
 		return "", false
 	}
 	token, _ := c.Cookie(cookieName) // err already checked above
@@ -71,12 +95,20 @@ func findAccessToken(c *gin.Context, uid string) (string, bool) {
 	return token, true
 }
 
-func roleAllowed(userRole, required string) bool {
-	return required == "" || userRole == required
+// true if userRole is in the allowed slice OR if no roles are required.
+func roleAllowed(userRole string, allowed []string) bool {
+	if len(allowed) == 0 {
+		return true // empty requirement = allow all
+	}
+	for _, r := range allowed {
+		if r == userRole {
+			return true
+		}
+	}
+	return false
 }
 
-// Returns the user_id (string) or an error.
-// Safe to call from middleware; downstream handlers can still bind JSON.
+// ExtractUserID pulls the user id from the X-User-ID header.
 func ExtractUserID(c *gin.Context) (string, error) {
 	id := c.GetHeader("X-User-ID")
 	if id == "" {

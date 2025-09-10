@@ -78,3 +78,6 @@ func GetDB() *gorm.DB {
 	return sqlDb
 
 }
+
+// returns true if the handle has not recorded any error
+func dbAlive(db *gorm.DB) bool { return db.Error == nil }
