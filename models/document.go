@@ -19,15 +19,16 @@ type FileIdentificationResponse struct {
 }
 
 type FileMappingDetail struct {
-	CellNo         int        `gorm:"column:cellNo"`
-	FileName       string     `gorm:"column:fileName"`
-	FilePath       string     `gorm:"column:filePath"`
-	FundName       string     `gorm:"column:fundName"`
-	ShortCode      string     `gorm:"column:shortCode"`
-	MatchMethod    string     `gorm:"column:matchMethod"`
-	MatchScore     float64    `gorm:"column:matchScore"`
-	QuarterEndDate *time.Time `gorm:"column:quarterEndDate"`
-	EntityFound    string     `gorm:"column:entity_found"`
+	DateCellNo     int     `gorm:"column:dateCellNo"`
+	FundCellNo     int     `gorm:"column:fundCellNo"`
+	FileName       string  `gorm:"column:fileName"`
+	FilePath       string  `gorm:"column:filePath"`
+	FundName       string  `gorm:"column:fundName"`
+	ShortCode      string  `gorm:"column:shortCode"`
+	MatchMethod    string  `gorm:"column:matchMethod"`
+	MatchScore     float64 `gorm:"column:matchScore"`
+	QuarterEndDate int     `gorm:"column:quarterEndDate"`
+	EntityFound    string  `gorm:"column:entity_found"`
 }
 
 type FileMapper struct {
