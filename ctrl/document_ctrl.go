@@ -79,3 +79,7 @@ func MapFiles(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp)
 }
+
+func SubmitFiles(c *gin.Context) {
+
+}
