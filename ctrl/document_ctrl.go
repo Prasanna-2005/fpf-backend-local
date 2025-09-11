@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
 
@@ -81,5 +82,45 @@ func MapFiles(c *gin.Context) {
 }
 
 func SubmitFiles(c *gin.Context) {
+	var req models.SubmitReq
+	var cid = "system"
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+	temp, ok := c.Get("clientId")
+	if !ok {
+		logger.Log("WARNING", "No client id found")
+	}
+	cid, ok = temp.(string)
+	if !ok {
+		logger.Log("WARNING", "client id cannot be parsed as string")
+	}
+	cid, err := db.GetClient(cid)
+	if err != nil {
+		logger.Log("WARNING", err.Error())
+	}
+	if req.NewFiling {
+		filingId, err := db.CreateTracker(&req, cid)
+		if err != nil {
+			logger.Log("ERROR", err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+			return
+		}
+		mappers, err := db.CreateMapper(&req, filingId)
+		if err != nil {
+			logger.Log("ERROR", err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+			return
+		}
+		err = db.BatchSaveFileMappings(mappers)
+		if err != nil {
+			logger.Log("ERROR", err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Files submitted successfully", "filing_id": filingId})
+		return
+	}
 
 }
