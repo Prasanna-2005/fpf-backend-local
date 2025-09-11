@@ -59,20 +59,20 @@ func MapFiles(c *gin.Context) {
 	}
 	var uid, cid string
 	cid = "system"
-	temp, ok := c.Get("userId")
-	if !ok {
-		logger.Log("WARNING", "useid not found")
-		uid = "system"
-	}
-	uid = temp.(string)
-	temp, ok = c.Get("clientId")
+	// temp, ok := c.Get("userId")
+	// if !ok {
+	// 	logger.Log("WARNING", "useid not found")
+	// 	uid = "system"
+	// }
+	// uid = temp.(string)
+	temp, ok := c.Get("clientId")
 	if !ok {
 		logger.Log("WARNING", "clientId not found")
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": ServerError})
 		return
 	}
 	cid = temp.(string)
-	resp, err := modules.IdentifyFiles(&req, cid, uid)
+	resp, err := modules.IdentifyFiles(&req, cid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": ServerError})
 		return

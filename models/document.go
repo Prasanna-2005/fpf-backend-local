@@ -77,4 +77,5 @@ type MappedResp struct {
 	ShortCode string `json:"shortcode,omitempty"        gorm:"-"`
 	FundName  string `json:"fundname,omitempty"        gorm:"-"`
 	Quarter   int    `json:"quarter,omitempty"        gorm:"-"`
+	Path      string `json:"filepath,omitempty"        gorm:"-"`
 }
