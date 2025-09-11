@@ -14,7 +14,7 @@ import (
 	"github.com/texttheater/golang-levenshtein/levenshtein"
 )
 
-func IdentifyFiles(req *models.FileIdentificationRequest) (
+func IdentifyFiles(req *models.FileIdentificationRequest, uid string) (
 	*models.FileIdentificationResponse, error) {
 
 	logger.Log("INFO", fmt.Sprintf("start identification: %s / %s", req.ClientID, req.FilingName))
@@ -53,6 +53,16 @@ func IdentifyFiles(req *models.FileIdentificationRequest) (
 		detail.FilePath = path
 		mapped = append(mapped, detail)
 
+		row := models.FileMapper{
+			FileName:      detail.FileName,
+			FilingPath:    detail.FilePath,
+			FundShortCode: detail.ShortCode,
+			FileMapID:     detail.MapID,
+			QuarterNo:     detail.QuarterEndDate,
+			CreatedAt:     time.Now().UTC(),
+			CreatedBy:     uid,
+		}
+		dbRows = append(dbRows, row)
 		logger.Log("INFO", fmt.Sprintf("mapped %s -> %s (%.1f%%)", name, detail.FundName, detail.MatchScore))
 	}
 
@@ -63,14 +73,31 @@ func IdentifyFiles(req *models.FileIdentificationRequest) (
 		}
 		logger.Log("INFO", fmt.Sprintf("saved %d mappings to DB", len(dbRows)))
 	}
-
+	mappedCnt := len(mapped)
+	procCnt := len(excels)
+	msg := func() string {
+		if mappedCnt == 0 {
+			return "Invalid file format for one or more files"
+		}
+		if mappedCnt == procCnt {
+			return "File mappings updated successfully"
+		}
+		return "Partial success"
+	}()
+	var finalMap []models.MappedResp
+	var data models.MappedResp
+	for _, j := range mapped {
+		data.FileName = j.FileName
+		data.FundName = j.FundName
+		data.Quarter = j.QuarterEndDate
+		data.ShortCode = j.ShortCode
+		finalMap = append(finalMap, data)
+	}
 	return &models.FileIdentificationResponse{
-		Success:        true,
-		Message:        fmt.Sprintf("processed %d, mapped %d", len(excels), len(mapped)),
-		FileMappings:   mapped,
-		UnmappedFiles:  unmapped,
-		ProcessedCount: len(excels),
-		MappedCount:    len(mapped),
+		Message:       msg,
+		FilingName:    req.FilingName,
+		FileMappings:  finalMap,
+		UnmappedFiles: unmapped,
 	}, nil
 }
 
@@ -138,6 +165,7 @@ func matchFundByFilename(name string, funds []models.FegFileIdentification) (mod
 			}
 			if similarity(candidate, strings.ToLower(f.ShortCode)) >= 85 {
 				return models.FileMappingDetail{
+					MapID:       f.ID,
 					FundName:    f.FundName,
 					ShortCode:   f.ShortCode,
 					MatchMethod: "filename",
@@ -230,6 +258,7 @@ func matchFundFromExcel(f *excelize.File, funds []models.FegFileIdentification) 
 
 					if nScore >= 90 && nScore > best.MatchScore {
 						best = models.FileMappingDetail{
+							MapID:       fund.ID,
 							FundName:    fund.FundName,
 							ShortCode:   fund.ShortCode,
 							MatchMethod: "ExcelContent",
@@ -240,6 +269,7 @@ func matchFundFromExcel(f *excelize.File, funds []models.FegFileIdentification) 
 					}
 					if cScore >= 90 && cScore > best.MatchScore {
 						best = models.FileMappingDetail{
+							MapID:       fund.ID,
 							FundName:    fund.FundName,
 							ShortCode:   fund.ShortCode,
 							MatchMethod: "ExcelContentShort",

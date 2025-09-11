@@ -56,8 +56,16 @@ func MapFiles(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
 		return
 	}
-
-	resp, err := modules.IdentifyFiles(&req)
+	var uid string
+	temp, ok := c.Get("userId")
+	if !ok {
+		logger.Log("WARNING", "useid not found")
+		uid = "system"
+	}
+	if ok {
+		uid = temp.(string)
+	}
+	resp, err := modules.IdentifyFiles(&req, uid)
 	if err != nil {
 
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": ServerError})

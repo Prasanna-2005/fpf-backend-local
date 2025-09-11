@@ -11,19 +11,18 @@ type FileIdentificationRequest struct {
 }
 
 type FileIdentificationResponse struct {
-	Success        bool                `json:"success,omitempty"        gorm:"-"`
-	Message        string              `json:"message,omitempty"        gorm:"-"`
-	FilingName     string              `json:"filing_name,omitempty"    gorm:"-"` // NEW
-	FileMappings   []FileMappingDetail `json:"file_mappings,omitempty"  gorm:"-"`
-	UnmappedFiles  []string            `json:"unmapped_files,omitempty" gorm:"-"`
-	InvalidFiles   []string            `json:"invalid_files,omitempty"  gorm:"-"` // NEW (400)
-	FailedFiles    []string            `json:"failed_files,omitempty"   gorm:"-"` // NEW (302)
-	ProcessedCount int                 `json:"processed_count,omitempty" gorm:"-"`
-	MappedCount    int                 `json:"mapped_count,omitempty"    gorm:"-"`
+	Success        bool         `json:"success,omitempty"        gorm:"-"`
+	Message        string       `json:"message,omitempty"        gorm:"-"`
+	FilingName     string       `json:"filing_name,omitempty"    gorm:"-"` // NEW
+	FileMappings   []MappedResp `json:"file_mappings,omitempty"  gorm:"-"`
+	UnmappedFiles  []string     `json:"unmapped_files,omitempty" gorm:"-"`
+	ProcessedCount int          `json:"processed_count,omitempty" gorm:"-"`
+	MappedCount    int          `json:"mapped_count,omitempty"    gorm:"-"`
 }
 
 /* ---------- single-file mapping row (same columns as before) ---------- */
 type FileMappingDetail struct {
+	MapID          uint    `json:"Map_ID"  gorm:"column:Map_ID"`
 	DateCellNo     int     `json:"date_cell_no"  gorm:"column:dateCellNo"`
 	FundCellNo     int     `json:"fund_cell_no"  gorm:"column:fundCellNo"`
 	FileName       string  `json:"file_name"     gorm:"column:fileName"`
@@ -74,4 +73,11 @@ func (FileMapper) TableName() string {
 
 func (FegFileIdentification) TableName() string {
 	return "feg_file_identification"
+}
+
+type MappedResp struct {
+	FileName  string `json:"filename,omitempty"        gorm:"-"`
+	ShortCode string `json:"shortcode,omitempty"        gorm:"-"`
+	FundName  string `json:"fundname,omitempty"        gorm:"-"`
+	Quarter   int    `json:"quarter,omitempty"        gorm:"-"`
 }
