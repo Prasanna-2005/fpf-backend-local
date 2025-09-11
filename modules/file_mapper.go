@@ -14,10 +14,11 @@ import (
 	"github.com/texttheater/golang-levenshtein/levenshtein"
 )
 
-func IdentifyFiles(req *models.FileIdentificationRequest, uid string) (
+func IdentifyFiles(req *models.FileIdentificationRequest, cid, uid string) (
 	*models.FileIdentificationResponse, error) {
-
-	logger.Log("INFO", fmt.Sprintf("start identification: %s / %s", req.ClientID, req.FilingName))
+	var fundInfo []models.MappedResp
+	var funddata models.MappedResp
+	logger.Log("INFO", fmt.Sprintf("start identification: %s / %s", cid, req.FilingName))
 
 	funds, err := db.GetAllFegFileIdentifications()
 	if err != nil {
@@ -25,11 +26,18 @@ func IdentifyFiles(req *models.FileIdentificationRequest, uid string) (
 		return nil, fmt.Errorf("cannot load funds: %w", err)
 	}
 
+	for _, fund := range funds {
+		funddata.FileName = fund.FundName
+		funddata.Quarter = fund.Quarter
+		funddata.ShortCode = fund.ShortCode
+		fundInfo = append(fundInfo, funddata)
+	}
+
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		logger.Log("ERROR", "loadconfig failed")
 	}
-	baseDir := filepath.Join(cfg.UploadVolumePath, req.ClientID, req.FilingName)
+	baseDir := filepath.Join(cfg.UploadVolumePath, cid, req.FilingName)
 	excels, err := findExcelFiles(baseDir)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("cannot walk dir: %v", err.Error()))
@@ -39,7 +47,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, uid string) (
 
 	var mapped []models.FileMappingDetail
 	var unmapped []string
-	var dbRows []models.FileMapper
+	// var dbRows []models.FileMapper
 
 	for _, path := range excels {
 		name := filepath.Base(path)
@@ -53,26 +61,26 @@ func IdentifyFiles(req *models.FileIdentificationRequest, uid string) (
 		detail.FilePath = path
 		mapped = append(mapped, detail)
 
-		row := models.FileMapper{
-			FileName:      detail.FileName,
-			FilingPath:    detail.FilePath,
-			FundShortCode: detail.ShortCode,
-			FileMapID:     detail.MapID,
-			QuarterNo:     detail.QuarterEndDate,
-			CreatedAt:     time.Now().UTC(),
-			CreatedBy:     uid,
-		}
-		dbRows = append(dbRows, row)
+		// row := models.FileMapper{
+		// 	FileName:      detail.FileName,
+		// 	FilingPath:    detail.FilePath,
+		// 	FundShortCode: detail.ShortCode,
+		// 	FileMapID:     detail.MapID,
+		// 	QuarterNo:     detail.QuarterEndDate,
+		// 	CreatedAt:     time.Now().UTC(),
+		// 	CreatedBy:     uid,
+		// }
+		// dbRows = append(dbRows, row)
 		logger.Log("INFO", fmt.Sprintf("mapped %s -> %s (%.1f%%)", name, detail.FundName, detail.MatchScore))
 	}
 
-	if len(dbRows) > 0 {
-		if err := db.BatchSaveFileMappings(dbRows); err != nil {
-			logger.Log("ERROR", "batch insert: "+err.Error())
-			return nil, fmt.Errorf("batch insert: %w", err)
-		}
-		logger.Log("INFO", fmt.Sprintf("saved %d mappings to DB", len(dbRows)))
-	}
+	// if len(dbRows) > 0 {
+	// 	if err := db.BatchSaveFileMappings(dbRows); err != nil {
+	// 		logger.Log("ERROR", "batch insert: "+err.Error())
+	// 		return nil, fmt.Errorf("batch insert: %w", err)
+	// 	}
+	// 	logger.Log("INFO", fmt.Sprintf("saved %d mappings to DB", len(dbRows)))
+	// }
 	mappedCnt := len(mapped)
 	procCnt := len(excels)
 	msg := func() string {
@@ -98,6 +106,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, uid string) (
 		FilingName:    req.FilingName,
 		FileMappings:  finalMap,
 		UnmappedFiles: unmapped,
+		FundDetails:   fundInfo,
 	}, nil
 }
 

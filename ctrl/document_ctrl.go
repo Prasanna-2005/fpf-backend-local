@@ -52,22 +52,28 @@ func ensureUploadDirectory(c *gin.Context, volumeRoot string) bool {
 // MapFiles is now a standard gin.HandlerFunc
 func MapFiles(c *gin.Context) {
 	var req models.FileIdentificationRequest
+
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
 		return
 	}
-	var uid string
+	var uid, cid string
+	cid = "system"
 	temp, ok := c.Get("userId")
 	if !ok {
 		logger.Log("WARNING", "useid not found")
 		uid = "system"
 	}
-	if ok {
-		uid = temp.(string)
+	uid = temp.(string)
+	temp, ok = c.Get("clientId")
+	if !ok {
+		logger.Log("WARNING", "clientId not found")
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": ServerError})
+		return
 	}
-	resp, err := modules.IdentifyFiles(&req, uid)
+	cid = temp.(string)
+	resp, err := modules.IdentifyFiles(&req, cid, uid)
 	if err != nil {
-
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": ServerError})
 		return
 	}

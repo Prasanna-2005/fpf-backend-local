@@ -6,18 +6,15 @@ import (
 
 /* ---------- request / response DTOs ---------- */
 type FileIdentificationRequest struct {
-	ClientID   string `json:"client_id"   gorm:"-"` // incoming payload only
 	FilingName string `json:"filing_name" gorm:"-"` // incoming payload only
 }
 
 type FileIdentificationResponse struct {
-	Success        bool         `json:"success,omitempty"        gorm:"-"`
-	Message        string       `json:"message,omitempty"        gorm:"-"`
-	FilingName     string       `json:"filing_name,omitempty"    gorm:"-"` // NEW
-	FileMappings   []MappedResp `json:"file_mappings,omitempty"  gorm:"-"`
-	UnmappedFiles  []string     `json:"unmapped_files,omitempty" gorm:"-"`
-	ProcessedCount int          `json:"processed_count,omitempty" gorm:"-"`
-	MappedCount    int          `json:"mapped_count,omitempty"    gorm:"-"`
+	Message       string       `json:"message,omitempty"        gorm:"-"`
+	FilingName    string       `json:"filing_name,omitempty"    gorm:"-"` // NEW
+	FileMappings  []MappedResp `json:"file_mappings,omitempty"  gorm:"-"`
+	UnmappedFiles []string     `json:"unmapped_files,omitempty" gorm:"-"`
+	FundDetails   []MappedResp `json:"fund_details,omitempty"  gorm:"-"`
 }
 
 /* ---------- single-file mapping row (same columns as before) ---------- */
