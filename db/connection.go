@@ -76,7 +76,6 @@ func GetDB() *gorm.DB {
 		connect()
 	})
 	return sqlDb
-
 }
 
 // returns true if the handle has not recorded any error
