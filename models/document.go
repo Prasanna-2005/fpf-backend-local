@@ -19,27 +19,27 @@ type FileIdentificationResponse struct {
 
 /* ---------- single-file mapping row (same columns as before) ---------- */
 type FileMappingDetail struct {
-	MapID          uint    `json:"Map_ID"  gorm:"column:Map_ID"`
-	DateCellNo     int     `json:"date_cell_no"  gorm:"column:dateCellNo"`
-	FundCellNo     int     `json:"fund_cell_no"  gorm:"column:fundCellNo"`
-	FileName       string  `json:"file_name"     gorm:"column:fileName"`
-	FilePath       string  `json:"file_path"     gorm:"column:filePath"`
-	FundName       string  `json:"fund_name"     gorm:"column:fundName"`
-	ShortCode      string  `json:"short_code"    gorm:"column:shortCode"`
-	MatchMethod    string  `json:"match_method"  gorm:"column:matchMethod"`
-	MatchScore     float64 `json:"match_score"   gorm:"column:matchScore"`
-	QuarterEndDate int     `json:"quarter"       gorm:"column:quarterEndDate"`
-	EntityFound    string  `json:"entity_found"  gorm:"column:entity_found"`
+	MapID       int     `json:"Map_ID"  gorm:"column:Map_ID"`
+	DateCellNo  int     `json:"date_cell_no"  gorm:"column:dateCellNo"`
+	FundCellNo  int     `json:"fund_cell_no"  gorm:"column:fundCellNo"`
+	FileName    string  `json:"file_name"     gorm:"column:fileName"`
+	FilePath    string  `json:"file_path"     gorm:"column:filePath"`
+	FundName    string  `json:"fund_name"     gorm:"column:fundName"`
+	ShortCode   string  `json:"short_code"    gorm:"column:shortCode"`
+	MatchMethod string  `json:"match_method"  gorm:"column:matchMethod"`
+	MatchScore  float64 `json:"match_score"   gorm:"column:matchScore"`
+	Quarter     int     `json:"quarter"       gorm:"column:quarterEndDate"`
+	EntityFound string  `json:"entity_found"  gorm:"column:entity_found"`
 }
 
 /* ---------- DB table models (unchanged columns) ---------- */
 type FileMapper struct {
-	ID            uint      `gorm:"column:id;primaryKey;autoIncrement"`
+	ID            int       `gorm:"column:id;primaryKey;autoIncrement"`
 	FileName      string    `gorm:"column:fileName;not null"`
 	FilingPath    string    `gorm:"column:filingPath;not null"`
 	FundShortCode string    `gorm:"column:fundShortCode"`
-	FilingID      uint      `gorm:"column:filingId;not null"` // legacy DB column – keep
-	FileMapID     uint      `gorm:"column:fileMapId"`
+	FilingID      int       `gorm:"column:filingId;not null"` // legacy DB column – keep
+	FileMapID     int       `gorm:"column:fileMapId"`
 	QuarterNo     int       `gorm:"column:quarterNo"`
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`
 	CreatedAt     time.Time `gorm:"column:createdAt;not null"`
@@ -52,7 +52,7 @@ type FileMapper struct {
 }
 
 type FegFileIdentification struct {
-	ID        uint      `gorm:"column:id;primaryKey;autoIncrement"`
+	ID        int       `gorm:"column:id;primaryKey;autoIncrement"`
 	ShortCode string    `gorm:"column:shortCode;not null"`
 	FundName  string    `gorm:"column:fundName;not null"`
 	Quarter   int       `gorm:"column:quarter;not null"`

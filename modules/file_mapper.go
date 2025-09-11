@@ -7,6 +7,7 @@ import (
 	"form_pf_backend/models"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,7 +48,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid, uid string) (
 
 	var mapped []models.FileMappingDetail
 	var unmapped []string
-	// var dbRows []models.FileMapper
+	var dbRows []models.FileMapper
 
 	for _, path := range excels {
 		name := filepath.Base(path)
@@ -61,26 +62,31 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid, uid string) (
 		detail.FilePath = path
 		mapped = append(mapped, detail)
 
-		// row := models.FileMapper{
-		// 	FileName:      detail.FileName,
-		// 	FilingPath:    detail.FilePath,
-		// 	FundShortCode: detail.ShortCode,
-		// 	FileMapID:     detail.MapID,
-		// 	QuarterNo:     detail.QuarterEndDate,
-		// 	CreatedAt:     time.Now().UTC(),
-		// 	CreatedBy:     uid,
-		// }
-		// dbRows = append(dbRows, row)
+		clientId, err := strconv.Atoi(cid)
+		if err != nil {
+			logger.Log("DEBUG", "conversion failed:"+err.Error())
+		}
+		row := models.FileMapper{
+			FilingID:      clientId,
+			FileName:      detail.FileName,
+			FilingPath:    detail.FilePath,
+			FundShortCode: detail.ShortCode,
+			FileMapID:     detail.MapID,
+			QuarterNo:     detail.Quarter,
+			CreatedAt:     time.Now().UTC(),
+			CreatedBy:     uid,
+		}
+		dbRows = append(dbRows, row)
 		logger.Log("INFO", fmt.Sprintf("mapped %s -> %s (%.1f%%)", name, detail.FundName, detail.MatchScore))
 	}
 
-	// if len(dbRows) > 0 {
-	// 	if err := db.BatchSaveFileMappings(dbRows); err != nil {
-	// 		logger.Log("ERROR", "batch insert: "+err.Error())
-	// 		return nil, fmt.Errorf("batch insert: %w", err)
-	// 	}
-	// 	logger.Log("INFO", fmt.Sprintf("saved %d mappings to DB", len(dbRows)))
-	// }
+	if len(dbRows) > 0 {
+		if err := db.BatchSaveFileMappings(dbRows); err != nil {
+			logger.Log("ERROR", "batch insert: "+err.Error())
+			return nil, fmt.Errorf("batch insert: %w", err)
+		}
+		logger.Log("INFO", fmt.Sprintf("saved %d mappings to DB", len(dbRows)))
+	}
 	mappedCnt := len(mapped)
 	procCnt := len(excels)
 	msg := func() string {
@@ -97,7 +103,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid, uid string) (
 	for _, j := range mapped {
 		data.FileName = j.FileName
 		data.FundName = j.FundName
-		data.Quarter = j.QuarterEndDate
+		data.Quarter = j.Quarter
 		data.ShortCode = j.ShortCode
 		finalMap = append(finalMap, data)
 	}
