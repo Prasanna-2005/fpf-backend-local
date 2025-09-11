@@ -7,7 +7,6 @@ import (
 	"form_pf_backend/models"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -155,7 +154,7 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 	// 3. merge
 	out := models.FileMappingDetail{
 		FileName: name, FilePath: path,
-		QuarterEndDate: quarter, DateCellNo: qCell,
+		Quarter: quarter, DateCellNo: qCell,
 	}
 	if fundOk {
 		out.FundName = fundMatch.FundName

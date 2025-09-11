@@ -54,10 +54,10 @@ func MapFiles(c *gin.Context) {
 	var req models.FileIdentificationRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
-	var uid, cid string
+	var cid string
 	cid = "system"
 	// temp, ok := c.Get("userId")
 	// if !ok {
@@ -81,5 +81,9 @@ func MapFiles(c *gin.Context) {
 }
 
 func SubmitFiles(c *gin.Context) {
-
+	var req models.SubmitReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
 }

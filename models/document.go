@@ -4,20 +4,18 @@ import (
 	"time"
 )
 
-/* ---------- request / response DTOs ---------- */
 type FileIdentificationRequest struct {
 	FilingName string `json:"filing_name" gorm:"-"` // incoming payload only
 }
 
 type FileIdentificationResponse struct {
 	Message       string       `json:"message,omitempty"        gorm:"-"`
-	FilingName    string       `json:"filing_name,omitempty"    gorm:"-"` // NEW
+	FilingName    string       `json:"filing_name,omitempty"    gorm:"-"`
 	FileMappings  []MappedResp `json:"file_mappings,omitempty"  gorm:"-"`
 	UnmappedFiles []string     `json:"unmapped_files,omitempty" gorm:"-"`
 	FundDetails   []MappedResp `json:"fund_details,omitempty"  gorm:"-"`
 }
 
-/* ---------- single-file mapping row (same columns as before) ---------- */
 type FileMappingDetail struct {
 	MapID       int     `json:"Map_ID"  gorm:"column:Map_ID"`
 	DateCellNo  int     `json:"date_cell_no"  gorm:"column:dateCellNo"`
@@ -32,7 +30,6 @@ type FileMappingDetail struct {
 	EntityFound string  `json:"entity_found"  gorm:"column:entity_found"`
 }
 
-/* ---------- DB table models (unchanged columns) ---------- */
 type FileMapper struct {
 	ID            int       `gorm:"column:id;primaryKey;autoIncrement"`
 	FileName      string    `gorm:"column:fileName;not null"`
@@ -78,4 +75,18 @@ type MappedResp struct {
 	FundName  string `json:"fundname,omitempty"        gorm:"-"`
 	Quarter   int    `json:"quarter,omitempty"        gorm:"-"`
 	Path      string `json:"filepath,omitempty"        gorm:"-"`
+}
+
+type SubmitReq struct {
+	UserID       string `json:"user_id"                    binding:"required" gorm:"-"`
+	FilingName   string `json:"filing_name"                binding:"required" gorm:"-"`
+	NewFiling    bool   `json:"new_filing"                              gorm:"-"`
+	Timestamp    string `json:"timestamp"                  binding:"required" gorm:"-"`
+	FileMappings []struct {
+		Filename  string `json:"filename"  binding:"required" gorm:"-"`
+		Fundname  string `json:"fundname"  binding:"required" gorm:"-"`
+		Quarter   string `json:"quarter"   binding:"required" gorm:"-"`
+		Shortcode string `json:"shortcode" binding:"required" gorm:"-"`
+		Filepath  string `json:"filepath"  binding:"required" gorm:"-"`
+	} `json:"file_mappings" binding:"required,dive,min=1" gorm:"-"`
 }
