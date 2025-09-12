@@ -130,7 +130,7 @@ func UpdateMapper(filingId int, req *models.SubmitReq) error {
 
 	// fetch current rows for this filing
 	var rows []models.FileMapper
-	if err := db.Where("filingId = ?", filingId).Find(&rows).Error; err != nil {
+	if err := sqlDb.Where("filingId = ?", filingId).Find(&rows).Error; err != nil {
 		return err
 	}
 
