@@ -12,6 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	FileSubmitted = "Files submitted successfully"
+	NoFilingName  = "Filing Name does not exist"
+)
+
 // UploadDoc handles document upload requests with optimized flow
 func UploadDoc(volumeRoot string) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -113,14 +118,14 @@ func SubmitFiles(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"message": "Files submitted successfully", "filing_id": filingId})
+		c.JSON(http.StatusOK, gin.H{"message": FileSubmitted, "filing_id": filingId})
 		return
 	}
 
 	tracker, err := db.GetFilingTrackerByName(req.FilingName)
 	if err != nil {
 		logger.Log("ERROR", err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": NoFilingName})
 	}
 	err = db.UpdateTracker(tracker, &req)
 	if err != nil {
@@ -128,4 +133,9 @@ func SubmitFiles(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 	}
 	err = db.UpdateMapper(tracker.Id, &req)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+	}
+	c.JSON(http.StatusOK, gin.H{"message": FileSubmitted, "filing_id": tracker.Id})
 }
