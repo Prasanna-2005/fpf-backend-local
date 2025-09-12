@@ -97,7 +97,7 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 
 func setupFileRoutes(api *gin.RouterGroup) {
 	file := api.Group("/files")
-	file.Use(middleware.Authenticate("contributor", "approver"))
+	file.Use(middleware.Authenticate("contributor", "approver", "admin"))
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)

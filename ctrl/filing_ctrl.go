@@ -4,6 +4,7 @@ import (
 	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,25 +16,35 @@ const FileNotFnd = "Filing id is doesn't exist"
 func GetFilings(c *gin.Context) {
 	filingsPtr, err := db.GetAllFilings()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": ServerError,
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
-	// success payload
+	userList, err := db.GetAllUser()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+
+	// build id → userName map  (User.ID is string)
+	userMap := make(map[string]string, len(*userList))
+	for _, u := range *userList {
+		userMap[u.ID] = u.UserName
+	}
+
+	// response DTO – numeric IDs removed from JSON
 	type respFiling struct {
 		ID          int       `json:"id"`
 		FilingName  string    `json:"filing_name"`
 		IsSubmitted bool      `json:"is_submitted"`
 		IsDeleted   bool      `json:"is_deleted"`
 		CreatedAt   time.Time `json:"created_at"`
-		CreatedBy   int       `json:"created_by"`
+		CreatedBy   string    `json:"created_by"` // <-- string (username)
 		UpdatedAt   time.Time `json:"updated_at,omitempty"`
-		UpdatedBy   int       `json:"updated_by,omitempty"`
+		UpdatedBy   string    `json:"updated_by,omitempty"` // <-- string (username)
 	}
 
-	var list []respFiling
+	list := make([]respFiling, 0, len(*filingsPtr))
 	for _, f := range *filingsPtr {
 		list = append(list, respFiling{
 			ID:          f.Id,
@@ -41,15 +52,14 @@ func GetFilings(c *gin.Context) {
 			IsSubmitted: f.IsSubmitted,
 			IsDeleted:   f.IsDeleted,
 			CreatedAt:   f.CreatedAt,
-			CreatedBy:   f.CreatedBy,
+			CreatedBy:   userMap[strconv.Itoa(f.CreatedBy)],
 			UpdatedAt:   f.UpdatedAt,
-			UpdatedBy:   f.UpdatedBy,
+			UpdatedBy:   userMap[strconv.Itoa(f.UpdatedBy)],
 		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
-
 func DerivedStatus(fs *models.FilingStatus, ft *models.FilingTracker) string {
 	if ft.IsDeleted {
 		return "deleted"
