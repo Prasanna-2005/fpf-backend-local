@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"form_pf_backend/models"
+	"strings"
 	"time"
 
 	"github.com/jinzhu/gorm"
@@ -143,4 +144,20 @@ func RemoveUser(uid string) error {
 
 	// 3. delete the user (which cascades to session_logs & filing_tracker)
 	return sqlDb.Delete(&models.User{}, "id = ?", uid).Error
+}
+
+func GetClient(cid string) (string, error) {
+	if strings.EqualFold(cid, "system") {
+		return "", fmt.Errorf("No client found")
+	}
+	var user models.Client
+	// Correct the Where clause and pass the userId as a separate argument
+	if err := sqlDb.Where(idQuery, cid).First(&user).Error; err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			return "", fmt.Errorf("No client found")
+		}
+		return "", err
+	}
+	return user.ClientCode, nil
+
 }
