@@ -3,6 +3,7 @@ module form_pf_backend
 go 1.24.1
 
 require (
+	github.com/360EntSecGroup-Skylar/excelize/v2 v2.4.0
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-ini/ini v1.67.0
@@ -10,9 +11,17 @@ require (
 	github.com/jinzhu/gorm v1.9.16
 	github.com/joho/godotenv v1.5.1
 	github.com/pquerna/otp v1.5.0
+	github.com/texttheater/golang-levenshtein/levenshtein v0.0.0-20200805054039-cae8b0eaed6c
 	golang.org/x/crypto v0.39.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/gorm v1.30.0
+)
+
+require (
+	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
+	github.com/richardlehane/mscfb v1.0.3 // indirect
+	github.com/richardlehane/msoleps v1.0.1 // indirect
+	github.com/xuri/efp v0.0.0-20210322160811-ab561f5b45e3 // indirect
 )
 
 require (

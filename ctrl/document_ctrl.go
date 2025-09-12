@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"form_pf_backend/models"
 	"form_pf_backend/modules"
 
 	"github.com/gin-gonic/gin"
@@ -46,4 +47,43 @@ func ensureUploadDirectory(c *gin.Context, volumeRoot string) bool {
 	}
 	logger.Log("DEBUG", "Upload volume directory OK")
 	return true
+}
+
+// MapFiles is now a standard gin.HandlerFunc
+func MapFiles(c *gin.Context) {
+	var req models.FileIdentificationRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+	var cid string
+	cid = "system"
+	// temp, ok := c.Get("userId")
+	// if !ok {
+	// 	logger.Log("WARNING", "useid not found")
+	// 	uid = "system"
+	// }
+	// uid = temp.(string)
+	temp, ok := c.Get("clientId")
+	if !ok {
+		logger.Log("WARNING", "clientId not found")
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	cid = temp.(string)
+	resp, err := modules.IdentifyFiles(&req, cid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+func SubmitFiles(c *gin.Context) {
+	var req models.SubmitReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
 }
