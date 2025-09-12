@@ -10,6 +10,7 @@ import (
 	"form_pf_backend/ipc"
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
+	"form_pf_backend/utility"
 
 	"github.com/gin-gonic/gin"
 )
@@ -124,7 +125,7 @@ func SubmitFiles(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 			return
 		}
-		err = ipc.TransferSignal(CreateSignal(uid, filingId))
+		err = ipc.TransferSignal(utility.CreateSignal(uid, filingId))
 		if err != nil {
 			logger.Log("ERROR", "Service error: "+err.Error())
 		}
@@ -148,17 +149,9 @@ func SubmitFiles(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 	}
 
-	err = ipc.TransferSignal(CreateSignal(uid, tracker.Id))
+	err = ipc.TransferSignal(utility.CreateSignal(uid, tracker.Id))
 	if err != nil {
 		logger.Log("ERROR", "Service error: "+err.Error())
 	}
 	c.JSON(http.StatusOK, gin.H{"message": FileSubmitted, "filing_id": tracker.Id})
-}
-
-func CreateSignal(uid, fid int) *ipc.Signal {
-	return &ipc.Signal{
-		UserId:   uid,
-		FilingId: strconv.Itoa(fid),
-	}
-
 }
