@@ -62,7 +62,7 @@ func setupAuthRoutes(api *gin.RouterGroup) {
 
 func setUpGeneralRoutes(api *gin.RouterGroup) {
 	gen := api.Group("")
-	gen.Use(middleware.Authenticate(""))
+	gen.Use(middleware.Authenticate())
 	gen.GET("/filings_list", ctrl.GetFilings)
 	// gen.GET("/response/:filing_id", ctrl.EditDoc)
 	gen.GET("/fund_details", ctrl.GetFunds)
@@ -71,7 +71,7 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 
 func setUpSubmission(api *gin.RouterGroup) {
 	sub := api.Group("/submissions")
-	sub.Use(middleware.Authenticate(""))
+	sub.Use(middleware.Authenticate("approver"))
 	sub.PUT("/:filing_id", ctrl.AcceptItemValue)
 	// 	sub.GET("/:filing_id/revert", ctrl.RevertLatest)
 	// 	sub.POST("/:filing_id/draft", ctrl.SaveDraft)
@@ -97,7 +97,7 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 
 func setupFileRoutes(api *gin.RouterGroup) {
 	file := api.Group("/files")
-	file.Use(middleware.Authenticate())
+	file.Use(middleware.Authenticate("contributor", "approver"))
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
