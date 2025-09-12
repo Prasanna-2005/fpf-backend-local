@@ -4,8 +4,10 @@ package ctrl
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"form_pf_backend/db"
+	"form_pf_backend/ipc"
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
 
@@ -99,6 +101,10 @@ func SubmitFiles(c *gin.Context) {
 	if err != nil {
 		logger.Log("WARNING", err.Error())
 	}
+	uid, err := strconv.Atoi(req.UserID)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+	}
 	if req.NewFiling {
 		filingId, err := db.CreateTracker(&req, cid)
 		if err != nil {
@@ -117,6 +123,10 @@ func SubmitFiles(c *gin.Context) {
 			logger.Log("ERROR", err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 			return
+		}
+		err = ipc.TransferSignal(CreateSignal(uid, filingId))
+		if err != nil {
+			logger.Log("ERROR", "Service error: "+err.Error())
 		}
 		c.JSON(http.StatusOK, gin.H{"message": FileSubmitted, "filing_id": filingId})
 		return
@@ -137,5 +147,18 @@ func SubmitFiles(c *gin.Context) {
 		logger.Log("ERROR", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 	}
+
+	err = ipc.TransferSignal(CreateSignal(uid, tracker.Id))
+	if err != nil {
+		logger.Log("ERROR", "Service error: "+err.Error())
+	}
 	c.JSON(http.StatusOK, gin.H{"message": FileSubmitted, "filing_id": tracker.Id})
+}
+
+func CreateSignal(uid, fid int) *ipc.Signal {
+	return &ipc.Signal{
+		UserId:   uid,
+		FilingId: strconv.Itoa(fid),
+	}
+
 }
