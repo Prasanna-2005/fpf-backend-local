@@ -4,20 +4,18 @@ import (
 	"time"
 )
 
-/* ---------- request / response DTOs ---------- */
 type FileIdentificationRequest struct {
 	FilingName string `json:"filing_name" gorm:"-"` // incoming payload only
 }
 
 type FileIdentificationResponse struct {
 	Message       string       `json:"message,omitempty"        gorm:"-"`
-	FilingName    string       `json:"filing_name,omitempty"    gorm:"-"` // NEW
+	FilingName    string       `json:"filing_name,omitempty"    gorm:"-"`
 	FileMappings  []MappedResp `json:"file_mappings,omitempty"  gorm:"-"`
 	UnmappedFiles []string     `json:"unmapped_files,omitempty" gorm:"-"`
 	FundDetails   []MappedResp `json:"fund_details,omitempty"  gorm:"-"`
 }
 
-/* ---------- single-file mapping row (same columns as before) ---------- */
 type FileMappingDetail struct {
 	MapID       int     `json:"Map_ID"  gorm:"column:Map_ID"`
 	DateCellNo  int     `json:"date_cell_no"  gorm:"column:dateCellNo"`
@@ -32,7 +30,6 @@ type FileMappingDetail struct {
 	EntityFound string  `json:"entity_found"  gorm:"column:entity_found"`
 }
 
-/* ---------- DB table models (unchanged columns) ---------- */
 type FileMapper struct {
 	ID            int       `gorm:"column:id;primaryKey;autoIncrement"`
 	FileName      string    `gorm:"column:fileName;not null"`
@@ -43,12 +40,25 @@ type FileMapper struct {
 	QuarterNo     int       `gorm:"column:quarterNo"`
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`
 	CreatedAt     time.Time `gorm:"column:createdAt;not null"`
-	CreatedBy     string    `gorm:"column:createdBy;not null"`
+	CreatedBy     int       `gorm:"column:createdBy;not null"`
 	UpdatedAt     time.Time `gorm:"column:updatedAt"`
 	UpdatedBy     string    `gorm:"column:updatedBy"`
 
-	FegFileIdentificationID uint                  `gorm:"column:feg_file_identification_id"`
-	FegFileIdentification   FegFileIdentification `gorm:"foreignKey:FegFileIdentificationID;references:ID"`
+	// FegFileIdentificationID uint                  `gorm:"column:feg_file_identification_id"`
+	// FegFileIdentification   FegFileIdentification `gorm:"foreignKey:FegFileIdentificationID;references:ID"`
+}
+type SubmitReq struct {
+	UserID       string `json:"user_id"                    binding:"required" gorm:"-"`
+	FilingName   string `json:"filing_name"                binding:"required" gorm:"-"`
+	NewFiling    bool   `json:"new_filing"                              gorm:"-"`
+	Timestamp    string `json:"timestamp"                  binding:"required" gorm:"-"`
+	FileMappings []struct {
+		Filename  string `json:"filename"  binding:"required" gorm:"-"`
+		Fundname  string `json:"fundname"  binding:"required" gorm:"-"`
+		Quarter   int    `json:"quarter"   binding:"required" gorm:"-"`
+		Shortcode string `json:"shortcode" binding:"required" gorm:"-"`
+		Filepath  string `json:"filepath"  binding:"required" gorm:"-"`
+	} `json:"file_mappings" binding:"required,dive,min=1" gorm:"-"`
 }
 
 type FegFileIdentification struct {
@@ -78,4 +88,18 @@ type MappedResp struct {
 	FundName  string `json:"fundname,omitempty"        gorm:"-"`
 	Quarter   int    `json:"quarter,omitempty"        gorm:"-"`
 	Path      string `json:"filepath,omitempty"        gorm:"-"`
+}
+
+type SubmitReq struct {
+	UserID       string `json:"user_id"                    binding:"required" gorm:"-"`
+	FilingName   string `json:"filing_name"                binding:"required" gorm:"-"`
+	NewFiling    bool   `json:"new_filing"                              gorm:"-"`
+	Timestamp    string `json:"timestamp"                  binding:"required" gorm:"-"`
+	FileMappings []struct {
+		Filename  string `json:"filename"  binding:"required" gorm:"-"`
+		Fundname  string `json:"fundname"  binding:"required" gorm:"-"`
+		Quarter   string `json:"quarter"   binding:"required" gorm:"-"`
+		Shortcode string `json:"shortcode" binding:"required" gorm:"-"`
+		Filepath  string `json:"filepath"  binding:"required" gorm:"-"`
+	} `json:"file_mappings" binding:"required,dive,min=1" gorm:"-"`
 }
