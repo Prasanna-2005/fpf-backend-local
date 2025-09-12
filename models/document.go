@@ -89,3 +89,17 @@ type MappedResp struct {
 	Quarter   int    `json:"quarter,omitempty"        gorm:"-"`
 	Path      string `json:"filepath,omitempty"        gorm:"-"`
 }
+
+type SubmitReq struct {
+	UserID       string `json:"user_id"                    binding:"required" gorm:"-"`
+	FilingName   string `json:"filing_name"                binding:"required" gorm:"-"`
+	NewFiling    bool   `json:"new_filing"                              gorm:"-"`
+	Timestamp    string `json:"timestamp"                  binding:"required" gorm:"-"`
+	FileMappings []struct {
+		Filename  string `json:"filename"  binding:"required" gorm:"-"`
+		Fundname  string `json:"fundname"  binding:"required" gorm:"-"`
+		Quarter   string `json:"quarter"   binding:"required" gorm:"-"`
+		Shortcode string `json:"shortcode" binding:"required" gorm:"-"`
+		Filepath  string `json:"filepath"  binding:"required" gorm:"-"`
+	} `json:"file_mappings" binding:"required,dive,min=1" gorm:"-"`
+}
