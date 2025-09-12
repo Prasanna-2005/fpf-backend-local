@@ -148,13 +148,13 @@ func RemoveUser(uid string) error {
 
 func GetClient(cid string) (string, error) {
 	if strings.EqualFold(cid, "system") {
-		return "", fmt.Errorf("No client found")
+		return "", fmt.Errorf("no client found")
 	}
 	var user models.Client
 	// Correct the Where clause and pass the userId as a separate argument
 	if err := sqlDb.Where(idQuery, cid).First(&user).Error; err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			return "", fmt.Errorf("No client found")
+			return "", fmt.Errorf("no client found")
 		}
 		return "", err
 	}

@@ -55,27 +55,21 @@ func MapFiles(c *gin.Context) {
 	var req models.FileIdentificationRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
-	var uid, cid string
+	var cid string
 	cid = "system"
-	// temp, ok := c.Get("userId")
-	// if !ok {
-	// 	logger.Log("WARNING", "useid not found")
-	// 	uid = "system"
-	// }
-	// uid = temp.(string)
 	temp, ok := c.Get("clientId")
 	if !ok {
 		logger.Log("WARNING", "clientId not found")
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": ServerError})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 	cid = temp.(string)
 	resp, err := modules.IdentifyFiles(&req, cid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": ServerError})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 	c.JSON(http.StatusOK, resp)
@@ -123,4 +117,15 @@ func SubmitFiles(c *gin.Context) {
 		return
 	}
 
+	tracker, err := db.GetFilingTrackerByName(req.FilingName)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+	}
+	err = db.UpdateTracker(tracker, &req)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+	}
+	err = db.UpdateMapper(tracker.Id, &req)
 }

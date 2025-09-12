@@ -4,6 +4,8 @@ import (
 	"form_pf_backend/models"
 	"strconv"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // GetAllFegFileIdentifications -> models.FegFileIdentification
@@ -95,4 +97,56 @@ func GetAllFileMapId() ([]models.FegFileIdentification, error) {
 	var list []models.FegFileIdentification
 	err := sqlDb.Find(&list).Error
 	return list, err
+}
+
+func GetFilingTrackerByName(filingName string) (*models.FilingTracker, error) {
+	var ft models.FilingTracker
+	err := sqlDb.Where("filingName = ?", filingName).First(&ft).Error
+	if err != nil {
+		return nil, err
+	}
+	return &ft, nil
+}
+
+func UpdateTracker(tracker *models.FilingTracker, req *models.SubmitReq) error {
+	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
+	uid, err := strconv.Atoi(req.UserID)
+	if err != nil {
+		return err
+	}
+	tracker.UploadCount += 1
+	tracker.UpdatedAt = ts
+	tracker.UpdatedBy = uid
+	return sqlDb.Save(tracker).Error
+}
+
+// UpdateMapper updates every mapper row that belongs to the given filingId:
+func UpdateMapper(filingId int, req *models.SubmitReq) error {
+	// build a lookup => shortcode : new file data
+	newData := make(map[string]struct{ fileName, filePath string })
+	for _, m := range req.FileMappings {
+		newData[m.Shortcode] = struct{ fileName, filePath string }{m.Filename, m.Filepath}
+	}
+
+	// fetch current rows for this filing
+	var rows []models.FileMapper
+	if err := db.Where("filingId = ?", filingId).Find(&rows).Error; err != nil {
+		return err
+	}
+
+	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
+
+	// update in memory and push back
+	for i := range rows {
+		if nd, ok := newData[rows[i].FundShortCode]; ok {
+			rows[i].FileName = nd.fileName
+			rows[i].FilingPath = nd.filePath
+			rows[i].IsUpdated = true
+			rows[i].UpdatedAt = ts
+			rows[i].UpdatedBy = req.UserID
+		}
+	}
+
+	// 4. persist (Save updates non-zero fields)
+	return sqlDb.Session(&gorm.Session{FullSaveAssociations: false}).Save(&rows).Error
 }
