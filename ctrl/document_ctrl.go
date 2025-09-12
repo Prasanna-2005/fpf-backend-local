@@ -68,13 +68,13 @@ func MapFiles(c *gin.Context) {
 	temp, ok := c.Get("clientId")
 	if !ok {
 		logger.Log("WARNING", "clientId not found")
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": ServerError})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 	cid = temp.(string)
 	resp, err := modules.IdentifyFiles(&req, cid)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": ServerError})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 	c.JSON(http.StatusOK, resp)
