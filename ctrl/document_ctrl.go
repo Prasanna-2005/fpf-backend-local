@@ -74,7 +74,7 @@ func MapFiles(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
-	cid = temp.(string)
+	cid = strconv.Itoa(temp.(int))
 	resp, err := modules.IdentifyFiles(&req, cid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
