@@ -32,29 +32,30 @@ func GetFilings(c *gin.Context) {
 		userMap[u.ID] = u.UserName
 	}
 
-	// response DTO – numeric IDs removed from JSON
 	type respFiling struct {
 		ID          int       `json:"id"`
 		FilingName  string    `json:"filing_name"`
+		PreparedBy  string    `json:"prepared_by"`
 		IsSubmitted bool      `json:"is_submitted"`
 		IsDeleted   bool      `json:"is_deleted"`
-		CreatedAt   time.Time `json:"created_at"`
-		CreatedBy   string    `json:"created_by"` // <-- string (username)
-		UpdatedAt   time.Time `json:"updated_at,omitempty"`
-		UpdatedBy   string    `json:"updated_by,omitempty"` // <-- string (username)
+		ModifiedBy  string    `json:"modified_by"`
+		ModifiedOn  time.Time `json:"modified_on"`
 	}
 
 	list := make([]respFiling, 0, len(*filingsPtr))
 	for _, f := range *filingsPtr {
+		modifiedOn := f.CreatedAt
+		if f.UpdatedAt.IsZero() && f.UpdatedAt.After(f.CreatedAt) {
+			modifiedOn = f.UpdatedAt
+		}
 		list = append(list, respFiling{
 			ID:          f.Id,
 			FilingName:  f.FilingName,
 			IsSubmitted: f.IsSubmitted,
 			IsDeleted:   f.IsDeleted,
-			CreatedAt:   f.CreatedAt,
-			CreatedBy:   userMap[strconv.Itoa(f.CreatedBy)],
-			UpdatedAt:   f.UpdatedAt,
-			UpdatedBy:   userMap[strconv.Itoa(f.UpdatedBy)],
+			PreparedBy:  userMap[strconv.Itoa(f.CreatedBy)],
+			ModifiedOn:  modifiedOn,
+			ModifiedBy:  userMap[strconv.Itoa(f.UpdatedBy)],
 		})
 	}
 
