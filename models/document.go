@@ -47,6 +47,7 @@ type FileMapper struct {
 	// FegFileIdentificationID uint                  `gorm:"column:feg_file_identification_id"`
 	// FegFileIdentification   FegFileIdentification `gorm:"foreignKey:FegFileIdentificationID;references:ID"`
 }
+
 type SubmitReq struct {
 	UserID       string `json:"user_id"                    binding:"required" gorm:"-"`
 	FilingName   string `json:"filing_name"                binding:"required" gorm:"-"`
