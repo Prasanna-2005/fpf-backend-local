@@ -137,7 +137,7 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 	// 1. filename first
 	fundMatch, fundOk := matchFundByFilename(name, funds)
 	quarter, qCell := matchQuarterByFilename(name)
-	logger.Log("DEBuG", fmt.Sprintf("qcell: %v,fundOk: %v", fundOk, qCell))
+	logger.Log("DEBuG", fmt.Sprintf("qcell: %v,fundOk: %v", qCell, fundOk))
 	// 2. excel fallback for missing pieces
 	if !fundOk || qCell == -1 {
 		excelFund, excelQuarter, excelQCell := matchByExcelContent(path, name, funds)
@@ -170,6 +170,7 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 
 // ---------- filename fund extractor ----------
 func matchFundByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
+
 	parts := strings.Split(strings.TrimSuffix(name, filepath.Ext(name)), "_")
 	logger.Log("DEBUG", fmt.Sprintf("parts: %v", parts))
 	for _, part := range parts {
@@ -179,7 +180,8 @@ func matchFundByFilename(name string, funds []models.FegFileIdentification) (mod
 			if f.ShortCode == "" || f.Quarter == 0 {
 				continue
 			}
-			if similarity(candidate, strings.ToLower(f.ShortCode)) >= 85 {
+			logger.Log("DEBUG", fmt.Sprintf("name:%v,fund:%v,bool:%v", strings.ToLower(name), strings.ToLower(f.FundName), strings.Contains(strings.ToLower(name), strings.ToLower(f.FundName))))
+			if similarity(candidate, strings.ToLower(f.ShortCode)) >= 85 || strings.Contains(strings.ToLower(name), strings.ToLower(f.FundName)) {
 				return models.FileMappingDetail{
 					MapID:       f.ID,
 					FundName:    f.FundName,
@@ -194,6 +196,9 @@ func matchFundByFilename(name string, funds []models.FegFileIdentification) (mod
 }
 
 func matchQuarterByFilename(name string) (int, int) {
+	if strings.Contains(strings.ToLower(name), strings.ToLower("FEG_2024_InvestorLiquidity_Q15,16")) {
+		return 0, 0
+	}
 	parts := strings.Split(strings.TrimSuffix(name, filepath.Ext(name)), "_")
 	for i, p := range parts {
 		if t, err := time.Parse("2006.01.02", strings.TrimSpace(p)); err == nil {
@@ -205,9 +210,6 @@ func matchQuarterByFilename(name string) (int, int) {
 
 // ---------- excel extractor (returns both pieces) ----------
 func matchByExcelContent(path, name string, funds []models.FegFileIdentification) (fund models.FileMappingDetail, quarter int, qCell int) {
-	logger.Log("DEBUG", "Inside excel content")
-	logger.Log("INFO", fmt.Sprintf("filename: %v", name))
-
 	f, err := excelize.OpenFile(path)
 	if err != nil {
 		logger.Log("DEBUG", "fileopen error")
@@ -243,7 +245,6 @@ func matchQuarterFromExcel(f *excelize.File) (int, int) {
 		rows, _ := f.GetRows(sheet)
 		for _, row := range rows {
 			for ci, cell := range row {
-				logger.Log("DEBUG", cell)
 				if strings.Contains(strings.ToLower(strings.TrimSpace(cell)), "period to:") &&
 					ci+1 < len(row) {
 					logger.Log("DEBUG", "period found")
