@@ -96,7 +96,7 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 	}
 
 	logger.Log("INFO", fmt.Sprintf("[ProcessUpload] Successfully processed upload for filing: %s", req.FilingName))
-	c.JSON(http.StatusOK, gin.H{"message": "Successfully uploaded", "filing_id": sanitize(req.FilingName)})
+	c.JSON(http.StatusOK, gin.H{"message": "Successfully uploaded", "filing_name": sanitize(req.FilingName)})
 	return nil
 }
 

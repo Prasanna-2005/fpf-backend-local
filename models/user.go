@@ -4,6 +4,15 @@ import (
 	"time"
 )
 
+type Client struct {
+	ID         uint       `gorm:"primaryKey;autoIncrement;column:id"`
+	ClientCode string     `gorm:"column:clientCode;type:varchar(20);not null"`
+	CreatedAt  time.Time  `gorm:"column:createdAt;not null"`
+	CreatedBy  uint       `gorm:"column:createdBy;not null"` // or string if you store usernames
+	UpdatedAt  *time.Time `gorm:"column:updatedAt"`
+	UpdatedBy  *uint      `gorm:"column:updatedBy"` // pointer allows NULL
+}
+
 type User struct {
 	ID         string    `gorm:"primaryKey;autoIncrement"`
 	UserName   string    `gorm:"column:userName;not null"`
@@ -28,4 +37,8 @@ type Session struct {
 
 func (Session) TableName() string {
 	return "session_logs"
+}
+
+func (Client) TableName() string {
+	return "clients"
 }

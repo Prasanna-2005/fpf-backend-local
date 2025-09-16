@@ -4,11 +4,20 @@ package ctrl
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
+	"form_pf_backend/db"
+	"form_pf_backend/ipc"
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
+	"form_pf_backend/utility"
 
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	FileSubmitted = "Files submitted successfully"
+	NoFilingName  = "Filing Name does not exist"
 )
 
 // UploadDoc handles document upload requests with optimized flow
@@ -59,19 +68,13 @@ func MapFiles(c *gin.Context) {
 	}
 	var cid string
 	cid = "system"
-	// temp, ok := c.Get("userId")
-	// if !ok {
-	// 	logger.Log("WARNING", "useid not found")
-	// 	uid = "system"
-	// }
-	// uid = temp.(string)
 	temp, ok := c.Get("clientId")
 	if !ok {
 		logger.Log("WARNING", "clientId not found")
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
-	cid = temp.(string)
+	cid = strconv.Itoa(temp.(int))
 	resp, err := modules.IdentifyFiles(&req, cid)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
@@ -82,8 +85,73 @@ func MapFiles(c *gin.Context) {
 
 func SubmitFiles(c *gin.Context) {
 	var req models.SubmitReq
+	var cid = "system"
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
+	temp, ok := c.Get("clientId")
+	if !ok {
+		logger.Log("WARNING", "No client id found")
+	}
+	cid, ok = temp.(string)
+	if !ok {
+		logger.Log("WARNING", "client id cannot be parsed as string")
+	}
+	cid, err := db.GetClient(cid)
+	if err != nil {
+		logger.Log("WARNING", err.Error())
+	}
+	uid, err := strconv.Atoi(req.UserID)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+	}
+	if req.NewFiling {
+		filingId, err := db.CreateTracker(&req, cid)
+		if err != nil {
+			logger.Log("ERROR", err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+			return
+		}
+		mappers, err := db.CreateMapper(&req, filingId)
+		if err != nil {
+			logger.Log("ERROR", err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+			return
+		}
+		err = db.BatchSaveFileMappings(mappers)
+		if err != nil {
+			logger.Log("ERROR", err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+			return
+		}
+		err = ipc.TransferSignal(utility.CreateSignal(uid, filingId))
+		if err != nil {
+			logger.Log("ERROR", "Service error: "+err.Error())
+		}
+		c.JSON(http.StatusOK, gin.H{"message": FileSubmitted, "filing_id": filingId})
+		return
+	}
+
+	tracker, err := db.GetFilingTrackerByName(req.FilingName)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": NoFilingName})
+	}
+	err = db.UpdateTracker(tracker, &req)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+	}
+	err = db.UpdateMapper(tracker.Id, &req)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+	}
+
+	err = ipc.TransferSignal(utility.CreateSignal(uid, tracker.Id))
+	if err != nil {
+		logger.Log("ERROR", "Service error: "+err.Error())
+	}
+	c.JSON(http.StatusOK, gin.H{"message": FileSubmitted, "filing_id": tracker.Id})
 }

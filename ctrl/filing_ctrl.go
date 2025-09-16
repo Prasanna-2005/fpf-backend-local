@@ -4,6 +4,7 @@ import (
 	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,41 +16,51 @@ const FileNotFnd = "Filing id is doesn't exist"
 func GetFilings(c *gin.Context) {
 	filingsPtr, err := db.GetAllFilings()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": ServerError,
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
-	// success payload
+	userList, err := db.GetAllUser()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+
+	// build id → userName map  (User.ID is string)
+	userMap := make(map[string]string, len(*userList))
+	for _, u := range *userList {
+		userMap[u.ID] = u.UserName
+	}
+
 	type respFiling struct {
 		ID          int       `json:"id"`
 		FilingName  string    `json:"filing_name"`
+		PreparedBy  string    `json:"prepared_by"`
 		IsSubmitted bool      `json:"is_submitted"`
 		IsDeleted   bool      `json:"is_deleted"`
-		CreatedAt   time.Time `json:"created_at"`
-		CreatedBy   int       `json:"created_by"`
-		UpdatedAt   time.Time `json:"updated_at,omitempty"`
-		UpdatedBy   int       `json:"updated_by,omitempty"`
+		ModifiedBy  string    `json:"modified_by"`
+		ModifiedOn  time.Time `json:"modified_on"`
 	}
 
-	var list []respFiling
+	list := make([]respFiling, 0, len(*filingsPtr))
 	for _, f := range *filingsPtr {
+		modifiedOn := f.CreatedAt
+		if f.UpdatedAt.IsZero() && f.UpdatedAt.After(f.CreatedAt) {
+			modifiedOn = f.UpdatedAt
+		}
 		list = append(list, respFiling{
 			ID:          f.Id,
 			FilingName:  f.FilingName,
 			IsSubmitted: f.IsSubmitted,
 			IsDeleted:   f.IsDeleted,
-			CreatedAt:   f.CreatedAt,
-			CreatedBy:   f.CreatedBy,
-			UpdatedAt:   f.UpdatedAt,
-			UpdatedBy:   f.UpdatedBy,
+			PreparedBy:  userMap[strconv.Itoa(f.CreatedBy)],
+			ModifiedOn:  modifiedOn,
+			ModifiedBy:  userMap[strconv.Itoa(f.UpdatedBy)],
 		})
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": list})
 }
-
 func DerivedStatus(fs *models.FilingStatus, ft *models.FilingTracker) string {
 	if ft.IsDeleted {
 		return "deleted"

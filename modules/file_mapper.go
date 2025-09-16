@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
+
 	"form_pf_backend/models"
 	"os"
 	"path/filepath"
@@ -246,9 +247,6 @@ func matchQuarterFromExcel(f *excelize.File) (int, int) {
 				if strings.Contains(strings.ToLower(strings.TrimSpace(cell)), "period to:") &&
 					ci+1 < len(row) {
 					logger.Log("DEBUG", "period found")
-					fmt.Println(row[ci+2])
-					fmt.Println(ci + 2)
-					fmt.Println(parse(row[ci+2]))
 					return parse(row[ci+2]), ci + 2
 				}
 			}

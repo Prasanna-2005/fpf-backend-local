@@ -64,3 +64,5 @@ func MarkApproved(c *gin.Context) {
 	c.Header("Content-Type", "application/xml")
 	http.ServeContent(c.Writer, c.Request, filepath.Base(xmlPath), time.Time{}, f)
 }
+
+func EditOn(c *gin.Context)
