@@ -3,7 +3,6 @@ package db
 import (
 	"fmt"
 	"form_pf_backend/models"
-	"strings"
 	"time"
 
 	"github.com/jinzhu/gorm"
@@ -146,10 +145,7 @@ func RemoveUser(uid string) error {
 	return sqlDb.Delete(&models.User{}, "id = ?", uid).Error
 }
 
-func GetClient(cid string) (string, error) {
-	if strings.EqualFold(cid, "system") {
-		return "", fmt.Errorf("no client found")
-	}
+func GetClient(cid int) (string, error) {
 	var user models.Client
 	// Correct the Where clause and pass the userId as a separate argument
 	if err := sqlDb.Where(idQuery, cid).First(&user).Error; err != nil {

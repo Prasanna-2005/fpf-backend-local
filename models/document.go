@@ -41,8 +41,8 @@ type FileMapper struct {
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`
 	CreatedAt     time.Time `gorm:"column:createdAt;not null"`
 	CreatedBy     int       `gorm:"column:createdBy;not null"`
-	UpdatedAt     time.Time `gorm:"column:updatedAt"`
-	UpdatedBy     string    `gorm:"column:updatedBy"`
+	UpdatedAt     time.Time `gorm:"column:updatedAt;default:NULL"`
+	UpdatedBy     string    `gorm:"column:updatedBy;default:NULL"`
 
 	// FegFileIdentificationID uint                  `gorm:"column:feg_file_identification_id"`
 	// FegFileIdentification   FegFileIdentification `gorm:"foreignKey:FegFileIdentificationID;references:ID"`
@@ -53,7 +53,7 @@ type SubmitReq struct {
 	FilingName   string       `json:"filing_name"                binding:"required" gorm:"-"`
 	NewFiling    bool         `json:"new_filing"                              gorm:"-"`
 	Timestamp    string       `json:"timestamp"                  binding:"required" gorm:"-"`
-	FileMappings []MappedResp `json:"file_mappings" binding:"required,dive,min=1" gorm:"-"`
+	FileMappings []MappedResp `json:"file_mappings" binding:"required,min=1,dive"`
 }
 
 type FegFileIdentification struct {
@@ -70,7 +70,7 @@ type FegFileIdentification struct {
 }
 
 func (FileMapper) TableName() string {
-	return "filing_mapper"
+	return "file_mapper"
 }
 
 func (FegFileIdentification) TableName() string {
