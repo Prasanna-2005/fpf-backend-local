@@ -1,9 +1,11 @@
 package ctrl
 
 import (
+	"form_pf_backend/modules"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -65,6 +67,17 @@ func MarkApproved(c *gin.Context) {
 	http.ServeContent(c.Writer, c.Request, filepath.Base(xmlPath), time.Time{}, f)
 }
 
-func EditOn(c *gin.Context) {
+func GetFilingResponse(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("filing_id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filingId"})
+		return
+	}
 
+	resp, err := modules.BuildResponse(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
 }
