@@ -70,13 +70,13 @@ func MarkApproved(c *gin.Context) {
 func GetFilingResponse(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("filing_id"), 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid filingId"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
 		return
 	}
 
 	resp, err := modules.BuildResponse(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, resp)

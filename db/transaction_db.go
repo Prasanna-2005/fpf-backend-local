@@ -19,10 +19,10 @@ type fundBrief struct {
 }
 
 func loadFundCache() {
-	all, _ := GetAllFunds() // existing func
+	all, _ := GetAllFunds()
 	m := make(map[string]fundBrief, len(all))
 	for _, f := range all {
-		m[f.ID] = fundBrief{FundID: f.FundID, FundName: f.FundName}
+		m[f.FundID] = fundBrief{FundID: f.FundID, FundName: f.FundName}
 	}
 	fundCache = m
 }
@@ -40,11 +40,16 @@ func GetFundBrief(seriesID string) (fundID, fundName string, err error) {
 func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 	var rows []models.FormDatum
 	err := GetDB().
-		Table("formpf.form_data").    // real table name only
-		Select("formpf.form_data.*"). // or simply "form_data.*"
-		Joins("JOIN feg_funds f ON f.fegFundId = formpf.form_data.fundSeriesId").
-		Joins("JOIN form_fields_ms fld ON fld.fieldNo = formpf.form_data.fieldNo AND fld.formLineNo = formpf.form_data.formLineNo").
-		Where("formpf.form_data.filingId = ?", filingID). // typo: filingld → filingId
+		Table("form_data d"). // alias declared here
+		Select(`d.createdAt, d.createdBy, d.updatedAt, d.updatedBy, d.value,
+		        f.fegFundId, f.fundName, f.fundType,
+		        fld.fieldNo, fld.formLineNo, fld.lineText, fld.dataType,
+		        fld.isMultipleAdd, fld.isMSQ, fld.isMCQ, fld.requiresDate,
+		        fld.isTableData, fld.disclaimerText, fld.xmlTags`).
+		Joins("JOIN feg_funds f ON f.fegFundId = d.fundSeriesId").
+		Joins("JOIN form_fields_ms fld ON fld.fieldNo = d.fieldNo AND fld.formLineNo = d.formLineNo").
+		Where("d.filingId = ? AND d.isCurrentValue = 1", filingID).
+		Limit(400).
 		Find(&rows).Error
 	return rows, err
 }

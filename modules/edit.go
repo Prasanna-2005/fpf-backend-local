@@ -12,7 +12,7 @@ import (
 func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 	rows, err := db.FetchFormDataByFiling(filingID)
 	if err != nil {
-		logger.Log("WARNING", "filing upload not completed")
+		logger.Log("WARNING", "Records not populated for filing")
 		return nil, err
 	}
 	if len(rows) == 0 {
@@ -20,9 +20,10 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 		return nil, fmt.Errorf("no data for filing %d", filingID)
 	}
 
-	fundID, fundName, err := db.GetFundBrief(rows[0].FundSeriesID)
+	fundID, fundName, err := db.GetFundBrief(rows[0].FundID)
 	if err != nil {
-
+		logger.Log("ERROR", "fund loading error:"+err.Error())
+		logger.Log("DEBUG", rows[0].FundID)
 		return nil, err
 	}
 
@@ -45,6 +46,9 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 
 func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseField {
 	anyRow := rows[0]
+	if len(anyRow.LineText) != 0 {
+		anyRow.HasFieldItemText = true
+	}
 	block := models.ResponseField{
 		FieldNo:          fieldNo,
 		HasFieldItemText: anyRow.HasFieldItemText,
@@ -59,15 +63,11 @@ func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseFie
 
 	// top-level value = concat **current** lines only
 	for _, r := range rows {
-		if r.IsCurrentValue {
-			block.Value = appendAny(block.Value, ptrToInterface(r.Value))
-		}
+		block.Value = appendAny(block.Value, ptrToInterface(r.Value))
 	}
 
 	for _, r := range rows {
-		if r.IsCurrentValue {
-			block.FieldData = append(block.FieldData, buildLineItem(r))
-		}
+		block.FieldData = append(block.FieldData, buildLineItem(r))
 	}
 	return block
 }

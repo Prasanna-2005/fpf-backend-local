@@ -32,30 +32,34 @@ type FormField struct {
 }
 
 type FormDatum struct {
-	ID             uint64     `gorm:"column:id;primaryKey;autoIncrement"`
-	FilingID       uint64     `gorm:"column:filingld;not null"`
-	FundSeriesID   string     `gorm:"column:fundSeriesId;type:varchar(50);not null"`
-	FieldNo        string     `gorm:"column:feldNo;type:varchar(255);not null"` // typo matches DB
+	ID             uint64     `gorm:"column:id;primaryKey"`
+	FilingID       uint64     `gorm:"column:filingId;not null"`
+	FieldNo        string     `gorm:"column:fieldNo;type:varchar(255);not null"` // typo matches DB
 	FormLineNo     string     `gorm:"column:formLineNo;type:varchar(255);not null"`
 	Value          *string    `gorm:"column:value;type:varchar(255)"` // nullable
-	IsMultipleAdd  bool       `gorm:"column:is_multiple_add"`
+	IsMultipleAdd  bool       `gorm:"column:isMultipleAdd"`
 	CreatedAt      time.Time  `gorm:"column:createdAt;not null;autoCreateTime"`
 	CreatedBy      uint64     `gorm:"column:createdBy;not null"`
-	IsCurrentValue bool       `gorm:"column:isCurrentValue;not null;default:1"`
 	UpdatedAt      *time.Time `gorm:"column:updatedAt;autoUpdateTime"` // nullable
 	UpdatedBy      *int64     `gorm:"column:updatedBy"`                // nullable
-	// ALIASES populated by join
-	FundName         string         `gorm:"column:fund_name"`
-	LineItemType     string         `gorm:"column:line_item_type"`
-	LineText         string         `gorm:"column:line_text"`
+	IsCurrentValue bool       `gorm:"column:isCurrentValue"`
+	FundID         string     `gorm:"column:fegFundId"`
+	FundName       string     `gorm:"column:fundName"`
+	FundType       string     `gorm:"column:fundType"`
+
+	LineItemType     string         `gorm:"column:dataType"`
+	LineText         string         `gorm:"column:lineText"`
 	HasFieldItemText bool           `gorm:"column:has_field_item_text"`
 	HasTableData     bool           `gorm:"column:has_table_data"`
 	FieldHeading     string         `gorm:"column:field_heading"`
 	Options          datatypes.JSON `gorm:"column:options"`
 	RequireDate      bool           `gorm:"column:require_date"`
 	DisclaimerText   string         `gorm:"column:disclaimer_text"`
-	TableData        datatypes.JSON `gorm:"column:table_data"` // NEW
-	DateValue        datatypes.JSON `gorm:"column:date_value"` // NEW
+	TableData        datatypes.JSON `gorm:"column:table_data"`
+	DateValue        datatypes.JSON `gorm:"column:date_value"`
+	IsMSQ            bool           `gorm:"column:isMSQ"`
+	IsMCQ            bool           `gorm:"column:isMCQ"`
+	XmlTags          datatypes.JSON `gorm:"column:xmlTags"`
 }
 
 func (FormField) TableName() string { return "formpf.form_fields_ms" }

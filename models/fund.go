@@ -6,9 +6,9 @@ import (
 
 // Fund maps to the table that stores fund information.
 type Fund struct {
-	ID        string    `gorm:"column:id;primaryKey;autoIncrement"`
 	FundName  string    `gorm:"column:fundName;not null"`
-	FundID    string    `gorm:"column:fundId;not null"`
+	FundID    string    `gorm:"column:fegFundId;not null"`
+	NfaID     string    `gorm:"column:nfaId;not null"`
 	Series    string    `gorm:"column:series;not null"`
 	FundType  string    `gorm:"column:fundType;not null"`
 	CreatedAt time.Time `gorm:"column:createdAt;not null"`
