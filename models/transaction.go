@@ -29,6 +29,7 @@ type FormField struct {
 	FieldHeading     string         `gorm:"column:field_heading"`
 	Options          datatypes.JSON `gorm:"column:options"`
 	RequireDate      bool           `gorm:"column:require_date"`
+	XmlTags          datatypes.JSON `gorm:"column:xmlTags"`
 }
 
 type FormDatum struct {
