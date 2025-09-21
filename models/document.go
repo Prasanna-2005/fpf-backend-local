@@ -49,19 +49,12 @@ type FileMapper struct {
 }
 
 type SubmitReq struct {
-	UserID       string `json:"user_id"                    binding:"required" gorm:"-"`
-	FilingName   string `json:"filing_name"                binding:"required" gorm:"-"`
-	NewFiling    bool   `json:"new_filing"                              gorm:"-"`
-	Timestamp    string `json:"timestamp"                  binding:"required" gorm:"-"`
-	FileMappings []struct {
-		Filename  string `json:"filename"  binding:"required" gorm:"-"`
-		Fundname  string `json:"fundname"  binding:"required" gorm:"-"`
-		Quarter   int    `json:"quarter"   binding:"required" gorm:"-"`
-		Shortcode string `json:"shortcode" binding:"required" gorm:"-"`
-		Filepath  string `json:"filepath"  binding:"required" gorm:"-"`
-	} `json:"file_mappings" binding:"required,dive,min=1" gorm:"-"`
+	UserID       string       `json:"user_id"      binding:"required" gorm:"-"`
+	FilingName   string       `json:"filing_name"  binding:"required" gorm:"-"`
+	NewFiling    bool         `json:"new_filing"                gorm:"-"`
+	Timestamp    string       `json:"timestamp"    binding:"required" gorm:"-"`
+	FileMappings []MappedResp `json:"file_mappings" binding:"min=1,dive" gorm:"-"`
 }
-
 type FegFileIdentification struct {
 	ID        int       `gorm:"column:id;primaryKey;autoIncrement"`
 	ShortCode string    `gorm:"column:shortCode;not null"`
@@ -76,7 +69,7 @@ type FegFileIdentification struct {
 }
 
 func (FileMapper) TableName() string {
-	return "filing_mapper"
+	return "file_mapper"
 }
 
 func (FegFileIdentification) TableName() string {

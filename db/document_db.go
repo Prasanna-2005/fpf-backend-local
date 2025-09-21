@@ -77,11 +77,11 @@ func CreateMapper(req *models.SubmitReq, filingId int) ([]models.FileMapper, err
 
 	mapper := make([]models.FileMapper, 0, len(req.FileMappings))
 	for _, rec := range req.FileMappings {
-		fileMapID := idByShort[rec.Shortcode] // 0 if not found
+		fileMapID := idByShort[rec.ShortCode] // 0 if not found
 		mapper = append(mapper, models.FileMapper{
-			FileName:      rec.Filename,
-			FilingPath:    rec.Filepath,
-			FundShortCode: rec.Shortcode,
+			FileName:      rec.FileName,
+			FilingPath:    rec.Path,
+			FundShortCode: rec.ShortCode,
 			FilingID:      filingId,
 			FileMapID:     fileMapID,
 			QuarterNo:     rec.Quarter,
@@ -125,7 +125,7 @@ func UpdateMapper(filingId int, req *models.SubmitReq) error {
 	// build a lookup => shortcode : new file data
 	newData := make(map[string]struct{ fileName, filePath string })
 	for _, m := range req.FileMappings {
-		newData[m.Shortcode] = struct{ fileName, filePath string }{m.Filename, m.Filepath}
+		newData[m.ShortCode] = struct{ fileName, filePath string }{m.FileName, m.Path}
 	}
 
 	// fetch current rows for this filing
