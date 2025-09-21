@@ -41,8 +41,8 @@ type FileMapper struct {
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`
 	CreatedAt     time.Time `gorm:"column:createdAt;not null"`
 	CreatedBy     int       `gorm:"column:createdBy;not null"`
-	UpdatedAt     time.Time `gorm:"column:updatedAt"`
-	UpdatedBy     string    `gorm:"column:updatedBy"`
+	UpdatedAt     time.Time `gorm:"column:updatedAt;default:NULL"`
+	UpdatedBy     string    `gorm:"column:updatedBy;default:NULL"`
 
 	// FegFileIdentificationID uint                  `gorm:"column:feg_file_identification_id"`
 	// FegFileIdentification   FegFileIdentification `gorm:"foreignKey:FegFileIdentificationID;references:ID"`

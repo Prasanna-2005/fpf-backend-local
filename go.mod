@@ -13,6 +13,7 @@ require (
 	github.com/pquerna/otp v1.5.0
 	github.com/texttheater/golang-levenshtein/levenshtein v0.0.0-20200805054039-cae8b0eaed6c
 	golang.org/x/crypto v0.39.0
+	gorm.io/datatypes v1.2.6
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/gorm v1.30.0
 )

@@ -28,7 +28,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 	}
 
 	for _, fund := range funds {
-		funddata.FileName = fund.FundName
+		funddata.FundName = fund.FundName
 		funddata.Quarter = fund.Quarter
 		funddata.ShortCode = fund.ShortCode
 		fundInfo = append(fundInfo, funddata)

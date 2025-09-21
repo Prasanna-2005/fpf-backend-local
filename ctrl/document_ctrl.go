@@ -94,11 +94,11 @@ func SubmitFiles(c *gin.Context) {
 	if !ok {
 		logger.Log("WARNING", "No client id found")
 	}
-	cid, ok = temp.(string)
-	if !ok {
-		logger.Log("WARNING", "client id cannot be parsed as string")
-	}
-	cid, err := db.GetClient(cid)
+	// cid, ok = temp.(string)
+	// if !ok {
+	// 	logger.Log("WARNING", "client id cannot be parsed as string")
+	// }
+	cid, err := db.GetClient(temp.(int))
 	if err != nil {
 		logger.Log("WARNING", err.Error())
 	}
