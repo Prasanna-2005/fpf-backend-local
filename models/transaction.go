@@ -60,7 +60,7 @@ type FormDatum struct {
 	DateValue        datatypes.JSON `gorm:"column:date_value"`
 	IsMSQ            bool           `gorm:"column:isMSQ"`
 	IsMCQ            bool           `gorm:"column:isMCQ"`
-	XmlTags          datatypes.JSON `gorm:"column:xmlTags"`
+	XmlTags          string 		`gorm:"column:xmlTags"`
 }
 
 func (FormField) TableName() string { return "formpf.form_fields_ms" }
