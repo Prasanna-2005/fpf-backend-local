@@ -40,15 +40,17 @@ func GetFundBrief(seriesID string) (fundID, fundName string, err error) {
 func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 	var rows []models.FormDatum
 	err := GetDB().
-		Table("form_data d"). // alias declared here
+		Table("form_data d").
 		Select(`d.createdAt, d.createdBy, d.updatedAt, d.updatedBy, d.value,
-		        f.fegFundId, f.fundName, f.fundType,
+		        d.fundSeriesId,
+		        f.fundName, f.fundType,
 		        fld.fieldNo, fld.formLineNo, fld.lineText, fld.dataType,
 		        fld.isMultipleAdd, fld.isMSQ, fld.isMCQ, fld.requiresDate,
 		        fld.isTableData, fld.disclaimerText, fld.xmlTags`).
 		Joins("JOIN feg_funds f ON f.fegFundId = d.fundSeriesId").
 		Joins("JOIN form_fields_ms fld ON fld.fieldNo = d.fieldNo AND fld.formLineNo = d.formLineNo").
 		Where("d.filingId = ? AND d.isCurrentValue = 1", filingID).
+		Order("d.fundSeriesId, d.formLineNo, d.fieldNo").
 		Limit(400).
 		Find(&rows).Error
 	return rows, err
