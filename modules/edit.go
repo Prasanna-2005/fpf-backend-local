@@ -9,9 +9,6 @@ import (
 	"gorm.io/datatypes"
 )
 
-// BuildResponse produces the final JSON shape:
-// { "funds": [ {fund_id, fund_name, fund_data}, … ] }
-// It expects rows already ordered by fundSeriesId.
 func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 	rows, err := db.FetchFormDataByFiling(filingID)
 	if err != nil {
@@ -61,10 +58,6 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 
 	return resp, nil
 }
-
-/* -------------------------------------------------
-   helpers identical to your original edit.go
--------------------------------------------------*/
 
 func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseField {
 	anyRow := rows[0]
