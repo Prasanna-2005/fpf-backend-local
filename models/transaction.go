@@ -44,7 +44,7 @@ type FormDatum struct {
 	UpdatedAt      *time.Time `gorm:"column:updatedAt;autoUpdateTime"` // nullable
 	UpdatedBy      *int64     `gorm:"column:updatedBy"`                // nullable
 	IsCurrentValue bool       `gorm:"column:isCurrentValue"`
-	FundID         string     `gorm:"column:fegFundId"`
+	FundID         string     `gorm:"column:fundSeriesId"`
 	FundName       string     `gorm:"column:fundName"`
 	FundType       string     `gorm:"column:fundType"`
 
@@ -66,12 +66,11 @@ type FormDatum struct {
 func (FormField) TableName() string { return "formpf.form_fields_ms" }
 func (FormDatum) TableName() string { return "formpf.form_data" }
 
-/* ---------- JSON DTOs (controller layer) ---------- */
-type FilingResponse struct {
-	FundID   string          `json:"fund_id"`
-	FundName string          `json:"fund_name"` // renamed
-	FundData []ResponseField `json:"fund_data"` // renamed
-}
+// type FilingResponse struct {
+// 	FundID   string          `json:"fund_id"`
+// 	FundName string          `json:"fund_name"` // renamed
+// 	FundData []ResponseField `json:"fund_data"` // renamed
+// }
 
 type ResponseField struct {
 	FieldNo          string             `json:"field_no"`
@@ -96,4 +95,14 @@ type ResponseLineItem struct {
 	RequireDate    bool                     `json:"require_date"`
 	DateValue      interface{}              `json:"date_value"` // polymorphic
 	DisclaimerText string                   `json:"disclaimer_text"`
+}
+
+type FilingResponse struct {
+	Funds []FundEntry `json:"funds"`
+}
+
+type FundEntry struct {
+	FundID   string          `json:"fund_id"`
+	FundName string          `json:"fund_name"`
+	FundData []ResponseField `json:"fund_data"`
 }

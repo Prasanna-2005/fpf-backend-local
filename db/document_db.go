@@ -60,10 +60,6 @@ func CreateTracker(req *models.SubmitReq, cid string) (int, error) {
 func CreateMapper(req *models.SubmitReq, filingId int) ([]models.FileMapper, error) {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
-	uid, err := strconv.Atoi(req.UserID)
-	if err != nil {
-		return nil, err
-	}
 	identities, err := GetAllFileMapId()
 	if err != nil {
 		return nil, err
@@ -86,7 +82,7 @@ func CreateMapper(req *models.SubmitReq, filingId int) ([]models.FileMapper, err
 			FileMapID:     fileMapID,
 			QuarterNo:     rec.Quarter,
 			IsUpdated:     false,
-			CreatedBy:     uid, // string is fine per your ORM
+			CreatedBy:     req.UserID, // string is fine per your ORM
 			CreatedAt:     ts,
 		})
 	}
@@ -122,13 +118,13 @@ func UpdateTracker(tracker *models.FilingTracker, req *models.SubmitReq) error {
 
 // UpdateMapper updates every mapper row that belongs to the given filingId:
 func UpdateMapper(filingId int, req *models.SubmitReq) error {
-	// build a lookup => shortcode : new file data
+	// 1. build lookup: short-code -> new file data
 	newData := make(map[string]struct{ fileName, filePath string })
 	for _, m := range req.FileMappings {
 		newData[m.ShortCode] = struct{ fileName, filePath string }{m.FileName, m.Path}
 	}
 
-	// fetch current rows for this filing
+	// 2. fetch current rows for this filing
 	var rows []models.FileMapper
 	if err := sqlDb.Where("filingId = ?", filingId).Find(&rows).Error; err != nil {
 		return err
@@ -136,8 +132,10 @@ func UpdateMapper(filingId int, req *models.SubmitReq) error {
 
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
-	// update in memory and push back
+	// 3. update existing rows (in memory)
+	existingSC := make(map[string]bool, len(rows))
 	for i := range rows {
+		existingSC[rows[i].FundShortCode] = true
 		if nd, ok := newData[rows[i].FundShortCode]; ok {
 			rows[i].FileName = nd.fileName
 			rows[i].FilingPath = nd.filePath
@@ -147,6 +145,32 @@ func UpdateMapper(filingId int, req *models.SubmitReq) error {
 		}
 	}
 
-	// 4. persist (Save updates non-zero fields)
-	return sqlDb.Session(&gorm.Session{FullSaveAssociations: false}).Save(&rows).Error
+	// 4. persist updates
+	if err := sqlDb.Session(&gorm.Session{FullSaveAssociations: false}).Save(&rows).Error; err != nil {
+		return err
+	}
+
+	// 5. insert brand-new files (short-codes not yet in DB)
+	var toInsert []models.FileMapper
+	for _, m := range req.FileMappings {
+		if !existingSC[m.ShortCode] {
+			toInsert = append(toInsert, models.FileMapper{
+				FileName:      m.FileName,
+				FilingPath:    m.Path,
+				FundShortCode: m.ShortCode,
+				FilingID:      filingId,
+				QuarterNo:     m.Quarter,
+				IsUpdated:     true,
+				CreatedAt:     ts,
+				CreatedBy:     req.UserID,
+			})
+		}
+	}
+	if len(toInsert) > 0 {
+		if err := sqlDb.Create(&toInsert).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

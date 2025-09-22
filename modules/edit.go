@@ -9,6 +9,9 @@ import (
 	"gorm.io/datatypes"
 )
 
+// BuildResponse produces the final JSON shape:
+// { "funds": [ {fund_id, fund_name, fund_data}, … ] }
+// It expects rows already ordered by fundSeriesId.
 func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 	rows, err := db.FetchFormDataByFiling(filingID)
 	if err != nil {
@@ -20,29 +23,48 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 		return nil, fmt.Errorf("no data for filing %d", filingID)
 	}
 
-	fundID, fundName, err := db.GetFundBrief(rows[0].FundID)
-	if err != nil {
-		logger.Log("ERROR", "fund loading error:"+err.Error())
-		logger.Log("DEBUG", rows[0].FundID)
-		return nil, err
-	}
-
-	grouped := make(map[string][]models.FormDatum)
-	for _, r := range rows {
-		grouped[r.FieldNo] = append(grouped[r.FieldNo], r)
-	}
-
 	resp := &models.FilingResponse{
-		FundID:   fundID,
-		FundName: fundName,
-		FundData: make([]models.ResponseField, 0, len(grouped)),
+		Funds: make([]models.FundEntry, 0, 8),
 	}
 
-	for fieldNo, blockRows := range grouped {
-		resp.FundData = append(resp.FundData, buildFieldBlock(fieldNo, blockRows))
+	var curFund *models.FundEntry // fund we are filling right now
+	fieldMap := make(map[string][]models.FormDatum)
+
+	flush := func() {
+		if curFund == nil {
+			return
+		}
+		// build field blocks for the fund we just finished
+		for fieldNo, blockRows := range fieldMap {
+			curFund.FundData = append(curFund.FundData, buildFieldBlock(fieldNo, blockRows))
+		}
+		// append completed fund to response
+		resp.Funds = append(resp.Funds, *curFund)
+		// reset for next fund
+		fieldMap = make(map[string][]models.FormDatum)
 	}
+
+	for _, r := range rows {
+		// new fund detected  (rows ordered by fundSeriesId)
+		if curFund == nil || curFund.FundID != r.FundID {
+			flush()
+			curFund = &models.FundEntry{
+				FundID:   r.FundID,
+				FundName: r.FundName,
+				FundData: make([]models.ResponseField, 0, 64),
+			}
+		}
+		// accumulate rows into field groups
+		fieldMap[r.FieldNo] = append(fieldMap[r.FieldNo], r)
+	}
+	flush() // don’t forget the last one
+
 	return resp, nil
 }
+
+/* -------------------------------------------------
+   helpers identical to your original edit.go
+-------------------------------------------------*/
 
 func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseField {
 	anyRow := rows[0]
@@ -57,7 +79,7 @@ func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseFie
 		FieldHeading:     anyRow.FieldHeading,
 		Confirmed:        false,
 		Editing:          true,
-		IsMultipleAdd:    anyRow.IsMultipleAdd, // ← alias column exists
+		IsMultipleAdd:    anyRow.IsMultipleAdd,
 		FieldData:        make([]models.ResponseLineItem, 0, len(rows)),
 	}
 
@@ -78,10 +100,10 @@ func buildLineItem(r models.FormDatum) models.ResponseLineItem {
 		LineItemType:   r.LineItemType,
 		LineText:       r.LineText,
 		Value:          ptrToInterface(r.Value),
-		Options:        jsonToSlice(r.Options), // datatypes.JSON → []string
-		TableData:      nil,                    // delayed
+		Options:        jsonToSlice(r.Options),
+		TableData:      nil, // filled later if needed
 		RequireDate:    r.RequireDate,
-		DateValue:      jsonToInterface(r.DateValue), // datatypes.JSON → interface{}
+		DateValue:      jsonToInterface(r.DateValue),
 		DisclaimerText: r.DisclaimerText,
 	}
 }
