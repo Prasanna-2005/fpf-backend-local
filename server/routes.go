@@ -69,11 +69,11 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 	gen.GET("/status", ctrl.FilingStatus)
 }
 
-func setUpEdit(api *gin.RouterGroup) {
-	edit := api.Group("/edit")
-	edit.Use(middleware.Authenticate("approver"))
-	edit.GET("/response/:filing_id", ctrl.EditOn)
-}
+// func setUpEdit(api *gin.RouterGroup) {
+// 	edit := api.Group("/edit")
+// 	edit.Use(middleware.Authenticate("approver"))
+// 	// edit.GET("/response/:filing_id", ctrl.EditOn)
+// }
 
 func setUpSubmission(api *gin.RouterGroup) {
 	sub := api.Group("/submissions")

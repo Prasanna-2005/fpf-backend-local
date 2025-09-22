@@ -65,4 +65,4 @@ func MarkApproved(c *gin.Context) {
 	http.ServeContent(c.Writer, c.Request, filepath.Base(xmlPath), time.Time{}, f)
 }
 
-func EditOn(c *gin.Context)
+// func EditOn(c *gin.Context)
