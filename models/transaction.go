@@ -66,7 +66,6 @@ type FormDatum struct {
 func (FormField) TableName() string { return "formpf.form_fields_ms" }
 func (FormDatum) TableName() string { return "formpf.form_data" }
 
-/* ---------- JSON DTOs (controller layer) ---------- */
 // type FilingResponse struct {
 // 	FundID   string          `json:"fund_id"`
 // 	FundName string          `json:"fund_name"` // renamed
