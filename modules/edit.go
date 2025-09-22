@@ -86,6 +86,35 @@ func buildLineItem(r models.FormDatum) models.ResponseLineItem {
 	}
 }
 
+type SimpleField struct {
+	FundID  string      `json:"fund_id"`
+	XmlTags string 		`json:"xmltags"`
+	Value   interface{} `json:"value"`
+}
+
+func TransformToSimpleFields(filingID uint64) ([]SimpleField, error) {
+	rows, err := db.FetchFormDataByFiling(filingID)
+	fmt.Println(rows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch form data: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("no data found for filingID %d", filingID)
+	}
+
+	
+	result := make([]SimpleField, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, SimpleField{
+			FundID:  r.FundID,
+			XmlTags: r.XmlTags,  
+			Value:   r.Value,
+		})
+	}
+
+	return result, nil
+}
+
 func jsonToSlice(j datatypes.JSON) []string {
 	if len(j) == 0 {
 		return nil
