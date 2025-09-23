@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"gorm.io/datatypes"
@@ -25,7 +28,7 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 		Funds: make([]models.FundEntry, 0, 8),
 	}
 
-	var curFund *models.FundEntry // fund we are filling right now
+	var curFund *models.FundEntry
 	fieldMap := make(map[string][]models.FormDatum)
 
 	flush := func() {
@@ -36,15 +39,36 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 		for fieldNo, blockRows := range fieldMap {
 			curFund.FundData = append(curFund.FundData, buildFieldBlock(fieldNo, blockRows))
 		}
-		// append completed fund to response
+
+		sort.Slice(curFund.FundData, func(i, j int) bool {
+			fi, _ := strconv.Atoi(curFund.FundData[i].FieldNo)
+			fj, _ := strconv.Atoi(curFund.FundData[j].FieldNo)
+			return fi < fj
+		})
+
+		// 2.  sort line items by *numeric* line_item_no
+		for i := range curFund.FundData {
+			sort.Slice(curFund.FundData[i].FieldData, func(k, l int) bool {
+				// strip the underscore suffix if you have “5_a”, “5_b”, etc.
+				lk := strings.Split(curFund.FundData[i].FieldData[k].LineItemNo, "_")[0]
+				ll := strings.Split(curFund.FundData[i].FieldData[l].LineItemNo, "_")[0]
+				nk, _ := strconv.Atoi(lk)
+				nl, _ := strconv.Atoi(ll)
+				return nk < nl
+			})
+		}
+
 		resp.Funds = append(resp.Funds, *curFund)
 		fieldMap = make(map[string][]models.FormDatum)
 	}
 
 	for _, r := range rows {
+		//forbidden table fields
 		if r.FieldNo == "20" || r.FieldNo == "23" {
 			continue
 		}
+
+		// new fund detected  (rows ordered by fundSeriesId)
 		if curFund == nil || curFund.FundID != r.FundID {
 			flush()
 			curFund = &models.FundEntry{
@@ -60,6 +84,8 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 
 	return resp, nil
 }
+
+/* ----------  helper functions (unchanged)  ---------- */
 
 func safeString(s *string) string {
 	if s == nil {
@@ -109,20 +135,21 @@ func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseFie
 		}
 	}
 
-	fieldDisclaimer := safeString(&anyRow.DisclaimerText) // nullable column
+	fieldDisclaimer := safeString(&anyRow.DisclaimerText)
+	fieldHeading := safeString(&anyRow.FieldHeading)
 
 	block := models.ResponseField{
 		FieldNo:          fieldNo,
 		HasFieldItemText: hasFieldItemText,
 		HasTableData:     anyRow.HasTableData,
 		FieldText:        fieldText,
-		FieldHeading:     anyRow.FieldHeading,
+		FieldHeading:     fieldHeading,
 		Value:            nil,
-		FieldData:        []models.ResponseLineItem{}, // always start empty
+		FieldData:        []models.ResponseLineItem{},
 		Confirmed:        false,
 		Editing:          true,
 		IsMultipleAdd:    anyRow.IsMultipleAdd,
-		DisclaimerText:   fieldDisclaimer, // <-- outside
+		DisclaimerText:   fieldDisclaimer,
 	}
 
 	for _, r := range rows {
@@ -139,7 +166,6 @@ func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseFie
 	return block
 }
 
-// buildLineItem  ---------------------------------------------------
 func buildLineItem(r models.FormDatum, parentDisclaimer string) models.ResponseLineItem {
 	requireDate := r.RequireDate
 	dateVal := ""
@@ -151,7 +177,6 @@ func buildLineItem(r models.FormDatum, parentDisclaimer string) models.ResponseL
 		}
 		requireDate = true
 	}
-
 	return models.ResponseLineItem{
 		LineItemNo:     r.FormLineNo,
 		LineItemType:   r.LineItemType,
@@ -161,6 +186,6 @@ func buildLineItem(r models.FormDatum, parentDisclaimer string) models.ResponseL
 		TableData:      nil,
 		RequireDate:    requireDate,
 		DateValue:      dateVal,
-		DisclaimerText: parentDisclaimer, // same text as field level
+		DisclaimerText: parentDisclaimer,
 	}
 }

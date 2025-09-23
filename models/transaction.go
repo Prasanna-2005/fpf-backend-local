@@ -52,7 +52,7 @@ type FormDatum struct {
 	LineText         string         `gorm:"column:lineText"                                json:"line_text"`
 	HasFieldItemText bool           `gorm:"column:has_field_item_text"                     json:"has_field_item_text"`
 	HasTableData     bool           `gorm:"column:isTableData"                          json:"has_table_data"`
-	FieldHeading     string         `gorm:"column:fieldheading"                            json:"field_heading"`
+	FieldHeading     string         `gorm:"column:fieldHeading"                            json:"field_heading"`
 	Options          datatypes.JSON `gorm:"column:options"                                 json:"options,omitempty"`
 	RequireDate      bool           `gorm:"column:requiresDate"                             json:"require_date"`
 	DisclaimerText   string         `gorm:"column:disclaimerText"                         json:"disclaimer_text,omitempty"`

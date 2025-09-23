@@ -44,7 +44,7 @@ func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 		Select(`d.createdAt, d.createdBy, d.updatedAt, d.updatedBy, d.value,
 		        d.fundSeriesId, d.date,
 		        f.fundName, f.fundType,
-		        fld.fieldNo, fld.formLineNo, fld.lineText, fld.dataType,
+		        fld.fieldNo, fld.formLineNo,fld.fieldHeading, fld.lineText, fld.dataType,
 		        fld.isMultipleAdd, fld.isMSQ, fld.isMCQ, fld.requiresDate,
 		        fld.isTableData, fld.disclaimerText, fld.xmlTags`).
 		Joins("LEFT JOIN form_data d ON fld.fieldNo = d.fieldNo AND "+
