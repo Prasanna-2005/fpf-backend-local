@@ -85,8 +85,6 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 	return resp, nil
 }
 
-/* ----------  helper functions (unchanged)  ---------- */
-
 func safeString(s *string) string {
 	if s == nil {
 		return ""

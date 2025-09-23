@@ -119,6 +119,7 @@ func (FormData) TableName() string  { return "formpf.form_data" }
 type ResponseField struct {
 	FieldNo          string             `json:"field_no"`
 	HasFieldItemText bool               `json:"has_field_item_text,omitempty"`
+	FieldItemType    string             `json:"field_item_type"`
 	HasTableData     bool               `json:"has_table_data,omitempty"`
 	FieldText        string             `json:"field_text,omitempty"`    // omit if empty
 	FieldHeading     string             `json:"field_heading,omitempty"` // omit if empty
