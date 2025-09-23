@@ -1,70 +1,59 @@
 package ctrl
 
 import (
+	"errors"
+	"form_pf_backend/db"
+	"form_pf_backend/models"
 	"form_pf_backend/modules"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strconv"
-	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-type AcceptPayload struct {
-	FieldNo    string `json:"field_no" binding:"required"`
-	UserID     string `json:"user_id"  binding:"required"`
-	FilingID   string `json:"filing_id" binding:"required"`
-	FundID     string `json:"fund_id"`
-	Timestamp  string `json:"timestamp" binding:"required"`
-	SeriesName string `json:"series_name"`
-	Data       struct {
-		SubFieldNo string `json:"sub_field_no" binding:"required"`
-		Value      string `json:"value"`
-	} `json:"data"`
-}
+const (
+	FilingNotFound = "No filing found for the provided filing_id"
+	EmptyFiling    = "Invalid empty filing id"
+	Modified       = "Changes accepted successfully"
+	NotConfirmed   = "Line item still in edit mode"
+	Accepted       = "Your values accepted successfully"
+)
 
 func AcceptItemValue(c *gin.Context) {
 	filingID := c.Param("filing_id")
+	fundId := c.Param("fund_id")
 	if filingID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "No filing found for the provided filing_id"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": EmptyFiling})
 		return
 	}
 
-	var payload AcceptPayload
+	var payload *models.ResponseField
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid data format for the provided data field"})
+		logger.Log("ERROR", "Payload error:"+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
-
-	if payload.FilingID != filingID {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "No filing found for the provided filing_id"})
+	if !payload.Confirmed || payload.Editing {
+		logger.Log("INFO", "line item still in edit mode")
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"message": NotConfirmed})
 		return
 	}
+	userID := c.GetHeader("X-User-Id")
 
-	if _, err := time.Parse(time.RFC3339Nano, payload.Timestamp); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid data format for the provided data field"})
-		return
+	err := db.UpdateLineItem(payload, filingID, userID, fundId)
+
+	switch {
+	case errors.Is(err, db.ErrFilingNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"message": FilingNotFound})
+	case errors.Is(err, db.ErrNothingToDo):
+		c.JSON(http.StatusOK, gin.H{"message": Accepted})
+	case err != nil:
+		logger.Log("ERROR", "AcceptItem: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+	default:
+		c.JSON(http.StatusOK, gin.H{"message": Modified})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Changes accepted successfully"})
-}
-
-func MarkApproved(c *gin.Context) {
-	const xmlPath = `C:\Users\ANANDHAKUMAR\Downloads\qtech\FEG Private Investors\XML & Excel File\FEG Private Investors 2f0cfc75-a070-49f9-9033-ff60f90f84c6.xml`
-
-	f, err := os.Open(filepath.Clean(xmlPath))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": ServerError,
-		})
-		return
-	}
-	defer f.Close()
-
-	// On success, send the XML file directly
-	c.Header("Content-Type", "application/xml")
-	http.ServeContent(c.Writer, c.Request, filepath.Base(xmlPath), time.Time{}, f)
 }
 
 func GetFilingResponse(c *gin.Context) {
