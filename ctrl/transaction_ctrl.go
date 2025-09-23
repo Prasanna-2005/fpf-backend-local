@@ -91,7 +91,7 @@ func GetApprovedFilingResponse(c *gin.Context) {
 		return
 	}
 
-	resp, err := modules.TransformToSimpleFields(id)
+	resp, err := modules.TransformToSimpleResponse(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 		return
