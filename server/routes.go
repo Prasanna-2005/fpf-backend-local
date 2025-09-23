@@ -70,20 +70,13 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 	gen.GET("/status", ctrl.FilingStatus)
 }
 
-// func setUpEdit(api *gin.RouterGroup) {
-// 	edit := api.Group("/edit")
-// 	edit.Use(middleware.Authenticate("approver"))
-// 	// edit.GET("/response/:filing_id", ctrl.EditOn)
-// }
-
 func setUpSubmission(api *gin.RouterGroup) {
 	sub := api.Group("/submissions")
-	sub.Use(middleware.Authenticate("approver"))
-	sub.PUT("/:filing_id", ctrl.AcceptItemValue)
+	sub.Use(middleware.Authenticate())
+	sub.PUT("/:filing_id/:fund_id", ctrl.AcceptItemValue)
 	// 	sub.GET("/:filing_id/revert", ctrl.RevertLatest)
-	// 	sub.POST("/:filing_id/draft", ctrl.SaveDraft)
 	// sub.PUT("/:filing_id/approval", ctrl.SendForApproval)
-	sub.PUT("/:filing_id/approved", ctrl.MarkApproved)
+	// sub.PUT("/:filing_id/approved", ctrl.MarkApproved)
 }
 
 func setupProfileRoutes(api *gin.RouterGroup) {
