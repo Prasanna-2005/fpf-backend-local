@@ -66,6 +66,7 @@ type FormDatum struct {
 type ResponseField struct {
 	FieldNo          string             `json:"field_no"`
 	HasFieldItemText bool               `json:"has_field_item_text"`
+	FieldItemType    string             `json:"field_item_type,omitempty"`
 	HasTableData     bool               `json:"has_table_data"`
 	FieldText        string             `json:"field_text"`
 	FieldHeading     string             `json:"field_heading"`

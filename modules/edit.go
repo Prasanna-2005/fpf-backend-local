@@ -85,8 +85,6 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 	return resp, nil
 }
 
-/* ----------  helper functions (unchanged)  ---------- */
-
 func safeString(s *string) string {
 	if s == nil {
 		return ""
@@ -141,6 +139,7 @@ func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseFie
 	block := models.ResponseField{
 		FieldNo:          fieldNo,
 		HasFieldItemText: hasFieldItemText,
+		FieldItemType:    anyRow.LineItemType,
 		HasTableData:     anyRow.HasTableData,
 		FieldText:        fieldText,
 		FieldHeading:     fieldHeading,
