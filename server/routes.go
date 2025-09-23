@@ -117,7 +117,7 @@ func setupFileRoutes(api *gin.RouterGroup) {
 
 func setUpEdit(api *gin.RouterGroup) {
 	edit := api.Group("/edit")
-	edit.Use(middleware.Authenticate())
+	edit.Use(middleware.Authenticate("contributor", "approver", "admin"))
 	edit.GET("/response/:filing_id", ctrl.GetFilingResponse)
 	edit.GET("/approved/:filing_id",ctrl.GetApprovedFilingResponse)
 }
