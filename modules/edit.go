@@ -139,6 +139,7 @@ func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseFie
 	block := models.ResponseField{
 		FieldNo:          fieldNo,
 		HasFieldItemText: hasFieldItemText,
+		FieldItemType:    anyRow.LineItemType,
 		HasTableData:     anyRow.HasTableData,
 		FieldText:        fieldText,
 		FieldHeading:     fieldHeading,
