@@ -40,17 +40,18 @@ func GetFundBrief(seriesID string) (fundID, fundName string, err error) {
 func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 	var rows []models.FormDatum
 	err := GetDB().
-		Table("form_data d").
+		Table("form_fields_ms fld").
 		Select(`d.createdAt, d.createdBy, d.updatedAt, d.updatedBy, d.value,
-		        d.fundSeriesId,
+		        d.fundSeriesId, d.date,
 		        f.fundName, f.fundType,
-		        fld.fieldNo, fld.formLineNo, fld.lineText, fld.dataType,
+		        fld.fieldNo, fld.formLineNo,fld.fieldHeading, fld.lineText, fld.dataType,
 		        fld.isMultipleAdd, fld.isMSQ, fld.isMCQ, fld.requiresDate,
 		        fld.isTableData, fld.disclaimerText, fld.xmlTags`).
-		Joins("JOIN feg_funds f ON f.fegFundId = d.fundSeriesId").
-		Joins("JOIN form_fields_ms fld ON fld.fieldNo = d.fieldNo AND fld.formLineNo = d.formLineNo").
-		Where("d.filingId = ? AND d.isCurrentValue = 1", filingID).
-		Order("d.fundSeriesId, d.formLineNo, d.fieldNo").
+		Joins("LEFT JOIN form_data d ON fld.fieldNo = d.fieldNo AND "+
+			"fld.formLineNo = d.formLineNo AND "+
+			"d.filingId = ? AND d.isCurrentValue = 1", filingID).
+		Joins("INNER JOIN feg_funds f ON f.fegFundId = d.fundSeriesId").
+		Order(`d.fundSeriesId IS NULL, d.fundSeriesId, fld.fieldNo, fld.formLineNo`). // NULLs last, then by fund, then field/line
 		Limit(400).
 		Find(&rows).Error
 	return rows, err

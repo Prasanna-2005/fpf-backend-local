@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
 	"gorm.io/datatypes"
 )
 
-// BuildResponse produces the final JSON shape:
-// { "funds": [ {fund_id, fund_name, fund_data}, … ] }
-// It expects rows already ordered by fundSeriesId.
 func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 	rows, err := db.FetchFormDataByFiling(filingID)
 	if err != nil {
@@ -27,7 +28,7 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 		Funds: make([]models.FundEntry, 0, 8),
 	}
 
-	var curFund *models.FundEntry // fund we are filling right now
+	var curFund *models.FundEntry
 	fieldMap := make(map[string][]models.FormDatum)
 
 	flush := func() {
@@ -38,13 +39,35 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 		for fieldNo, blockRows := range fieldMap {
 			curFund.FundData = append(curFund.FundData, buildFieldBlock(fieldNo, blockRows))
 		}
-		// append completed fund to response
+
+		sort.Slice(curFund.FundData, func(i, j int) bool {
+			fi, _ := strconv.Atoi(curFund.FundData[i].FieldNo)
+			fj, _ := strconv.Atoi(curFund.FundData[j].FieldNo)
+			return fi < fj
+		})
+
+		// 2.  sort line items by *numeric* line_item_no
+		for i := range curFund.FundData {
+			sort.Slice(curFund.FundData[i].FieldData, func(k, l int) bool {
+				// strip the underscore suffix if you have “5_a”, “5_b”, etc.
+				lk := strings.Split(curFund.FundData[i].FieldData[k].LineItemNo, "_")[0]
+				ll := strings.Split(curFund.FundData[i].FieldData[l].LineItemNo, "_")[0]
+				nk, _ := strconv.Atoi(lk)
+				nl, _ := strconv.Atoi(ll)
+				return nk < nl
+			})
+		}
+
 		resp.Funds = append(resp.Funds, *curFund)
-		// reset for next fund
 		fieldMap = make(map[string][]models.FormDatum)
 	}
 
 	for _, r := range rows {
+		//forbidden table fields
+		if r.FieldNo == "20" || r.FieldNo == "23" {
+			continue
+		}
+
 		// new fund detected  (rows ordered by fundSeriesId)
 		if curFund == nil || curFund.FundID != r.FundID {
 			flush()
@@ -54,58 +77,25 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 				FundData: make([]models.ResponseField, 0, 64),
 			}
 		}
-		// accumulate rows into field groups
+
 		fieldMap[r.FieldNo] = append(fieldMap[r.FieldNo], r)
 	}
-	flush() // don’t forget the last one
+	flush()
 
 	return resp, nil
 }
 
-/* -------------------------------------------------
-   helpers identical to your original edit.go
--------------------------------------------------*/
+/* ----------  helper functions (unchanged)  ---------- */
 
-func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseField {
-	anyRow := rows[0]
-	if len(anyRow.LineText) != 0 {
-		anyRow.HasFieldItemText = true
+func safeString(s *string) string {
+	if s == nil {
+		return ""
 	}
-	block := models.ResponseField{
-		FieldNo:          fieldNo,
-		HasFieldItemText: anyRow.HasFieldItemText,
-		HasTableData:     anyRow.HasTableData,
-		FieldText:        anyRow.LineText,
-		FieldHeading:     anyRow.FieldHeading,
-		Confirmed:        false,
-		Editing:          true,
-		IsMultipleAdd:    anyRow.IsMultipleAdd,
-		FieldData:        make([]models.ResponseLineItem, 0, len(rows)),
-	}
-
-	// top-level value = concat **current** lines only
-	for _, r := range rows {
-		block.Value = appendAny(block.Value, ptrToInterface(r.Value))
-	}
-
-	for _, r := range rows {
-		block.FieldData = append(block.FieldData, buildLineItem(r))
-	}
-	return block
+	return *s
 }
 
-func buildLineItem(r models.FormDatum) models.ResponseLineItem {
-	return models.ResponseLineItem{
-		LineItemNo:     r.FormLineNo,
-		LineItemType:   r.LineItemType,
-		LineText:       r.LineText,
-		Value:          ptrToInterface(r.Value),
-		Options:        jsonToSlice(r.Options),
-		TableData:      nil, // filled later if needed
-		RequireDate:    r.RequireDate,
-		DateValue:      jsonToInterface(r.DateValue),
-		DisclaimerText: r.DisclaimerText,
-	}
+func fallbackDate() string {
+	return fmt.Sprintf("09/30/%d", time.Now().Year())
 }
 
 type FundInfo struct {
@@ -187,16 +177,76 @@ func jsonToInterface(j datatypes.JSON) interface{} {
 	return v
 }
 
-func ptrToInterface(s *string) interface{} {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func appendAny(dst interface{}, src interface{}) interface{} {
 	if dst == nil {
 		return src
 	}
 	return dst
+}
+
+func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseField {
+	anyRow := rows[0]
+	isSummaryLine := anyRow.FormLineNo == anyRow.FieldNo
+	fieldText := ""
+	hasFieldItemText := false
+	if isSummaryLine {
+		if txt := safeString(&anyRow.LineText); txt != "" {
+			fieldText = txt
+			hasFieldItemText = true
+		}
+	}
+
+	fieldDisclaimer := safeString(&anyRow.DisclaimerText)
+	fieldHeading := safeString(&anyRow.FieldHeading)
+
+	block := models.ResponseField{
+		FieldNo:          fieldNo,
+		HasFieldItemText: hasFieldItemText,
+		HasTableData:     anyRow.HasTableData,
+		FieldText:        fieldText,
+		FieldHeading:     fieldHeading,
+		Value:            nil,
+		FieldData:        []models.ResponseLineItem{},
+		Confirmed:        false,
+		Editing:          true,
+		IsMultipleAdd:    anyRow.IsMultipleAdd,
+		DisclaimerText:   fieldDisclaimer,
+	}
+
+	for _, r := range rows {
+		block.Value = appendAny(block.Value, safeString(r.Value))
+	}
+
+	if !isSummaryLine {
+		for _, r := range rows {
+			li := buildLineItem(r, fieldDisclaimer)
+			block.FieldData = append(block.FieldData, li)
+		}
+	}
+
+	return block
+}
+
+func buildLineItem(r models.FormDatum, parentDisclaimer string) models.ResponseLineItem {
+	requireDate := r.RequireDate
+	dateVal := ""
+	if requireDate || r.Date != nil {
+		if r.Date != nil && *r.Date != "" {
+			dateVal = *r.Date
+		} else {
+			dateVal = fallbackDate()
+		}
+		requireDate = true
+	}
+	return models.ResponseLineItem{
+		LineItemNo:     r.FormLineNo,
+		LineItemType:   r.LineItemType,
+		LineText:       r.LineText,
+		Value:          safeString(r.Value),
+		Options:        jsonToSlice(r.Options),
+		TableData:      nil,
+		RequireDate:    requireDate,
+		DateValue:      dateVal,
+		DisclaimerText: parentDisclaimer,
+	}
 }
