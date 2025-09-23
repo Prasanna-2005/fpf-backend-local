@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"time"
 
 	"gorm.io/datatypes"
 )
@@ -37,12 +38,13 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 		}
 		// append completed fund to response
 		resp.Funds = append(resp.Funds, *curFund)
-		// reset for next fund
 		fieldMap = make(map[string][]models.FormDatum)
 	}
 
 	for _, r := range rows {
-		// new fund detected  (rows ordered by fundSeriesId)
+		if r.FieldNo == "20" || r.FieldNo == "23" {
+			continue
+		}
 		if curFund == nil || curFund.FundID != r.FundID {
 			flush()
 			curFund = &models.FundEntry{
@@ -51,54 +53,23 @@ func BuildResponse(filingID uint64) (*models.FilingResponse, error) {
 				FundData: make([]models.ResponseField, 0, 64),
 			}
 		}
-		// accumulate rows into field groups
+
 		fieldMap[r.FieldNo] = append(fieldMap[r.FieldNo], r)
 	}
-	flush() // don’t forget the last one
+	flush()
 
 	return resp, nil
 }
 
-func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseField {
-	anyRow := rows[0]
-	if len(anyRow.LineText) != 0 {
-		anyRow.HasFieldItemText = true
+func safeString(s *string) string {
+	if s == nil {
+		return ""
 	}
-	block := models.ResponseField{
-		FieldNo:          fieldNo,
-		HasFieldItemText: anyRow.HasFieldItemText,
-		HasTableData:     anyRow.HasTableData,
-		FieldText:        anyRow.LineText,
-		FieldHeading:     anyRow.FieldHeading,
-		Confirmed:        false,
-		Editing:          true,
-		IsMultipleAdd:    anyRow.IsMultipleAdd,
-		FieldData:        make([]models.ResponseLineItem, 0, len(rows)),
-	}
-
-	// top-level value = concat **current** lines only
-	for _, r := range rows {
-		block.Value = appendAny(block.Value, ptrToInterface(r.Value))
-	}
-
-	for _, r := range rows {
-		block.FieldData = append(block.FieldData, buildLineItem(r))
-	}
-	return block
+	return *s
 }
 
-func buildLineItem(r models.FormDatum) models.ResponseLineItem {
-	return models.ResponseLineItem{
-		LineItemNo:     r.FormLineNo,
-		LineItemType:   r.LineItemType,
-		LineText:       r.LineText,
-		Value:          ptrToInterface(r.Value),
-		Options:        jsonToSlice(r.Options),
-		TableData:      nil, // filled later if needed
-		RequireDate:    r.RequireDate,
-		DateValue:      jsonToInterface(r.DateValue),
-		DisclaimerText: r.DisclaimerText,
-	}
+func fallbackDate() string {
+	return fmt.Sprintf("09/30/%d", time.Now().Year())
 }
 
 func jsonToSlice(j datatypes.JSON) []string {
@@ -119,16 +90,77 @@ func jsonToInterface(j datatypes.JSON) interface{} {
 	return v
 }
 
-func ptrToInterface(s *string) interface{} {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
 func appendAny(dst interface{}, src interface{}) interface{} {
 	if dst == nil {
 		return src
 	}
 	return dst
+}
+
+func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseField {
+	anyRow := rows[0]
+	isSummaryLine := anyRow.FormLineNo == anyRow.FieldNo
+	fieldText := ""
+	hasFieldItemText := false
+	if isSummaryLine {
+		if txt := safeString(&anyRow.LineText); txt != "" {
+			fieldText = txt
+			hasFieldItemText = true
+		}
+	}
+
+	fieldDisclaimer := safeString(&anyRow.DisclaimerText) // nullable column
+
+	block := models.ResponseField{
+		FieldNo:          fieldNo,
+		HasFieldItemText: hasFieldItemText,
+		HasTableData:     anyRow.HasTableData,
+		FieldText:        fieldText,
+		FieldHeading:     anyRow.FieldHeading,
+		Value:            nil,
+		FieldData:        []models.ResponseLineItem{}, // always start empty
+		Confirmed:        false,
+		Editing:          true,
+		IsMultipleAdd:    anyRow.IsMultipleAdd,
+		DisclaimerText:   fieldDisclaimer, // <-- outside
+	}
+
+	for _, r := range rows {
+		block.Value = appendAny(block.Value, safeString(r.Value))
+	}
+
+	if !isSummaryLine {
+		for _, r := range rows {
+			li := buildLineItem(r, fieldDisclaimer)
+			block.FieldData = append(block.FieldData, li)
+		}
+	}
+
+	return block
+}
+
+// buildLineItem  ---------------------------------------------------
+func buildLineItem(r models.FormDatum, parentDisclaimer string) models.ResponseLineItem {
+	requireDate := r.RequireDate
+	dateVal := ""
+	if requireDate || r.Date != nil {
+		if r.Date != nil && *r.Date != "" {
+			dateVal = *r.Date
+		} else {
+			dateVal = fallbackDate()
+		}
+		requireDate = true
+	}
+
+	return models.ResponseLineItem{
+		LineItemNo:     r.FormLineNo,
+		LineItemType:   r.LineItemType,
+		LineText:       r.LineText,
+		Value:          safeString(r.Value),
+		Options:        jsonToSlice(r.Options),
+		TableData:      nil,
+		RequireDate:    requireDate,
+		DateValue:      dateVal,
+		DisclaimerText: parentDisclaimer, // same text as field level
+	}
 }
