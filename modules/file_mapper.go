@@ -105,7 +105,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 		data.FundName = j.FundName
 		data.Quarter = j.Quarter
 		data.ShortCode = j.ShortCode
-		data.Path = j.FilePath
+		data.Path = strings.TrimPrefix(j.FilePath, os.Getenv("STORAGE_PATH"))
 		finalMap = append(finalMap, data)
 	}
 	return &models.FileIdentificationResponse{
@@ -154,7 +154,7 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 
 	// 3. merge
 	out := models.FileMappingDetail{
-		FileName: name, FilePath: strings.TrimPrefix(path, os.Getenv("STORAGE_PATH")),
+		FileName: name, FilePath: path,
 		Quarter: quarter, DateCellNo: qCell,
 	}
 	if fundOk {
