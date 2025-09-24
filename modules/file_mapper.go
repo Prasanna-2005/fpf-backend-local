@@ -154,7 +154,7 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 
 	// 3. merge
 	out := models.FileMappingDetail{
-		FileName: name, FilePath: path,
+		FileName: name, FilePath: strings.TrimPrefix(path, os.Getenv("STORAGE_PATH")),
 		Quarter: quarter, DateCellNo: qCell,
 	}
 	if fundOk {

@@ -71,15 +71,15 @@ func DerivedStatus(fs *models.FilingStatus, ft *models.FilingTracker) string {
 
 	// priority cascade (case-insensitive)
 	switch {
-	case strings.ToLower(fs.ApprovalStatus) == "yes":
+	case strings.EqualFold(fs.ApprovalStatus, "yes"):
 		return "approved"
-	case strings.ToLower(fs.ReviewStatus) == "yes":
+	case strings.EqualFold(fs.ReviewStatus, "yes"):
 		return "in review"
-	case strings.ToLower(fs.ExtractionStatus) == "yes" ||
-		strings.ToLower(fs.ComputationStatus) == "yes":
+	case strings.TrimSpace(fs.ExtractionStatus) == "" ||
+		strings.TrimSpace(fs.ComputationStatus) == "":
 		return "draft"
 	default:
-		return "unknown"
+		return "Not filed"
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 // TransferSignal takes up the signal and transfers them to the service via uds
 func TransferSignal(signal *Signal) error {
 
-	udsConn, err := net.Dial("unix", os.Getenv("SOCK_PATH"))
+	udsConn, err := net.Dial("unix", os.Getenv("STORAGE_PATH")+os.Getenv("SOCK_NAME"))
 	if err != nil {
 		return fmt.Errorf("creating conn: " + err.Error())
 	}
