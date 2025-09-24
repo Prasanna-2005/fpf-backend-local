@@ -152,7 +152,7 @@ func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseFie
 	}
 
 	for _, r := range rows {
-		if r.FieldNo == "5" {
+		if r.FieldNo != "21" {
 			block.FieldItemType = "None"
 			continue
 		}
