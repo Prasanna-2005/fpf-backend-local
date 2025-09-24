@@ -27,12 +27,12 @@ func main() {
 
 	// Load environment variables from .env file
 	logger.Log("DEBUG", "Loading environment variables from .env file")
-	err := godotenv.Load()
-	if err != nil {
-		logger.Log("ERROR", fmt.Sprintf("Error loading .env file: %v", err))
-		log.Fatalf("Error loading .env file: %v", err)
-	}
-	logger.Log("INFO", "Environment variables loaded successfully")
+	// err := godotenv.Load()
+	// if err != nil {
+	// 	logger.Log("ERROR", fmt.Sprintf("Error loading .env file: %v", err))
+	// 	log.Fatalf("Error loading .env file: %v", err)
+	// }
+	// logger.Log("INFO", "Environment variables loaded successfully")
 
 	db.GetDB()
 
