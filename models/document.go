@@ -40,7 +40,7 @@ type FileMapper struct {
 	QuarterNo     int       `gorm:"column:quarterNo"`
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`
 	CreatedAt     time.Time `gorm:"column:createdAt;not null"`
-	CreatedBy     int       `gorm:"column:createdBy;not null"`
+	CreatedBy     string    `gorm:"column:createdBy;not null"`
 	UpdatedAt     time.Time `gorm:"column:updatedAt;default:NULL"`
 	UpdatedBy     string    `gorm:"column:updatedBy;default:NULL"`
 
@@ -49,13 +49,12 @@ type FileMapper struct {
 }
 
 type SubmitReq struct {
-	UserID       string       `json:"user_id"                    binding:"required" gorm:"-"`
-	FilingName   string       `json:"filing_name"                binding:"required" gorm:"-"`
-	NewFiling    bool         `json:"new_filing"                              gorm:"-"`
-	Timestamp    string       `json:"timestamp"                  binding:"required" gorm:"-"`
-	FileMappings []MappedResp `json:"file_mappings" binding:"required,min=1,dive"`
+	UserID       string       `json:"user_id"      binding:"required" gorm:"-"`
+	FilingName   string       `json:"filing_name"  binding:"required" gorm:"-"`
+	NewFiling    bool         `json:"new_filing"                gorm:"-"`
+	Timestamp    string       `json:"timestamp"    binding:"required" gorm:"-"`
+	FileMappings []MappedResp `json:"file_mappings" binding:"min=1,dive" gorm:"-"`
 }
-
 type FegFileIdentification struct {
 	ID        int       `gorm:"column:id;primaryKey;autoIncrement"`
 	ShortCode string    `gorm:"column:shortCode;not null"`

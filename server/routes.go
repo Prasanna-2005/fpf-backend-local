@@ -47,6 +47,7 @@ func setupAPIRoutes(r *gin.Engine, version string) {
 	setupAdminRoutes(api)
 	// setupFundRoutes(api)
 	setupFileRoutes(api)
+	setUpEdit(api)
 }
 
 // setupAuthRoutes configures authentication-related routes
@@ -112,6 +113,12 @@ func setupFileRoutes(api *gin.RouterGroup) {
 	file.POST("/upload", ctrl.UploadDoc(cfg.UploadVolumePath))
 	file.POST("/mapper", ctrl.MapFiles)
 	file.POST("/submit", ctrl.SubmitFiles)
+}
+
+func setUpEdit(api *gin.RouterGroup) {
+	edit := api.Group("/edit")
+	edit.Use(middleware.Authenticate())
+	edit.GET("/response/:filing_id", ctrl.GetFilingResponse)
 }
 
 // SetupRoutesWithDefaults loads config from file and sets up routes with default configuration

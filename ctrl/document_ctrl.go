@@ -106,6 +106,7 @@ func SubmitFiles(c *gin.Context) {
 	if err != nil {
 		logger.Log("ERROR", err.Error())
 	}
+
 	if req.NewFiling {
 		filingId, err := db.CreateTracker(&req, cid)
 		if err != nil {
@@ -143,6 +144,7 @@ func SubmitFiles(c *gin.Context) {
 		logger.Log("ERROR", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 	}
+	fmt.Println(req)
 	err = db.UpdateMapper(tracker.Id, &req)
 	if err != nil {
 		logger.Log("ERROR", err.Error())
