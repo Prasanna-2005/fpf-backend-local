@@ -77,7 +77,7 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 		return err
 	}
 
-	exists := filingExists(clientDir, req.FilingName)
+	exists := filingExists(clientDir, sanitize(req.FilingName))
 	if err := validateFilingConstraints(req.NewFiling, exists, req.FilingName); err != nil {
 		handleFilingValidationError(c, err, req.NewFiling)
 		return err

@@ -38,7 +38,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 	if err != nil {
 		logger.Log("ERROR", "loadconfig failed")
 	}
-	baseDir := filepath.Join(cfg.UploadVolumePath, cid, req.FilingName)
+	baseDir := filepath.Join(cfg.UploadVolumePath, cid, sanitize(req.FilingName))
 	excels, err := findExcelFiles(baseDir)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("cannot walk dir: %v", err.Error()))
