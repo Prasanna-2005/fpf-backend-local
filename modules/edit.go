@@ -213,6 +213,10 @@ func buildFieldBlock(fieldNo string, rows []models.FormDatum) models.ResponseFie
 	}
 
 	for _, r := range rows {
+		if r.FieldNo != "21" {
+			block.FieldItemType = "None"
+			continue
+		}
 		block.Value = appendAny(block.Value, safeString(r.Value))
 	}
 

@@ -1,13 +1,20 @@
 package db
 
 import (
+	"errors"
 	"form_pf_backend/models"
 	"sync"
+	"time"
 
 	"gorm.io/gorm"
 )
 
-/* ---------- cached fund header map ---------- */
+var (
+	ErrFilingNotFound = errors.New("no filing found for the provided filing_id")
+	ErrNothingToDo    = errors.New("no update")
+	ServerError       = errors.New("server down")
+)
+
 var (
 	fundCache     map[string]fundBrief
 	onceFundCache sync.Once
@@ -55,4 +62,137 @@ func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 		Limit(400).
 		Find(&rows).Error
 	return rows, err
+}
+
+func UpdateLineItem(data *models.ResponseField, fid, uid, fundId string) error {
+	sqlDb := GetDB()
+	ok := dbAlive(sqlDb)
+	if !ok {
+		return ServerError
+	}
+
+	var count int64
+	err := sqlDb.Model(&models.FormData{}).Where("filingid = ?", fid).Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrFilingNotFound
+	}
+
+	// First check outside value case - formLineNo = fieldNo
+	// Skip if outside value is empty or null
+	hasOutsideValue := false
+
+	// Replace these field names with actual ones from ResponseField model
+	if data.Value != nil { // Assuming there's a Value field for outside values
+		if v, ok := data.Value.(string); ok && v != "" {
+			hasOutsideValue = true
+		}
+	}
+
+	if hasOutsideValue {
+		err := updateSingleRecord(sqlDb, data, fid, uid, fundId, true) // true for outside value
+		if err != nil {
+			return err
+		}
+	}
+
+	// Then check all FieldData items
+	for i := range data.FieldData {
+		err := updateSingleRecord(sqlDb, data, fid, uid, fundId, false, i) // false for inside, with index
+		if err != nil || errors.Is(err, ErrNothingToDo) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
+	var targetLineNo string
+	var value, dateValue interface{}
+
+	if isOutside {
+		// Outside value case - formLineNo = fieldNo
+		targetLineNo = data.FieldNo
+		value = data.Value
+		// dateValue = data.OutsideDateValue // uncomment if field exists
+	} else {
+		// Inside FieldData case
+		idx := 0
+		if len(fieldIndex) > 0 {
+			idx = fieldIndex[0]
+		}
+		targetLineNo = data.FieldData[idx].LineItemNo
+		value = data.FieldData[idx].Value
+		dateValue = data.FieldData[idx].DateValue
+	}
+	// Extract new values
+	var newValue, newDate *string
+
+	if value != nil {
+		if v, ok := value.(string); ok && v != "" {
+			newValue = &v
+		}
+	}
+	if dateValue != nil {
+		if dv, ok := dateValue.(string); ok && dv != "" {
+			newDate = &dv
+		}
+	}
+
+	// Find the existing record
+	var old models.FormData
+	err := sqlDb.Where(map[string]interface{}{
+		"filingid":       fid,
+		"fundSeriesId":   fundId,
+		"fieldNo":        data.FieldNo,
+		"formLineNo":     targetLineNo,
+		"isCurrentValue": true,
+	}).First(&old).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return gorm.ErrRecordNotFound
+		}
+		return err
+	}
+
+	// Check if there's actually something to update
+	valueSame := (old.Value == nil && newValue == nil) ||
+		(old.Value != nil && newValue != nil && *old.Value == *newValue)
+	dateSame := (old.Date == nil && newDate == nil) ||
+		(old.Date != nil && newDate != nil && *old.Date == *newDate)
+
+	if valueSame && dateSame {
+		return ErrNothingToDo
+	}
+
+	// Update existing record to mark as not current
+	now := time.Now()
+	if err := sqlDb.Model(&old).
+		Select("isCurrentValue", "updatedAt", "updatedBy").
+		Updates(models.FormData{
+			IsCurrentValue: false,
+			UpdatedAt:      &now,
+			UpdatedBy:      &uid,
+		}).Error; err != nil {
+		return err
+	}
+
+	// Create new record with updated values
+	newRow := models.FormData{
+		FilingID:       fid,
+		FundSeriesID:   fundId,
+		FieldNo:        data.FieldNo,
+		FormLineNo:     targetLineNo,
+		Value:          newValue,
+		Date:           newDate,
+		IsCurrentValue: true,
+		CreatedAt:      now,
+		CreatedBy:      uid,
+	}
+
+	return sqlDb.Create(&newRow).Error
 }
