@@ -166,7 +166,7 @@ func LoadConfig() (*RouteConfig, error) {
 	config := &RouteConfig{
 		APIVersion:       cfg.Section("api").Key("version").String(),
 		EnableCORS:       cfg.Section("cors").Key("enable").MustBool(false),
-		UploadVolumePath: os.Getenv("STORAGE_PATH") + cfg.Section("storage").Key("upload_volume_path").MustString(os.Getenv("UPLOAD_VOLUME_PATH")),
+		UploadVolumePath: cfg.Section("storage").Key("upload_volume_path").MustString(os.Getenv("UPLOAD_VOLUME_PATH")),
 	}
 	origins := cfg.Section("cors").Key("origins").String()
 	config.CORSOrigins = splitOrigins(origins)

@@ -7,8 +7,14 @@ import (
 // GetAllFilings returns a pointer-slice of every row in filing_tracker.
 func GetAllFilings() (*[]models.FilingTracker, error) {
 	var filings []models.FilingTracker
+	// err := dbAlive(sqlDb)
+	// if !ok {
+	// 	return &filings, ServerError
+	// }
+
 	err := sqlDb.Model(&models.FilingTracker{}).
 		Find(&filings).Error
+
 	return &filings, err
 }
 
