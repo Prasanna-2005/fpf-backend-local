@@ -121,17 +121,17 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 	// 1. filename first
 	fundMatch, fundOk := matchFundByFilename(name, funds)
 	quarter, qCell := matchQuarterByFilename(name)
-	logger.Log("DEBuG", fmt.Sprintf("qcell: %v,fundOk: %v", qCell, fundOk))
+	logger.Log("INFO", fmt.Sprintf("qcell: %v,fundOk: %v", qCell, fundOk))
 	// 2. excel fallback for missing pieces
 	if !fundOk || qCell == -1 {
 		excelFund, excelQuarter, excelQCell := matchByExcelContent(path, name, funds)
-		logger.Log("DEBUG", fmt.Sprintf("excelQuarter:%v", excelQuarter))
+		logger.Log("INFO", fmt.Sprintf("excelQuarter:%v", excelQuarter))
 		if !fundOk && excelFund.MatchScore > 0 {
 			fundMatch = excelFund
 			fundOk = true
 		}
 		if qCell == -1 && excelQuarter != 0 {
-			logger.Log("DEBUG", fmt.Sprintf("qt: %v", excelQuarter))
+			// logger.Log("DEBUG", fmt.Sprintf("qt: %v", excelQuarter))
 			quarter, qCell = excelQuarter, excelQCell
 		}
 	}
@@ -198,7 +198,7 @@ func matchQuarterByFilename(name string) (int, int) {
 func matchByExcelContent(path, name string, funds []models.FegFileIdentification) (fund models.FileMappingDetail, quarter int, qCell int) {
 	f, err := excelize.OpenFile(path)
 	if err != nil {
-		logger.Log("DEBUG", "fileopen error")
+		logger.Log("ERROR", "fileopen error")
 		return models.FileMappingDetail{}, 0, -1
 	}
 
@@ -233,7 +233,7 @@ func matchQuarterFromExcel(f *excelize.File) (int, int) {
 			for ci, cell := range row {
 				if strings.Contains(strings.ToLower(strings.TrimSpace(cell)), "period to:") &&
 					ci+1 < len(row) {
-					logger.Log("DEBUG", "period found")
+					logger.Log("INFO", "period found")
 					return parse(row[ci+2]), ci + 2
 				}
 			}

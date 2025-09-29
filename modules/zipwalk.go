@@ -1,4 +1,3 @@
-// modules/zipwalk.go
 package modules
 
 import (
