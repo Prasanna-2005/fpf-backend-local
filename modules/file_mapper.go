@@ -47,46 +47,21 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 	logger.Log("INFO", fmt.Sprintf("found %d Excel files", len(excels)))
 
 	var mapped []models.FileMappingDetail
-	var unmapped []string
-	// var dbRows []models.FileMapper
-
+	var unmapped []models.FileMappingDetail
 	for _, path := range excels {
 		name := filepath.Base(path)
 		detail, ok := matchFile(path, name, funds)
+		detail.FileName = name
+		detail.FilePath = path
 		if !ok {
-			unmapped = append(unmapped, name)
+			unmapped = append(unmapped, detail)
 			logger.Log("WARNING", "unmapped file: "+name)
 			continue
 		}
-		detail.FileName = name
-		detail.FilePath = path
 		mapped = append(mapped, detail)
-
-		// clientId, err := strconv.Atoi(cid)
-		// if err != nil {
-		// 	logger.Log("DEBUG", "conversion failed:"+err.Error())
-		// }
-		// row := models.FileMapper{
-		// 	FilingID:      clientId,
-		// 	FileName:      detail.FileName,
-		// 	FilingPath:    detail.FilePath,
-		// 	FundShortCode: detail.ShortCode,
-		// 	FileMapID:     detail.MapID,
-		// 	QuarterNo:     detail.Quarter,
-		// 	CreatedAt:     time.Now().UTC(),
-		// 	CreatedBy:     uid,
-		// }
-		// dbRows = append(dbRows, row)
 		logger.Log("INFO", fmt.Sprintf("mapped %s -> %s (%.1f%%)", name, detail.FundName, detail.MatchScore))
 	}
 
-	// if len(dbRows) > 0 {
-	// 	if err := db.BatchSaveFileMappings(dbRows); err != nil {
-	// 		logger.Log("ERROR", "batch insert: "+err.Error())
-	// 		return nil, fmt.Errorf("batch insert: %w", err)
-	// 	}
-	// 	logger.Log("INFO", fmt.Sprintf("saved %d mappings to DB", len(dbRows)))
-	// }
 	mappedCnt := len(mapped)
 	procCnt := len(excels)
 	msg := func() string {
@@ -99,6 +74,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 		return "Partial success"
 	}()
 	var finalMap []models.MappedResp
+	var finalUnMap []models.MappedResp
 	var data models.MappedResp
 	for _, j := range mapped {
 		data.FileName = j.FileName
@@ -108,16 +84,24 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 		data.Path = strings.TrimPrefix(j.FilePath, os.Getenv("STORAGE_PATH"))
 		finalMap = append(finalMap, data)
 	}
+	for _, j := range unmapped {
+		data.FileName = j.FileName
+		data.FundName = j.FundName
+		data.Quarter = j.Quarter
+		data.ShortCode = j.ShortCode
+		data.Path = strings.TrimPrefix(j.FilePath, os.Getenv("STORAGE_PATH"))
+		finalMap = append(finalUnMap, data)
+	}
+
 	return &models.FileIdentificationResponse{
 		Message:       msg,
 		FilingName:    req.FilingName,
 		FileMappings:  finalMap,
-		UnmappedFiles: unmapped,
+		UnmappedFiles: finalMap,
 		FundDetails:   fundInfo,
 	}, nil
 }
 
-// ---------- helpers ----------
 func findExcelFiles(root string) ([]string, error) {
 	var out []string
 	err := filepath.Walk(root, func(p string, i os.FileInfo, e error) error {

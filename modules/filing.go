@@ -4,6 +4,7 @@ package modules
 import (
 	"errors"
 	"fmt"
+	"form_pf_backend/db"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -156,8 +157,35 @@ func handleSaveError(c *gin.Context, targetDir string, err error) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
 	}
 }
+func RemoveDir(dir string) error {
+	if dir == "" || dir == "." || dir == ".." || dir == "/" {
+		return errors.New("refusing to delete risky path: " + dir)
+	}
+
+	if info, err := os.Stat(dir); err != nil {
+		return fmt.Errorf("cannot stat %q: %w", dir, err)
+	} else if !info.IsDir() {
+		return fmt.Errorf("%q is not a directory", dir)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("failed to remove %q: %w", dir, err)
+	}
+	return nil
+}
 
 func filingExists(clientDir, filingName string) bool {
+	flg := false
+	filingsList, err := db.GetAllFilings()
+	if err != nil {
+		logger.Log("ERROR", "DB is down")
+		return true
+	}
+	for _, filing := range *filingsList {
+		if filing.FilingName == filingName {
+			flg = true
+		}
+	}
 	targetDirName := sanitize(filingName)
 	entries, err := os.ReadDir(clientDir)
 	if err != nil {
@@ -166,9 +194,13 @@ func filingExists(clientDir, filingName string) bool {
 	}
 
 	for _, e := range entries {
-		if e.IsDir() && e.Name() == targetDirName {
+		if e.IsDir() && e.Name() == targetDirName && flg {
 			logger.Log("INFO", fmt.Sprintf("[filingExists] Found existing filing: %s", e.Name()))
 			return true
+		}
+		if e.IsDir() && e.Name() == targetDirName && !flg {
+			logger.Log("INFO", fmt.Sprintf("[filingExists] Found existing uplod and clearing it for fresh upload: %s", e.Name()))
+			return false
 		}
 	}
 	return false
