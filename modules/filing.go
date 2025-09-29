@@ -85,7 +85,6 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 	}
 
 	targetDir := filepath.Join(clientDir, sanitize(req.FilingName))
-	fmt.Println("target dir: %v", targetDir)
 	if err := EnsureVolumeDir(targetDir); err != nil {
 		logger.Log("ERROR", fmt.Sprintf("[ProcessUpload] Failed to create target directory %s: %v", targetDir, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "cannot create directory"})
