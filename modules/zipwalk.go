@@ -13,7 +13,7 @@ import (
 
 // ExtractAndValidateZip extracts all contents of a ZIP file to a dedicated target directory
 func ExtractAndValidateZip(zipPath, targetDir string) error {
-	logger.Log("DEBUG", fmt.Sprintf("[ExtractAndValidateZip] Starting extraction of %s to %s", zipPath, targetDir))
+	// logger.Log("DEBUG", fmt.Sprintf("[ExtractAndValidateZip] Starting extraction of %s to %s", zipPath, targetDir))
 
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
@@ -22,7 +22,7 @@ func ExtractAndValidateZip(zipPath, targetDir string) error {
 	}
 	defer r.Close()
 
-	logger.Log("DEBUG", fmt.Sprintf("[ExtractAndValidateZip] Found %d entries in %s", len(r.File), zipPath))
+	logger.Log("INFO", fmt.Sprintf("[ExtractAndValidateZip] Found %d entries in %s", len(r.File), zipPath))
 
 	// Create target directory for this ZIP's contents
 	if err := EnsureVolumeDir(targetDir); err != nil {
@@ -85,7 +85,7 @@ func validateZipContents(r *zip.Reader) error {
 		}
 
 		ext := strings.ToLower(filepath.Ext(filepath.Clean(f.Name)))
-		logger.Log("DEBUG", fmt.Sprintf("[validateZipContents] Validating file: %s (ext: %s)", f.Name, ext))
+		logger.Log("INFO", fmt.Sprintf("[validateZipContents] Validating file: %s (ext: %s)", f.Name, ext))
 
 		validator, allowed := validators[ext]
 		if !allowed {
@@ -102,7 +102,7 @@ func validateZipContents(r *zip.Reader) error {
 
 // validateNestedZip validates the contents of a nested ZIP file without extracting it
 func validateNestedZip(f *zip.File) error {
-	logger.Log("DEBUG", fmt.Sprintf("[validateNestedZip] Validating nested zip: %s", f.Name))
+	logger.Log("INFO", fmt.Sprintf("[validateNestedZip] Validating nested zip: %s", f.Name))
 
 	rc, err := f.Open()
 	if err != nil {
@@ -140,7 +140,7 @@ func createDirectory(f *zip.File, targetDir string) error {
 	}
 
 	dirPath := filepath.Join(targetDir, f.Name)
-	logger.Log("DEBUG", fmt.Sprintf("[createDirectory] Creating directory: %s", dirPath))
+	logger.Log("INFO", fmt.Sprintf("[createDirectory] Creating directory: %s", dirPath))
 	return os.MkdirAll(dirPath, f.FileInfo().Mode())
 }
 
@@ -157,7 +157,7 @@ func extractFile(f *zip.File, targetDir string) (string, error) {
 		return "", fmt.Errorf("failed to create parent directories for %s: %w", targetPath, err)
 	}
 
-	logger.Log("DEBUG", fmt.Sprintf("[extractFile] Extracting: %s → %s", f.Name, targetPath))
+	logger.Log("INFO", fmt.Sprintf("[extractFile] Extracting: %s → %s", f.Name, targetPath))
 
 	// Open source file in ZIP
 	rc, err := f.Open()
@@ -179,7 +179,7 @@ func extractFile(f *zip.File, targetDir string) (string, error) {
 		return "", fmt.Errorf("failed to extract file %s: %w", f.Name, err)
 	}
 
-	logger.Log("DEBUG", fmt.Sprintf("[extractFile] Successfully extracted %d bytes to %s", bytesWritten, targetPath))
+	logger.Log("INFO", fmt.Sprintf("[extractFile] Successfully extracted %d bytes to %s", bytesWritten, targetPath))
 	return targetPath, nil
 }
 
@@ -211,7 +211,7 @@ func cleanup(filePaths []string) {
 		if err := os.Remove(path); err != nil {
 			logger.Log("WARNING", fmt.Sprintf("[cleanup] Failed to remove file %s: %v", path, err))
 		} else {
-			logger.Log("DEBUG", fmt.Sprintf("[cleanup] Removed file: %s", path))
+			logger.Log("INFO", fmt.Sprintf("[cleanup] Removed file: %s", path))
 		}
 	}
 }

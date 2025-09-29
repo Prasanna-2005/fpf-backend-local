@@ -154,18 +154,21 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 
 // ---------- filename fund extractor ----------
 func matchFundByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-
 	parts := strings.Split(strings.TrimSuffix(name, filepath.Ext(name)), "_")
-	logger.Log("DEBUG", fmt.Sprintf("parts: %v", parts))
 	for _, part := range parts {
 		candidate := strings.ToLower(part)
-		logger.Log("DEBUG", fmt.Sprintf("part: %v", candidate))
 		for _, f := range funds {
-			if f.ShortCode == "" || f.Quarter == 0 {
-				continue
+			if f.Quarter == 0 && strings.Contains(strings.ToLower(name), strings.ToLower(f.FundName)) {
+				return models.FileMappingDetail{
+					MapID:       f.ID,
+					FundName:    f.FundName,
+					ShortCode:   f.ShortCode,
+					MatchMethod: "filename",
+					MatchScore:  similarity(candidate, strings.ToLower(f.ShortCode)),
+				}, true
+
 			}
-			logger.Log("DEBUG", fmt.Sprintf("name:%v,fund:%v,bool:%v", strings.ToLower(name), strings.ToLower(f.FundName), strings.Contains(strings.ToLower(name), strings.ToLower(f.FundName))))
-			if similarity(candidate, strings.ToLower(f.ShortCode)) >= 85 || strings.Contains(strings.ToLower(name), strings.ToLower(f.FundName)) {
+			if similarity(candidate, strings.ToLower(f.ShortCode)) >= 97 {
 				return models.FileMappingDetail{
 					MapID:       f.ID,
 					FundName:    f.FundName,
@@ -192,7 +195,6 @@ func matchQuarterByFilename(name string) (int, int) {
 	return 0, -1
 }
 
-// ---------- excel extractor (returns both pieces) ----------
 func matchByExcelContent(path, name string, funds []models.FegFileIdentification) (fund models.FileMappingDetail, quarter int, qCell int) {
 	f, err := excelize.OpenFile(path)
 	if err != nil {
