@@ -38,7 +38,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 	if err != nil {
 		logger.Log("ERROR", "loadconfig failed")
 	}
-	baseDir := filepath.Join(cfg.UploadVolumePath, cid, req.FilingName)
+	baseDir := filepath.Join(cfg.UploadVolumePath, cid, sanitize(req.FilingName))
 	excels, err := findExcelFiles(baseDir)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("cannot walk dir: %v", err.Error()))
@@ -47,46 +47,21 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 	logger.Log("INFO", fmt.Sprintf("found %d Excel files", len(excels)))
 
 	var mapped []models.FileMappingDetail
-	var unmapped []string
-	// var dbRows []models.FileMapper
-
+	var unmapped []models.FileMappingDetail
 	for _, path := range excels {
 		name := filepath.Base(path)
 		detail, ok := matchFile(path, name, funds)
+		detail.FileName = name
+		detail.FilePath = path
 		if !ok {
-			unmapped = append(unmapped, name)
+			unmapped = append(unmapped, detail)
 			logger.Log("WARNING", "unmapped file: "+name)
 			continue
 		}
-		detail.FileName = name
-		detail.FilePath = path
 		mapped = append(mapped, detail)
-
-		// clientId, err := strconv.Atoi(cid)
-		// if err != nil {
-		// 	logger.Log("DEBUG", "conversion failed:"+err.Error())
-		// }
-		// row := models.FileMapper{
-		// 	FilingID:      clientId,
-		// 	FileName:      detail.FileName,
-		// 	FilingPath:    detail.FilePath,
-		// 	FundShortCode: detail.ShortCode,
-		// 	FileMapID:     detail.MapID,
-		// 	QuarterNo:     detail.Quarter,
-		// 	CreatedAt:     time.Now().UTC(),
-		// 	CreatedBy:     uid,
-		// }
-		// dbRows = append(dbRows, row)
 		logger.Log("INFO", fmt.Sprintf("mapped %s -> %s (%.1f%%)", name, detail.FundName, detail.MatchScore))
 	}
 
-	// if len(dbRows) > 0 {
-	// 	if err := db.BatchSaveFileMappings(dbRows); err != nil {
-	// 		logger.Log("ERROR", "batch insert: "+err.Error())
-	// 		return nil, fmt.Errorf("batch insert: %w", err)
-	// 	}
-	// 	logger.Log("INFO", fmt.Sprintf("saved %d mappings to DB", len(dbRows)))
-	// }
 	mappedCnt := len(mapped)
 	procCnt := len(excels)
 	msg := func() string {
@@ -99,25 +74,34 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 		return "Partial success"
 	}()
 	var finalMap []models.MappedResp
+	var finalUnMap []models.MappedResp
 	var data models.MappedResp
 	for _, j := range mapped {
 		data.FileName = j.FileName
 		data.FundName = j.FundName
 		data.Quarter = j.Quarter
 		data.ShortCode = j.ShortCode
-		data.Path = j.FilePath
+		data.Path = strings.TrimPrefix(j.FilePath, os.Getenv("STORAGE_PATH"))
 		finalMap = append(finalMap, data)
 	}
+	for _, j := range unmapped {
+		data.FileName = j.FileName
+		data.FundName = j.FundName
+		data.Quarter = j.Quarter
+		data.ShortCode = j.ShortCode
+		data.Path = strings.TrimPrefix(j.FilePath, os.Getenv("STORAGE_PATH"))
+		finalMap = append(finalUnMap, data)
+	}
+
 	return &models.FileIdentificationResponse{
 		Message:       msg,
 		FilingName:    req.FilingName,
 		FileMappings:  finalMap,
-		UnmappedFiles: unmapped,
+		UnmappedFiles: finalMap,
 		FundDetails:   fundInfo,
 	}, nil
 }
 
-// ---------- helpers ----------
 func findExcelFiles(root string) ([]string, error) {
 	var out []string
 	err := filepath.Walk(root, func(p string, i os.FileInfo, e error) error {
@@ -137,17 +121,17 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 	// 1. filename first
 	fundMatch, fundOk := matchFundByFilename(name, funds)
 	quarter, qCell := matchQuarterByFilename(name)
-	logger.Log("DEBuG", fmt.Sprintf("qcell: %v,fundOk: %v", qCell, fundOk))
+	logger.Log("INFO", fmt.Sprintf("qcell: %v,fundOk: %v", qCell, fundOk))
 	// 2. excel fallback for missing pieces
 	if !fundOk || qCell == -1 {
 		excelFund, excelQuarter, excelQCell := matchByExcelContent(path, name, funds)
-		logger.Log("DEBUG", fmt.Sprintf("excelQuarter:%v", excelQuarter))
+		logger.Log("INFO", fmt.Sprintf("excelQuarter:%v", excelQuarter))
 		if !fundOk && excelFund.MatchScore > 0 {
 			fundMatch = excelFund
 			fundOk = true
 		}
 		if qCell == -1 && excelQuarter != 0 {
-			logger.Log("DEBUG", fmt.Sprintf("qt: %v", excelQuarter))
+			// logger.Log("DEBUG", fmt.Sprintf("qt: %v", excelQuarter))
 			quarter, qCell = excelQuarter, excelQCell
 		}
 	}
@@ -170,18 +154,21 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 
 // ---------- filename fund extractor ----------
 func matchFundByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-
 	parts := strings.Split(strings.TrimSuffix(name, filepath.Ext(name)), "_")
-	logger.Log("DEBUG", fmt.Sprintf("parts: %v", parts))
 	for _, part := range parts {
 		candidate := strings.ToLower(part)
-		logger.Log("DEBUG", fmt.Sprintf("part: %v", candidate))
 		for _, f := range funds {
-			if f.ShortCode == "" || f.Quarter == 0 {
-				continue
+			if f.Quarter == 0 && strings.Contains(strings.ToLower(name), strings.ToLower(f.FundName)) {
+				return models.FileMappingDetail{
+					MapID:       f.ID,
+					FundName:    f.FundName,
+					ShortCode:   f.ShortCode,
+					MatchMethod: "filename",
+					MatchScore:  similarity(candidate, strings.ToLower(f.ShortCode)),
+				}, true
+
 			}
-			logger.Log("DEBUG", fmt.Sprintf("name:%v,fund:%v,bool:%v", strings.ToLower(name), strings.ToLower(f.FundName), strings.Contains(strings.ToLower(name), strings.ToLower(f.FundName))))
-			if similarity(candidate, strings.ToLower(f.ShortCode)) >= 85 || strings.Contains(strings.ToLower(name), strings.ToLower(f.FundName)) {
+			if similarity(candidate, strings.ToLower(f.ShortCode)) >= 97 {
 				return models.FileMappingDetail{
 					MapID:       f.ID,
 					FundName:    f.FundName,
@@ -208,11 +195,10 @@ func matchQuarterByFilename(name string) (int, int) {
 	return 0, -1
 }
 
-// ---------- excel extractor (returns both pieces) ----------
 func matchByExcelContent(path, name string, funds []models.FegFileIdentification) (fund models.FileMappingDetail, quarter int, qCell int) {
 	f, err := excelize.OpenFile(path)
 	if err != nil {
-		logger.Log("DEBUG", "fileopen error")
+		logger.Log("ERROR", "fileopen error")
 		return models.FileMappingDetail{}, 0, -1
 	}
 
@@ -247,7 +233,7 @@ func matchQuarterFromExcel(f *excelize.File) (int, int) {
 			for ci, cell := range row {
 				if strings.Contains(strings.ToLower(strings.TrimSpace(cell)), "period to:") &&
 					ci+1 < len(row) {
-					logger.Log("DEBUG", "period found")
+					logger.Log("INFO", "period found")
 					return parse(row[ci+2]), ci + 2
 				}
 			}

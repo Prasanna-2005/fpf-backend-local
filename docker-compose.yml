@@ -1,0 +1,13 @@
+services:
+  formpf-backend:
+    build: .
+    image: formpf-backend
+    container_name: formpf-backend
+    ports:
+      - 8080:8080
+    volumes:
+      - form-pf-shared-storage:${STORAGE_PATH}
+      - ../logs/form-pf/backend:/app/logs
+volumes:
+  form-pf-shared-storage:
+    external: true

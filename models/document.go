@@ -12,7 +12,7 @@ type FileIdentificationResponse struct {
 	Message       string       `json:"message,omitempty"        gorm:"-"`
 	FilingName    string       `json:"filing_name,omitempty"    gorm:"-"`
 	FileMappings  []MappedResp `json:"file_mappings,omitempty"  gorm:"-"`
-	UnmappedFiles []string     `json:"unmapped_files," `
+	UnmappedFiles []MappedResp `json:"unmapped_files," `
 	FundDetails   []MappedResp `json:"fund_details,omitempty"  gorm:"-"`
 }
 
