@@ -21,6 +21,7 @@ var (
 Main function for loading environment variable and starting the server
 */
 func main() {
+	// gin.SetMode(gin.DebugMode)
 	gin.SetMode(gin.ReleaseMode)
 	logger.Log("INFO", "Application starting...")
 

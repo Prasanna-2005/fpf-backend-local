@@ -11,8 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const FileNotFnd = "Filing id is doesn't exist"
-
 func GetFilings(c *gin.Context) {
 	filingsPtr, err := db.GetAllFilings()
 	if err != nil {
@@ -91,14 +89,14 @@ func FilingStatus(c *gin.Context) {
 	fss, err := db.GetFilingStatus(filingID)
 	if err != nil {
 		logger.Log("ERROR", "filing_status not found: "+err.Error())
-		c.JSON(http.StatusNotFound, gin.H{"message": FileNotFnd})
+		c.JSON(http.StatusNotFound, gin.H{"message": FilingNotFound})
 		return
 	}
 
 	fts, err := db.GetFilingTracker(filingID)
 	if err != nil {
 		logger.Log("ERROR", "filing_tracker not found: "+err.Error())
-		c.JSON(http.StatusNotFound, gin.H{"message": FileNotFnd})
+		c.JSON(http.StatusNotFound, gin.H{"message": FilingNotFound})
 		return
 	}
 
