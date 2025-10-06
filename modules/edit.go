@@ -96,6 +96,67 @@ func fallbackDate() string {
 	return fmt.Sprintf("09/30/%d", time.Now().Year())
 }
 
+type FundInfo struct {
+	FundID   string `json:"fund_id"`
+	FundName string `json:"fund_name"`
+	FundType string `json:"fund_type"`
+}
+
+type TagInfo struct {
+	FundID   string `json:"fund_id"`
+	XMLTags  string      `json:"xmltags"`
+	Value    interface{} `json:"value"`
+}
+
+type SimpleResponse struct {
+	FundInfo []FundInfo `json:"fund_info"`
+	TagsInfo [][]TagInfo  `json:"tags_info"`
+}
+
+func TransformToSimpleResponse(filingID uint64) (*SimpleResponse, error) {
+	rows, err := db.FetchFormDataByFiling(filingID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch form data: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("no data found for filingID %d", filingID)
+	}
+
+	fundMap := make(map[string]FundInfo)
+	tagMap := make(map[string][]TagInfo)
+
+	for _, r := range rows {
+		if _, exists := fundMap[r.FundID]; !exists {
+			fundMap[r.FundID] = FundInfo{
+				FundID:   r.FundID,
+				FundName: r.FundName,
+				FundType: r.FundType,
+			}
+		}
+
+		tagMap[r.FundID] = append(tagMap[r.FundID], TagInfo{
+			FundID:  r.FundID,
+			XMLTags: string(r.XmlTags),
+			Value:   r.Value,
+		})
+	}
+
+	fundInfo := make([]FundInfo, 0, len(fundMap))
+	tagsInfo := make([][]TagInfo, 0, len(tagMap))
+
+	for fundID, f := range fundMap {
+		fundInfo = append(fundInfo, f)
+		tagsInfo = append(tagsInfo, tagMap[fundID])
+	}
+
+	return &SimpleResponse{
+		FundInfo: fundInfo,
+		TagsInfo: tagsInfo,
+	}, nil
+}
+
+
+
 func jsonToSlice(j datatypes.JSON) []string {
 	if len(j) == 0 {
 		return nil

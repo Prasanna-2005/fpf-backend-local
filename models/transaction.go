@@ -59,7 +59,7 @@ type FormDatum struct {
 	DateValue        datatypes.JSON `gorm:"column:date"                              json:"date_value,omitempty"`
 	IsMSQ            bool           `gorm:"column:isMSQ"                                   json:"is_msq"`
 	IsMCQ            bool           `gorm:"column:isMCQ"                                   json:"is_mcq"`
-	XmlTags          datatypes.JSON `gorm:"column:xmlTags"                                 json:"xml_tags,omitempty"`
+	XmlTags          string         `gorm:"column:xmlTags"                                 json:"xml_tags,omitempty"`
 	Date             *string        `gorm:"column:date"                                    json:"date,omitempty"`
 }
 
