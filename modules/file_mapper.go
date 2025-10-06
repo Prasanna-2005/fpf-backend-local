@@ -37,8 +37,9 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		logger.Log("ERROR", "loadconfig failed")
+		return nil, fmt.Errorf("config error")
 	}
-	baseDir := filepath.Join(cfg.UploadVolumePath, cid, req.FilingName)
+	baseDir := filepath.Join(cfg.UploadVolumePath, cid, sanitize(req.FilingName))
 	excels, err := findExcelFiles(baseDir)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("cannot walk dir: %v", err.Error()))
@@ -117,7 +118,6 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (
 	}, nil
 }
 
-// ---------- helpers ----------
 func findExcelFiles(root string) ([]string, error) {
 	var out []string
 	err := filepath.Walk(root, func(p string, i os.FileInfo, e error) error {
@@ -137,7 +137,7 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 	// 1. filename first
 	fundMatch, fundOk := matchFundByFilename(name, funds)
 	quarter, qCell := matchQuarterByFilename(name)
-	logger.Log("DEBuG", fmt.Sprintf("qcell: %v,fundOk: %v", qCell, fundOk))
+	logger.Log("info", fmt.Sprintf("qcell: %v,fundOk: %v", qCell, fundOk))
 	// 2. excel fallback for missing pieces
 	if !fundOk || qCell == -1 {
 		excelFund, excelQuarter, excelQCell := matchByExcelContent(path, name, funds)
@@ -147,7 +147,6 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 			fundOk = true
 		}
 		if qCell == -1 && excelQuarter != 0 {
-			logger.Log("DEBUG", fmt.Sprintf("qt: %v", excelQuarter))
 			quarter, qCell = excelQuarter, excelQCell
 		}
 	}
@@ -168,28 +167,29 @@ func matchFile(path, name string, funds []models.FegFileIdentification) (models.
 	return out, quarter != 0 || fundOk
 }
 
-// ---------- filename fund extractor ----------
 func matchFundByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
+	ln := strings.ToLower(name)
+	for _, f := range funds {
 
-	parts := strings.Split(strings.TrimSuffix(name, filepath.Ext(name)), "_")
-	logger.Log("DEBUG", fmt.Sprintf("parts: %v", parts))
-	for _, part := range parts {
-		candidate := strings.ToLower(part)
-		logger.Log("DEBUG", fmt.Sprintf("part: %v", candidate))
-		for _, f := range funds {
-			if f.ShortCode == "" || f.Quarter == 0 {
-				continue
-			}
-			logger.Log("DEBUG", fmt.Sprintf("name:%v,fund:%v,bool:%v", strings.ToLower(name), strings.ToLower(f.FundName), strings.Contains(strings.ToLower(name), strings.ToLower(f.FundName))))
-			if similarity(candidate, strings.ToLower(f.ShortCode)) >= 85 || strings.Contains(strings.ToLower(name), strings.ToLower(f.FundName)) {
-				return models.FileMappingDetail{
-					MapID:       f.ID,
-					FundName:    f.FundName,
-					ShortCode:   f.ShortCode,
-					MatchMethod: "filename",
-					MatchScore:  similarity(candidate, strings.ToLower(f.ShortCode)),
-				}, true
-			}
+		// 1. try short-code substring (case-insensitive)
+		if sc := strings.ToLower(f.ShortCode); sc != "" && strings.Contains(ln, sc) {
+			return models.FileMappingDetail{
+				MapID:       f.ID,
+				FundName:    f.FundName,
+				ShortCode:   f.ShortCode,
+				MatchMethod: "filename",
+				MatchScore:  100, // exact substring hit
+			}, true
+		}
+		// 2. try fund-name substring
+		if fn := strings.ToLower(f.FundName); fn != "" && strings.Contains(ln, fn) {
+			return models.FileMappingDetail{
+				MapID:       f.ID,
+				FundName:    f.FundName,
+				ShortCode:   f.ShortCode,
+				MatchMethod: "filename",
+				MatchScore:  100,
+			}, true
 		}
 	}
 	return models.FileMappingDetail{}, false
