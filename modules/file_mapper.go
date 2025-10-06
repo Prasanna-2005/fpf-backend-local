@@ -75,7 +75,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 			unmapped = append(unmapped, r.detail)
 		}
 	}
-
+	// fmt.Println(mapped)
 	msg := "File mappings updated successfully"
 	if len(mapped) == 0 {
 		msg = "Invalid file format for one or more files"
@@ -94,6 +94,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 				Path:      strings.TrimPrefix(v.FilePath, os.Getenv("STORAGE_PATH")),
 			}
 		}
+
 		return out
 	}
 
@@ -122,10 +123,14 @@ func findExcelFiles(root string) ([]string, error) {
 }
 
 func matchFile(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-	quarter, qCell := matchQuarterByFilename(name)
+	var out models.FileMappingDetail
 	fund, fundOk := matchFundByFilename(name, funds)
-
-	out := models.FileMappingDetail{
+	quarter, qCell := matchQuarterByFilename(name)
+	if fund.ShortCode == "Q15_Q16" {
+		quarter = 0
+		qCell = 0
+	}
+	out = models.FileMappingDetail{
 		FileName:   name,
 		Quarter:    quarter,
 		DateCellNo: qCell,
@@ -134,39 +139,41 @@ func matchFile(name string, funds []models.FegFileIdentification) (models.FileMa
 		out.FundName = fund.FundName
 		out.ShortCode = fund.ShortCode
 		out.MatchMethod = "filename"
-		out.MatchScore = 100
+		// out.MatchScore = 100
 	}
-	return out, fundOk && quarter != 0
+	// logger.Log("INFO", fmt.Sprintf("Fund %v got mapped to %v for timeperiod %v", out.FundName, out.FileName, out.Quarter))
+	return out, fundOk && qCell != -1
 }
 
 func matchFundByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-	ln := strings.ToUpper(name)
-
+	ln := strings.ToLower(normalizeRomans(name))
+	name = strings.ToLower(name)
 	for _, f := range funds {
-		if strings.Contains(ln, f.ShortCode) || matchFund(ln, f.ShortCode) {
+		if strings.Contains(ln, strings.ToLower(f.ShortCode)) || strings.Contains(ln, strings.ToLower(f.FundName)) || strings.Contains(name, strings.ToLower(f.FundName)) || strings.Contains(name, strings.ToLower(f.ShortCode)) {
 			return models.FileMappingDetail{
 				MapID:       f.ID,
 				FundName:    f.FundName,
 				ShortCode:   f.ShortCode,
 				MatchMethod: "filename",
-				MatchScore:  100,
+				// MatchScore:  100,
 			}, true
+
 		}
 	}
 	return models.FileMappingDetail{}, false
 }
 
 func matchQuarterByFilename(name string) (int, int) {
-	re := regexp.MustCompile(`\b(\d{4})[.\-\/\\](0[1-9]|1[0-2])[.\-\/\\](0[1-9]|[12][0-9]|3[01])\b`)
-	if m := re.FindString(name); m != "" {
-		norm := strings.NewReplacer("-", ".", "/", ".", "\\", ".").Replace(m)
-		if t, err := time.Parse("2006.01.02", norm); err == nil {
-			return quarterFromDate(&t), strings.Index(name, m)
+	// grab yyyy<sep>MM anywhere; ignore day
+	re := regexp.MustCompile(`(?:19|20)\d{2}[.\-\/\\](0[1-9]|1[0-2])`)
+	if loc := re.FindStringIndex(name); loc != nil {
+		mmStr := name[loc[0]+5 : loc[0]+7] // yyyy. -> MM
+		if mm, _ := strconv.Atoi(mmStr); mm >= 1 && mm <= 12 {
+			return (mm-1)/3 + 1, loc[0]
 		}
 	}
-	return 0, -1
+	return -1, -1
 }
-
 func quarterFromDate(t *time.Time) int {
 	if t == nil {
 		return 0
@@ -195,22 +202,17 @@ func toFundResp(funds []models.FegFileIdentification) []models.MappedResp {
 	return out
 }
 
-func matchFund(needle, haystack string) bool {
-	needle = strings.ToLower(strings.TrimSpace(needle))
-	haystack = strings.ToLower(haystack)
-	logger.Log("DEBUG", fmt.Sprintf("needle:%v, haystack:%v", needle, haystack))
-	if strings.Contains(haystack, needle) {
-		return true
-	}
-	// convert FEGPOF III -> FEGPOF 3 and check again
-	converted := romanRe.ReplaceAllStringFunc(needle, func(r string) string {
+func normalizeRomans(s string) string {
+	return fundRomanRe.ReplaceAllStringFunc(s, func(r string) string {
 		if v, err := romannumeral.StringToInt(r); err == nil {
 			return strconv.Itoa(v)
 		}
 		return r
 	})
-	logger.Log("DEBUG", fmt.Sprintf("converted: %v", converted))
-	return converted != needle && strings.Contains(haystack, converted)
 }
 
-var romanRe = regexp.MustCompile(`\b[MDCLXVI]+\b`)
+var (
+	dateRe      = regexp.MustCompile(`(\d{4})[.\-\/\\](0[1-9]|1[0-2])[.\-\/\\](0[1-9]|[12][0-9]|3[01])`)
+	romanRe     = regexp.MustCompile(`\b[MDCLXVI]+\b`)
+	fundRomanRe = regexp.MustCompile(`[MDCLXVI]+`)
+)
