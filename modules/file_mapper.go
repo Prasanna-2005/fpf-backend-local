@@ -16,6 +16,12 @@ import (
 	"github.com/brandenc40/romannumeral"
 )
 
+var (
+	dateRe      = regexp.MustCompile(`(\d{4})[.\-\/\\](0[1-9]|1[0-2])[.\-\/\\](0[1-9]|[12][0-9]|3[01])`)
+	romanRe     = regexp.MustCompile(`\b[MDCLXVI]+\b`)
+	fundRomanRe = regexp.MustCompile(`[MDCLXVI]+`)
+)
+
 func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.FileIdentificationResponse, error) {
 	funds, err := db.GetAllFegFileIdentifications()
 	if err != nil {
@@ -210,9 +216,3 @@ func normalizeRomans(s string) string {
 		return r
 	})
 }
-
-var (
-	dateRe      = regexp.MustCompile(`(\d{4})[.\-\/\\](0[1-9]|1[0-2])[.\-\/\\](0[1-9]|[12][0-9]|3[01])`)
-	romanRe     = regexp.MustCompile(`\b[MDCLXVI]+\b`)
-	fundRomanRe = regexp.MustCompile(`[MDCLXVI]+`)
-)
