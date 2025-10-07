@@ -112,7 +112,7 @@ func setUpEdit(api *gin.RouterGroup) {
 	edit := api.Group("/edit")
 	edit.Use(middleware.Authenticate("contributor", "approver", "admin"))
 	edit.GET("/response/:filing_id", ctrl.GetFilingResponse)
-	edit.GET("/approved/:filing_id",ctrl.GetApprovedFilingResponse)
+	edit.GET("/approved/:filing_id", ctrl.GetApprovedFilingResponse)
 }
 
 // SetupRoutesWithDefaults loads config from file and sets up routes with default configuration
