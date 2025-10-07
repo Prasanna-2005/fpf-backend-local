@@ -78,7 +78,7 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 		return err
 	}
 
-	exists := filingExists(clientDir, sanitize(req.FilingName), req.NewFiling)
+	exists := filingExists(clientDir, sanitize(req.FilingName))
 	if err := validateFilingConstraints(req.NewFiling, exists, req.FilingName); err != nil {
 		handleFilingValidationError(c, err, req.NewFiling)
 		return err
@@ -174,18 +174,16 @@ func RemoveDir(dir string) error {
 	return nil
 }
 
-func filingExists(clientDir, filingName string, newFiling bool) bool {
+func filingExists(clientDir, filingName string) bool {
 	flg := false
-	if newFiling {
-		filingsList, err := db.GetAllFilings()
-		if err != nil {
-			logger.Log("ERROR", "DB is down")
-			return true
-		}
-		for _, filing := range *filingsList {
-			if filing.FilingName == filingName {
-				flg = true
-			}
+	filingsList, err := db.GetAllFilings()
+	if err != nil {
+		logger.Log("ERROR", "DB is down")
+		return true
+	}
+	for _, filing := range *filingsList {
+		if filing.FilingName == filingName {
+			flg = true
 		}
 	}
 	targetDirName := sanitize(filingName)
