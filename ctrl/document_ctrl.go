@@ -4,6 +4,7 @@ package ctrl
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 
 	"form_pf_backend/db"
@@ -76,6 +77,12 @@ func MapFiles(c *gin.Context) {
 	}
 	cid = strconv.Itoa(temp.(int))
 	resp, err := modules.IdentifyFiles(&req, cid)
+	sort.Slice(resp.FileMappings, func(i, j int) bool {
+		if resp.FileMappings[i].FundName == resp.FileMappings[j].FundName {
+			return resp.FileMappings[i].Quarter < resp.FileMappings[j].Quarter
+		}
+		return resp.FileMappings[i].FundName < resp.FileMappings[j].FundName
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return

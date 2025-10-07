@@ -17,17 +17,16 @@ type FileIdentificationResponse struct {
 }
 
 type FileMappingDetail struct {
-	MapID       int     `json:"Map_ID"  gorm:"column:Map_ID"`
-	DateCellNo  int     `json:"date_cell_no"  gorm:"column:dateCellNo"`
-	FundCellNo  int     `json:"fund_cell_no"  gorm:"column:fundCellNo"`
-	FileName    string  `json:"file_name"     gorm:"column:fileName"`
-	FilePath    string  `json:"file_path"     gorm:"column:filePath"`
-	FundName    string  `json:"fund_name"     gorm:"column:fundName"`
-	ShortCode   string  `json:"short_code"    gorm:"column:shortCode"`
-	MatchMethod string  `json:"match_method"  gorm:"column:matchMethod"`
-	MatchScore  float64 `json:"match_score"   gorm:"column:matchScore"`
-	Quarter     int     `json:"quarter"       gorm:"column:quarterEndDate"`
-	EntityFound string  `json:"entity_found"  gorm:"column:entity_found"`
+	MapID       int    `json:"Map_ID"  gorm:"column:Map_ID"`
+	DateCellNo  int    `json:"date_cell_no"  gorm:"column:dateCellNo"`
+	FundCellNo  int    `json:"fund_cell_no"  gorm:"column:fundCellNo"`
+	FileName    string `json:"file_name"     gorm:"column:fileName"`
+	FilePath    string `json:"file_path"     gorm:"column:filePath"`
+	FundName    string `json:"fund_name"     gorm:"column:fundName"`
+	ShortCode   string `json:"short_code"    gorm:"column:shortCode"`
+	MatchMethod string `json:"match_method"  gorm:"column:matchMethod"`
+	// MatchScore  float64 `json:"match_score"   gorm:"column:matchScore"`
+	Quarter int `json:"quarter"       gorm:"column:quarterEndDate"`
 }
 
 type FileMapper struct {
@@ -80,6 +79,6 @@ type MappedResp struct {
 	FileName  string `json:"filename,omitempty"        gorm:"-"`
 	ShortCode string `json:"shortcode,omitempty"        gorm:"-"`
 	FundName  string `json:"fundname,omitempty"        gorm:"-"`
-	Quarter   int    `json:"quarter,omitempty"        gorm:"-"`
+	Quarter   int    `json:"quarter"        `
 	Path      string `json:"filepath,omitempty"        gorm:"-"`
 }
