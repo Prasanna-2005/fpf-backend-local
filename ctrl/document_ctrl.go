@@ -165,13 +165,13 @@ func SubmitFiles(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": FileSubmitted, "filing_id": tracker.Id})
 }
 
-func Cancel(c *gin.Context) {
-	var payload struct {
-		Cancel     string `json:"cancel" binding:"required"`
-		FilingName string `json:"filing_name" binding:"required"`
-	}
+// func Cancel(c *gin.Context) {
+// 	var payload struct {
+// 		Cancel     string `json:"cancel" binding:"required"`
+// 		FilingName string `json:"filing_name" binding:"required"`
+// 	}
 
-	if !payload.Cancel {
-		logger.Log("WARNING", "Cancellation not confirmed")
-	}
-}
+// 	if !payload.Cancel {
+// 		logger.Log("WARNING", "Cancellation not confirmed")
+// 	}
+// }
