@@ -63,15 +63,13 @@ func GetFilingResponse(c *gin.Context) {
 		return
 	}
 
-	resp, err := modules.BuildResponse(id)
+	resp, err := modules.BuildResponselegacy(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, resp)
 }
-
-
 
 func GetApprovedFilingResponse(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("filing_id"), 10, 64)
