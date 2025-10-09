@@ -157,6 +157,22 @@ func handleSaveError(c *gin.Context, targetDir string, err error) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
 	}
 }
+func RemoveDir(dir string) error {
+	if dir == "" || dir == "." || dir == ".." || dir == "/" {
+		return errors.New("refusing to delete risky path: " + dir)
+	}
+
+	if info, err := os.Stat(dir); err != nil {
+		return fmt.Errorf("cannot stat %q: %w", dir, err)
+	} else if !info.IsDir() {
+		return fmt.Errorf("%q is not a directory", dir)
+	}
+
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("failed to remove %q: %w", dir, err)
+	}
+	return nil
+}
 
 func filingExists(clientDir, filingName string) bool {
 	recPresent := false
