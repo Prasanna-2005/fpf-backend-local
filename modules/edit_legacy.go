@@ -1,94 +1,138 @@
-// modules/edit.go  (full file – text-only, skeleton-first, uses your Fund model)
 package modules
 
 import (
 	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"sort"
 )
 
+type group struct {
+	parent   models.FormFieldMSLegacy   // row whose formLineNo == fieldNo
+	children []models.FormFieldMSLegacy // sub-lines 7_a, 7_b, …
+}
+
+/* ---------- public entry point ---------- */
 func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) {
-	// 1. load meta
 	meta, err := db.FetchFormFieldMSLegacy()
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. fund-series that belong to this filing
 	fsIDs, err := db.FetchFundSeriesForFiling(filingID)
 	if err != nil {
 		return nil, err
 	}
 	if len(fsIDs) == 0 {
-		return &models.FilingResponselegacy{Funds: []models.Fundlegacy{}}, fmt.Errorf("extraction is still in process")
+		return &models.FilingResponselegacy{Funds: []models.Fundlegacy{}},
+			fmt.Errorf("extraction is still in process")
 	}
 
-	// 2½. one query to grab all fund names/ids
+	valueMap, err := db.FetchCurrentValuesForFiling(filingID)
+	if err != nil {
+		return nil, err
+	}
+
 	fundMap, err := db.GetFundMap(fsIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	resp := &models.FilingResponselegacy{Funds: make([]models.Fundlegacy, 0, len(fsIDs))}
-
-	// 3. build one Fund block per series
-	for _, fsID := range fsIDs {
-		fundRec, ok := fundMap[fsID]
-		if !ok { // should never happen
+	fieldMap := make(map[string]*group, 30)
+	for _, m := range meta {
+		if m.FormLineItemNo == m.FieldNo { // parent row
+			if g := fieldMap[m.FieldNo]; g == nil {
+				fieldMap[m.FieldNo] = &group{parent: m}
+			} else {
+				g.parent = m
+			}
 			continue
 		}
+		// child row
+		if fieldMap[m.FieldNo] == nil {
+			fieldMap[m.FieldNo] = &group{}
+		}
+		fieldMap[m.FieldNo].children = append(fieldMap[m.FieldNo].children, m)
+	}
+
+	/* ---------- 2. build response ---------- */
+	resp := &models.FilingResponselegacy{Funds: make([]models.Fundlegacy, 0, len(fsIDs))}
+
+	for _, fsID := range fsIDs {
+		fundRec := fundMap[fsID]
 		fund := models.Fundlegacy{
 			FundID:   fundRec.FundID,
 			FundName: fundRec.FundName,
 		}
 
-		// 4. convert every meta row into FieldItem (text only)
+		/* datatype-wise loop – emit only ONE FieldItem per fieldNo */
 		for _, m := range meta {
+			if len(fund.FundData) > 0 && fund.FundData[len(fund.FundData)-1].FieldNo == m.FieldNo {
+				continue // already handled
+			}
+			g := fieldMap[m.FieldNo]
 			switch m.DataType {
 			case "text":
-				fund.FundData = append(fund.FundData, buildTextFieldItem(m, fsID))
+				fund.FundData = append(fund.FundData, buildFieldItemGroup(g, valueMap))
 			case "options":
-				fund.FundData = append(fund.FundData, buildOptionsFieldItem(m, fsID))
-				// TODO table, date … later
+				fund.FundData = append(fund.FundData, buildFieldItemGroup(g, valueMap))
 			}
 		}
 		resp.Funds = append(resp.Funds, fund)
 	}
+
+	/* ---------- 3. sort funds by name ---------- */
+	sort.Sort(byFundName(resp.Funds))
+
+	/* ---------- 4. sort field_data inside every fund by field_no ---------- */
+	for i := range resp.Funds {
+		sort.Sort(byFieldNo(resp.Funds[i].FundData))
+	}
+
 	return resp, nil
 }
 
-func buildTextFieldItem(meta models.FormFieldMSLegacy, fsID uint64) models.FieldItem {
-	val, _ := db.FetchCurrentValue(fsID, meta.FormLineItemNo)
-
-	return models.FieldItem{
-		FieldNo:          meta.FieldNo,
-		HasFieldItemText: meta.LineText != "",
-		FieldItemType:    "text",
-		HasTableData:     false,
-		FieldText:        meta.LineText,
-		FieldHeading:     headingFor(meta.FieldNo), // tiny mapper you already have
-		Value:            val,
-		FieldData:        buildTextLineDetails(meta, fsID),
+/* ---------- helper: build one FieldItem (parent + children) ---------- */
+func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
+	par := g.parent
+	fItem := models.FieldItem{
+		FieldNo:          par.FieldNo,
+		HasFieldItemText: par.LineText != "", // false when parent text empty
+		FieldItemType:    par.DataType,       // correct type
+		HasTableData:     par.IsTableData,
+		FieldText:        par.LineText,
+		FieldHeading:     headingFor(par.FieldNo),
+		Value:            vm[par.FormLineItemNo],
 		Confirmed:        false,
 		Editing:          true,
-		IsMultipleAdd:    meta.IsMultipleAdd,
-		DisclaimerText:   meta.DisclaimerText,
+		IsMultipleAdd:    par.IsMultipleAdd,
+		DisclaimerText:   par.DisclaimerText,
+		Options:          optionSlice(par.DataType), // nil unless parent is options
 	}
+
+	fItem.FieldData = make([]models.LineDetail, 0, len(g.children))
+	for _, l := range g.children {
+		fItem.FieldData = append(fItem.FieldData, models.LineDetail{
+			LineItemNo:     l.FormLineItemNo,
+			LineItemType:   l.DataType,
+			LineText:       l.LineText,
+			Value:          vm[l.FormLineItemNo],
+			Options:        optionSlice(l.DataType), // only 7_a gets YES/NO
+			TableData:      nil,
+			RequireDate:    l.RequiresDate,
+			DateValue:      "",
+			DisclaimerText: l.DisclaimerText,
+		})
+	}
+	return fItem
 }
 
-func buildTextLineDetails(meta models.FormFieldMSLegacy, fsID uint64) []models.LineDetail {
-	val, _ := db.FetchCurrentValue(fsID, meta.FormLineItemNo)
-	return []models.LineDetail{{
-		LineItemNo:     meta.FormLineItemNo,
-		LineItemType:   "text",
-		LineText:       meta.LineText,
-		Value:          val,
-		Options:        nil,
-		TableData:      nil,
-		RequireDate:    meta.RequiresDate,
-		DateValue:      "",
-		DisclaimerText: meta.DisclaimerText,
-	}}
+/* ---------- tiny utilities ---------- */
+func optionSlice(dataType string) []string {
+	if dataType == "options" {
+		return []string{"YES", "NO"}
+	}
+	return nil
 }
 
 func headingFor(fieldNo string) string {
@@ -100,39 +144,4 @@ func headingFor(fieldNo string) string {
 	default:
 		return ""
 	}
-}
-
-func buildOptionsFieldItem(meta models.FormFieldMSLegacy, fsID uint64) models.FieldItem {
-	val, _ := db.FetchCurrentValue(fsID, meta.FormLineItemNo)
-
-	return models.FieldItem{
-		FieldNo:          meta.FieldNo,
-		HasFieldItemText: true, // every options row has prompt text
-		FieldItemType:    "options",
-		HasTableData:     false,
-		FieldText:        meta.LineText,
-		FieldHeading:     headingFor(meta.FieldNo),
-		Value:            val,
-		Options:          []string{"YES", "NO"}, // hard-wired per your JSON sample
-		FieldData:        buildOptionsLineDetails(meta, fsID),
-		Confirmed:        false,
-		Editing:          true,
-		IsMultipleAdd:    meta.IsMultipleAdd,
-		DisclaimerText:   meta.DisclaimerText,
-	}
-}
-
-func buildOptionsLineDetails(meta models.FormFieldMSLegacy, fsID uint64) []models.LineDetail {
-	val, _ := db.FetchCurrentValue(fsID, meta.FormLineItemNo)
-	return []models.LineDetail{{
-		LineItemNo:     meta.FormLineItemNo,
-		LineItemType:   "options",
-		LineText:       meta.LineText,
-		Value:          val,
-		Options:        []string{"YES", "NO"},
-		TableData:      nil,
-		RequireDate:    meta.RequiresDate,
-		DateValue:      "",
-		DisclaimerText: meta.DisclaimerText,
-	}}
 }

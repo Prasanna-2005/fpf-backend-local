@@ -1,6 +1,9 @@
 package db
 
-import "form_pf_backend/models"
+import (
+	"fmt"
+	"form_pf_backend/models"
+)
 
 /* ---------- meta ---------- */
 func FetchFormFieldMSLegacy() ([]models.FormFieldMSLegacy, error) {
@@ -10,45 +13,71 @@ func FetchFormFieldMSLegacy() ([]models.FormFieldMSLegacy, error) {
 }
 
 /* ---------- value store ---------- */
-func FetchCurrentValue(fundSeriesID uint64, formLineNo string) (string, error) {
-	type res struct{ Value string }
-	var r res
+// FetchCurrentValuesForFiling returns map[formLineNo] → value
+// for every row flagged isCurrentValue = 1 (or latest if none flagged).
+func FetchCurrentValuesForFiling(filingID uint64) (map[string]string, error) {
+	type pair struct {
+		FormLineNo string
+		Value      string
+	}
+	var rows []pair
 
-	// flagged row first
+	// preferred rows first
 	if err := GetDB().
 		Model(&models.FormDataLegacy{}).
-		Select("value").
-		Where("fundSeriesid = ? AND formLineNo = ? AND isCurrentValue = ?", fundSeriesID, formLineNo, true).
-		Scan(&r).Error; err == nil && r.Value != "" {
-		return r.Value, nil
+		Select("formLineNo", "value").
+		Where("filingid = ? AND isCurrentValue = ?", filingID, true).
+		Scan(&rows).Error; err != nil {
+		return nil, err
 	}
 
-	// newest row fallback
+	// fallback: newest row per line item for anything missing
+	missing := make([]string, 0, 4) // cheap buffer
+	out := make(map[string]string, len(rows))
+	for _, p := range rows {
+		out[p.FormLineNo] = p.Value
+	}
+
+	// discover missing keys
 	if err := GetDB().
 		Model(&models.FormDataLegacy{}).
-		Select("value").
-		Where("fundSeriesid = ? AND formLineNo = ?", fundSeriesID, formLineNo).
-		Order("updatedAt DESC").
-		Limit(1).
-		Scan(&r).Error; err != nil {
-		return "", err
+		Select("DISTINCT formLineNo").
+		Where("filingid = ?", filingID).
+		Scan(&missing).Error; err != nil {
+		return nil, err
 	}
-	return r.Value, nil
+
+	for _, line := range missing {
+		if _, ok := out[line]; ok {
+			continue // already have the flagged row
+		}
+		var fallback pair
+		_ = GetDB().
+			Model(&models.FormDataLegacy{}).
+			Select("formLineNo", "value").
+			Where("filingid = ? AND formLineNo = ?", filingID, line).
+			Order("updatedAt DESC").
+			Limit(1).
+			Scan(&fallback).Error
+		out[line] = fallback.Value
+	}
+
+	return out, nil
 }
 
 /* ---------- filing → fund-series ---------- */
-func FetchFundSeriesForFiling(filingID uint64) ([]uint64, error) {
-	type row struct{ FundSeriesid uint64 }
-	var rows []row
+func FetchFundSeriesForFiling(filingID uint64) ([]string, error) {
+	var rows []string
 	err := GetDB().
 		Table("form_data_legacy").
 		Select("DISTINCT fundSeriesid").
 		Where("filingid = ?", filingID).
 		Scan(&rows).Error
-
-	out := make([]uint64, len(rows))
+	fmt.Println(rows)
+	out := make([]string, len(rows))
 	for i, r := range rows {
-		out[i] = r.FundSeriesid
+		out[i] = r
 	}
+	fmt.Println(out)
 	return out, err
 }
