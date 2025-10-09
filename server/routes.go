@@ -74,7 +74,7 @@ func setUpSubmission(api *gin.RouterGroup) {
 	sub := api.Group("/submissions")
 	sub.Use(middleware.Authenticate())
 	sub.PUT("/:filing_id/:fund_id", ctrl.AcceptItemValue)
-	// 	sub.GET("/:filing_id/revert", ctrl.RevertLatest)
+	sub.PUT("revert/:filing_id/:fund_id", ctrl.RevertLatest)
 	// sub.PUT("/:filing_id/approval", ctrl.SendForApproval)
 	// sub.PUT("/:filing_id/approved", ctrl.MarkApproved)
 }
