@@ -44,8 +44,12 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 
 		// 4. convert every meta row into FieldItem (text only)
 		for _, m := range meta {
-			if m.DataType == "text" {
+			switch m.DataType {
+			case "text":
 				fund.FundData = append(fund.FundData, buildTextFieldItem(m, fsID))
+			case "options":
+				fund.FundData = append(fund.FundData, buildOptionsFieldItem(m, fsID))
+				// TODO table, date … later
 			}
 		}
 		resp.Funds = append(resp.Funds, fund)
@@ -96,4 +100,39 @@ func headingFor(fieldNo string) string {
 	default:
 		return ""
 	}
+}
+
+func buildOptionsFieldItem(meta models.FormFieldMSLegacy, fsID uint64) models.FieldItem {
+	val, _ := db.FetchCurrentValue(fsID, meta.FormLineItemNo)
+
+	return models.FieldItem{
+		FieldNo:          meta.FieldNo,
+		HasFieldItemText: true, // every options row has prompt text
+		FieldItemType:    "options",
+		HasTableData:     false,
+		FieldText:        meta.LineText,
+		FieldHeading:     headingFor(meta.FieldNo),
+		Value:            val,
+		Options:          []string{"YES", "NO"}, // hard-wired per your JSON sample
+		FieldData:        buildOptionsLineDetails(meta, fsID),
+		Confirmed:        false,
+		Editing:          true,
+		IsMultipleAdd:    meta.IsMultipleAdd,
+		DisclaimerText:   meta.DisclaimerText,
+	}
+}
+
+func buildOptionsLineDetails(meta models.FormFieldMSLegacy, fsID uint64) []models.LineDetail {
+	val, _ := db.FetchCurrentValue(fsID, meta.FormLineItemNo)
+	return []models.LineDetail{{
+		LineItemNo:     meta.FormLineItemNo,
+		LineItemType:   "options",
+		LineText:       meta.LineText,
+		Value:          val,
+		Options:        []string{"YES", "NO"},
+		TableData:      nil,
+		RequireDate:    meta.RequiresDate,
+		DateValue:      "",
+		DisclaimerText: meta.DisclaimerText,
+	}}
 }
