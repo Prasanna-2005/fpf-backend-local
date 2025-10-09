@@ -230,6 +230,7 @@ func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
 	return nil
 }
 
+
 func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
 	var targetLineNo string
 
@@ -246,6 +247,7 @@ func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 	var rows []models.FormData
 	if err := sqlDb.Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
 		fid, fundId, data.FieldNo, targetLineNo).
+		Order("createdAt DESC").
 		Find(&rows).Error; err != nil {
 		return err
 	}
@@ -254,38 +256,41 @@ func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 		return ErrNothingToDo
 	}
 
-	-
-	var current, latest *models.FormData
-	for i := range rows {
-		r := &rows[i]
+	var currentIdx int = -1
+	for i, r := range rows {
 		if r.IsCurrentValue {
-			current = r
-		} else if latest == nil || (r.UpdatedAt != nil && current != nil && r.UpdatedAt.After(*current.UpdatedAt)) {
-			latest = r
+			currentIdx = i
+			break
 		}
 	}
 
-	if latest == nil {
+	if currentIdx == -1 {
+		currentIdx = 0
+	}
+
+	// check if there is a previous value to revert to ---
+	if currentIdx+1 >= len(rows) {
+		// Already at oldest value, nothing to revert
 		return ErrNothingToDo
 	}
 
+	prev := &rows[currentIdx+1]
+	current := &rows[currentIdx]
+
 	now := time.Now()
 
-	// --- Step 3: set previous current to 0 ---
-	if current != nil {
-		if err := sqlDb.Model(current).
-			Select("isCurrentValue", "updatedAt", "updatedBy").
-			Updates(models.FormData{
-				IsCurrentValue: false,
-				UpdatedAt:      &now,
-				UpdatedBy:      &uid,
-			}).Error; err != nil {
-			return err
-		}
+
+	if err := sqlDb.Model(current).
+		Select("isCurrentValue", "updatedAt", "updatedBy").
+		Updates(models.FormData{
+			IsCurrentValue: false,
+			UpdatedAt:      &now,
+			UpdatedBy:      &uid,
+		}).Error; err != nil {
+		return err
 	}
 
-	// --- Step 4: set latest record to current (1) ---
-	if err := sqlDb.Model(latest).
+	if err := sqlDb.Model(prev).
 		Select("isCurrentValue", "updatedAt", "updatedBy").
 		Updates(models.FormData{
 			IsCurrentValue: true,
@@ -297,4 +302,3 @@ func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 
 	return nil
 }
-
