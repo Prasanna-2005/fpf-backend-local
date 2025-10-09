@@ -196,3 +196,105 @@ func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 
 	return sqlDb.Create(&newRow).Error
 }
+
+
+
+func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
+	sqlDb := GetDB()
+	if !dbAlive(sqlDb) {
+		return ServerError
+	}
+
+	var count int64
+	if err := sqlDb.Model(&models.FormData{}).Where("filingId = ?", fid).Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrFilingNotFound
+	}
+
+	//outside value handling
+	if data.Value != nil {
+		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, true); err != nil && !errors.Is(err, ErrNothingToDo) {
+			return err
+		}
+	}
+
+	
+	for i := range data.FieldData {
+		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, false, i); err != nil && !errors.Is(err, ErrNothingToDo) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
+	var targetLineNo string
+
+	if isOutside {
+		targetLineNo = data.FieldNo
+	} else {
+		idx := 0
+		if len(fieldIndex) > 0 {
+			idx = fieldIndex[0]
+		}
+		targetLineNo = data.FieldData[idx].LineItemNo
+	}
+
+	var rows []models.FormData
+	if err := sqlDb.Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
+		fid, fundId, data.FieldNo, targetLineNo).
+		Find(&rows).Error; err != nil {
+		return err
+	}
+
+	if len(rows) == 0 {
+		return ErrNothingToDo
+	}
+
+	-
+	var current, latest *models.FormData
+	for i := range rows {
+		r := &rows[i]
+		if r.IsCurrentValue {
+			current = r
+		} else if latest == nil || (r.UpdatedAt != nil && current != nil && r.UpdatedAt.After(*current.UpdatedAt)) {
+			latest = r
+		}
+	}
+
+	if latest == nil {
+		return ErrNothingToDo
+	}
+
+	now := time.Now()
+
+	// --- Step 3: set previous current to 0 ---
+	if current != nil {
+		if err := sqlDb.Model(current).
+			Select("isCurrentValue", "updatedAt", "updatedBy").
+			Updates(models.FormData{
+				IsCurrentValue: false,
+				UpdatedAt:      &now,
+				UpdatedBy:      &uid,
+			}).Error; err != nil {
+			return err
+		}
+	}
+
+	// --- Step 4: set latest record to current (1) ---
+	if err := sqlDb.Model(latest).
+		Select("isCurrentValue", "updatedAt", "updatedBy").
+		Updates(models.FormData{
+			IsCurrentValue: true,
+			UpdatedAt:      &now,
+			UpdatedBy:      &uid,
+		}).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
