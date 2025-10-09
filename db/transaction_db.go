@@ -160,14 +160,14 @@ func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 	}
 
 	// Check if there's actually something to update
-	valueSame := (old.Value == nil && newValue == nil) ||
-		(old.Value != nil && newValue != nil && *old.Value == *newValue)
-	dateSame := (old.Date == nil && newDate == nil) ||
-		(old.Date != nil && newDate != nil && *old.Date == *newDate)
+	// valueSame := (old.Value == nil && newValue == nil) ||
+	// 	(old.Value != nil && newValue != nil && *old.Value == *newValue)
+	// dateSame := (old.Date == nil && newDate == nil) ||
+	// 	(old.Date != nil && newDate != nil && *old.Date == *newDate)
 
-	if valueSame && dateSame {
-		return ErrNothingToDo
-	}
+	// if valueSame && dateSame {
+	// 	return ErrNothingToDo
+	// }
 
 	// Update existing record to mark as not current
 	now := time.Now()
