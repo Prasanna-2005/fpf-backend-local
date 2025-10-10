@@ -87,3 +87,49 @@ func GetApprovedFilingResponse(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, resp)
 }
+
+func RevertLatest(c *gin.Context) {
+	filingID := c.Param("filing_id")
+	fundID := c.Param("fund_id")
+	if filingID == "" || fundID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "filing_id and fund_id are required"})
+		return
+	}
+
+	
+	var payload models.ResponseField
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		logger.Log("ERROR", "Payload error: "+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid payload"})
+		return
+	}
+
+
+	if !payload.Confirmed || payload.Editing {
+		logger.Log("INFO", "line item still in edit mode")
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"message": "line item not confirmed or still in edit mode"})
+		return
+	}
+
+
+	userID := c.GetHeader("X-User-Id")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"message": "missing user ID"})
+		return
+	}
+
+	
+	err := db.RevertLineItem(&payload, filingID, userID, fundID)
+
+	switch {
+	case errors.Is(err, db.ErrFilingNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"message": "filing not found"})
+	case errors.Is(err, db.ErrNothingToDo):
+		c.JSON(http.StatusOK, gin.H{"message": "no changes to update"})
+	case err != nil:
+		logger.Log("ERROR", "RevertLatest error: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
+	default:
+		c.JSON(http.StatusOK, gin.H{"message": "line item updated successfully"})
+	}
+}
