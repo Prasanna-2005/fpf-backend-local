@@ -61,7 +61,7 @@ func FetchCurrentValuesForFiling(filingID uint64) (map[string]string, error) {
 			Scan(&fallback).Error
 		out[line] = fallback.Value
 	}
-
+	fmt.Println(out)
 	return out, nil
 }
 
