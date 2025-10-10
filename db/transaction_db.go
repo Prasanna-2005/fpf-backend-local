@@ -160,14 +160,14 @@ func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 	}
 
 	// Check if there's actually something to update
-	valueSame := (old.Value == nil && newValue == nil) ||
-		(old.Value != nil && newValue != nil && *old.Value == *newValue)
-	dateSame := (old.Date == nil && newDate == nil) ||
-		(old.Date != nil && newDate != nil && *old.Date == *newDate)
+	// valueSame := (old.Value == nil && newValue == nil) ||
+	// 	(old.Value != nil && newValue != nil && *old.Value == *newValue)
+	// dateSame := (old.Date == nil && newDate == nil) ||
+	// 	(old.Date != nil && newDate != nil && *old.Date == *newDate)
 
-	if valueSame && dateSame {
-		return ErrNothingToDo
-	}
+	// if valueSame && dateSame {
+	// 	return ErrNothingToDo
+	// }
 
 	// Update existing record to mark as not current
 	now := time.Now()
@@ -196,3 +196,117 @@ func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 
 	return sqlDb.Create(&newRow).Error
 }
+
+
+
+func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
+	sqlDb := GetDB()
+	if !dbAlive(sqlDb) {
+		return ServerError
+	}
+
+	var count int64
+	if err := sqlDb.Model(&models.FormData{}).Where("filingId = ?", fid).Count(&count).Error; err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrFilingNotFound
+	}
+
+	//outside value handling
+	if data.Value != nil {
+		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, true); err != nil && !errors.Is(err, ErrNothingToDo) {
+			return err
+		}
+	}
+
+	
+	for i := range data.FieldData {
+		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, false, i); err != nil && !errors.Is(err, ErrNothingToDo) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+
+
+func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
+	var targetLineNo string
+
+	if isOutside {
+		targetLineNo = data.FieldNo
+	} else {
+		idx := 0
+		if len(fieldIndex) > 0 {
+			idx = fieldIndex[0]
+		}
+		targetLineNo = data.FieldData[idx].LineItemNo
+	}
+
+	// --- Begin transaction ---
+	tx := sqlDb.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var rows []models.FormData
+	if err := tx.Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
+		fid, fundId, data.FieldNo, targetLineNo).
+		Order("createdAt DESC").
+		Find(&rows).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if len(rows) == 0 {
+		tx.Rollback()
+		return ErrNothingToDo
+	}
+
+	var currentIdx int = -1
+	for i, r := range rows {
+		if r.IsCurrentValue {
+			currentIdx = i
+			break
+		}
+	}
+	if currentIdx == -1 {
+		currentIdx = 0
+	}
+
+	if currentIdx+1 >= len(rows) {
+		tx.Rollback()
+		return ErrNothingToDo
+	}
+
+	prev := &rows[currentIdx+1]
+	now := time.Now()
+
+	//  mark all rows for this field as not current 
+	if err := tx.Model(&models.FormData{}).
+		Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
+			fid, fundId, data.FieldNo, targetLineNo).
+		Update("isCurrentValue", false).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// mark the previous record as current
+	if err := tx.Model(&models.FormData{}).
+		Where("id = ?", prev.ID).
+		Updates(map[string]interface{}{
+			"isCurrentValue": true,
+			"updatedAt":      now,
+			"updatedBy":      uid,
+		}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
+}
+
