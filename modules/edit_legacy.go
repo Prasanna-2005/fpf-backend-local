@@ -74,7 +74,7 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 			switch m.DataType {
 			case "text":
 				fund.FundData = append(fund.FundData, buildFieldItemGroup(g, valueMap))
-			case "options":
+			case "bool":
 				fund.FundData = append(fund.FundData, buildFieldItemGroup(g, valueMap))
 			}
 		}
@@ -129,7 +129,7 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 
 /* ---------- tiny utilities ---------- */
 func optionSlice(dataType string) []string {
-	if dataType == "options" {
+	if dataType == "bool" {
 		return []string{"YES", "NO"}
 	}
 	return nil
