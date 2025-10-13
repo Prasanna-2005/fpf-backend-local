@@ -2,6 +2,7 @@ package db
 
 import (
 	"errors"
+	"fmt"
 	"form_pf_backend/models"
 	"sync"
 	"time"
@@ -72,7 +73,7 @@ func UpdateLineItem(data *models.ResponseField, fid, uid, fundId string) error {
 	}
 
 	var count int64
-	err := sqlDb.Model(&models.FormData{}).Where("filingid = ?", fid).Count(&count).Error
+	err := sqlDb.Model(&models.FormDataLegacy{}).Where("filingid = ?", fid).Count(&count).Error
 	if err != nil {
 		return err
 	}
@@ -110,6 +111,7 @@ func UpdateLineItem(data *models.ResponseField, fid, uid, fundId string) error {
 }
 
 func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
+	fmt.Println(uid)
 	var targetLineNo string
 	var value, dateValue interface{}
 
@@ -129,21 +131,21 @@ func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 		dateValue = data.FieldData[idx].DateValue
 	}
 	// Extract new values
-	var newValue, newDate *string
+	var newValue, newDate string
 
 	if value != nil {
 		if v, ok := value.(string); ok && v != "" {
-			newValue = &v
+			newValue = v
 		}
 	}
 	if dateValue != nil {
 		if dv, ok := dateValue.(string); ok && dv != "" {
-			newDate = &dv
+			newDate = dv
 		}
 	}
-
+	fmt.Println(newDate)
 	// Find the existing record
-	var old models.FormData
+	var old models.FormDataLegacy
 	err := sqlDb.Where(map[string]interface{}{
 		"filingid":       fid,
 		"fundSeriesId":   fundId,
@@ -173,31 +175,29 @@ func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 	now := time.Now()
 	if err := sqlDb.Model(&old).
 		Select("isCurrentValue", "updatedAt", "updatedBy").
-		Updates(models.FormData{
+		Updates(models.FormDataLegacy{
 			IsCurrentValue: false,
-			UpdatedAt:      &now,
-			UpdatedBy:      &uid,
+			UpdatedAt:      now,
+			UpdatedBy:      uid,
 		}).Error; err != nil {
 		return err
 	}
 
 	// Create new record with updated values
-	newRow := models.FormData{
+	newRow := models.FormDataLegacy{
 		FilingID:       fid,
-		FundSeriesID:   fundId,
+		FundSeriesid:   fundId,
 		FieldNo:        data.FieldNo,
 		FormLineNo:     targetLineNo,
 		Value:          newValue,
-		Date:           newDate,
 		IsCurrentValue: true,
-		CreatedAt:      now,
 		CreatedBy:      uid,
+		CreatedAt:      now,
+		UpdatedBy:      uid,
 	}
 
 	return sqlDb.Create(&newRow).Error
 }
-
-
 
 func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
 	sqlDb := GetDB()
@@ -206,7 +206,7 @@ func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
 	}
 
 	var count int64
-	if err := sqlDb.Model(&models.FormData{}).Where("filingId = ?", fid).Count(&count).Error; err != nil {
+	if err := sqlDb.Model(&models.FormDataLegacy{}).Where("filingId = ?", fid).Count(&count).Error; err != nil {
 		return err
 	}
 	if count == 0 {
@@ -220,7 +220,6 @@ func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
 		}
 	}
 
-	
 	for i := range data.FieldData {
 		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, false, i); err != nil && !errors.Is(err, ErrNothingToDo) {
 			return err
@@ -229,8 +228,6 @@ func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
 
 	return nil
 }
-
-
 
 func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
 	var targetLineNo string
@@ -253,7 +250,7 @@ func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 		}
 	}()
 
-	var rows []models.FormData
+	var rows []models.FormDataLegacy
 	if err := tx.Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
 		fid, fundId, data.FieldNo, targetLineNo).
 		Order("createdAt DESC").
@@ -286,8 +283,8 @@ func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 	prev := &rows[currentIdx+1]
 	now := time.Now()
 
-	//  mark all rows for this field as not current 
-	if err := tx.Model(&models.FormData{}).
+	//  mark all rows for this field as not current
+	if err := tx.Model(&models.FormDataLegacy{}).
 		Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
 			fid, fundId, data.FieldNo, targetLineNo).
 		Update("isCurrentValue", false).Error; err != nil {
@@ -296,7 +293,7 @@ func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 	}
 
 	// mark the previous record as current
-	if err := tx.Model(&models.FormData{}).
+	if err := tx.Model(&models.FormDataLegacy{}).
 		Where("id = ?", prev.ID).
 		Updates(map[string]interface{}{
 			"isCurrentValue": true,
@@ -309,4 +306,3 @@ func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 
 	return tx.Commit().Error
 }
-

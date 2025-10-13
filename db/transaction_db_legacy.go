@@ -42,7 +42,7 @@ func FetchCurrentValuesForFiling(filingID uint64) (map[string]string, error) {
 	if err := GetDB().
 		Model(&models.FormDataLegacy{}).
 		Select("DISTINCT formLineNo").
-		Where("filingid = ?", filingID).
+		Where("filingid = ? and isCurrentValue=?", filingID, true).
 		Scan(&missing).Error; err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func FetchCurrentValuesForFiling(filingID uint64) (map[string]string, error) {
 		_ = GetDB().
 			Model(&models.FormDataLegacy{}).
 			Select("formLineNo", "value").
-			Where("filingid = ? AND formLineNo = ?", filingID, line).
+			Where("filingid = ? AND formLineNo = ? and isCurrentValue=?", filingID, line, true).
 			Order("updatedAt DESC").
 			Limit(1).
 			Scan(&fallback).Error

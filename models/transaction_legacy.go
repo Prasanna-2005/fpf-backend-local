@@ -1,17 +1,19 @@
 package models
 
+import "time"
+
 type FormDataLegacy struct {
-	ID             uint64 `gorm:"primaryKey;autoIncrement"`
-	FilingID       uint64 `gorm:"column:filingid"`
-	FieldNo        string `gorm:"column:fieldNo"`
-	FundSeriesid   uint64 `gorm:"column:fundSeriesid"`
-	FormLineNo     string `gorm:"column:formLineNo"`
-	Value          string `gorm:"column:value"`
-	CreatedBy      string `gorm:"column:createdBy"`
-	IsCurrentValue bool   `gorm:"column:isCurrentValue"`
-	UpdatedAt      int64  `gorm:"column:updatedAt"`
-	UpdatedBy      string `gorm:"column:updatedBy"`
-	CreatedAt      int64  `gorm:"column:createdAt"`
+	ID             uint64    `gorm:"primaryKey;autoIncrement"`
+	FilingID       string    `gorm:"column:filingid"`
+	FieldNo        string    `gorm:"column:fieldNo"`
+	FundSeriesid   string    `gorm:"column:fundSeriesid"`
+	FormLineNo     string    `gorm:"column:formLineNo"`
+	Value          string    `gorm:"column:value"`
+	CreatedBy      string    `gorm:"column:createdBy"`
+	IsCurrentValue bool      `gorm:"column:isCurrentValue"`
+	UpdatedAt      time.Time `gorm:"column:updatedAt"`
+	UpdatedBy      string    `gorm:"column:updatedBy"`
+	CreatedAt      time.Time `gorm:"column:createdAt"`
 }
 
 func (FormDataLegacy) TableName() string { return "form_data_legacy" }
