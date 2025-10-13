@@ -2,6 +2,7 @@
 package modules
 
 import (
+	"encoding/json"
 	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
@@ -10,8 +11,42 @@ import (
 )
 
 type group struct {
-	parent   models.FormFieldMSLegacy   // row whose formLineItemNo == fieldNo
-	children []models.FormFieldMSLegacy // sub-lines 7_a, 7_b, …
+	parent   models.FormFieldMSLegacy
+	children []models.FormFieldMSLegacy
+}
+
+// OrderedMap is a simple ordered map implementation for JSON marshaling
+type OrderedMap struct {
+	keys   []string
+	values map[string]interface{}
+}
+
+func NewOrderedMap() *OrderedMap {
+	return &OrderedMap{
+		keys:   make([]string, 0),
+		values: make(map[string]interface{}),
+	}
+}
+
+func (om *OrderedMap) Set(key string, value interface{}) {
+	if _, exists := om.values[key]; !exists {
+		om.keys = append(om.keys, key)
+	}
+	om.values[key] = value
+}
+
+func (om *OrderedMap) MarshalJSON() ([]byte, error) {
+	result := "{"
+	for i, k := range om.keys {
+		if i > 0 {
+			result += ","
+		}
+		keyJSON, _ := json.Marshal(k)
+		valJSON, _ := json.Marshal(om.values[k])
+		result += string(keyJSON) + ":" + string(valJSON)
+	}
+	result += "}"
+	return []byte(result), nil
 }
 
 /* ---------- public entry point ---------- */
@@ -43,7 +78,7 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 	/* ---------- 1. group meta rows by fieldNo ---------- */
 	fieldMap := make(map[string]*group, 30)
 	for _, m := range meta {
-		if m.FormLineItemNo == m.FieldNo { // parent row
+		if m.FormLineItemNo == m.FieldNo {
 			if g := fieldMap[m.FieldNo]; g == nil {
 				fieldMap[m.FieldNo] = &group{parent: m}
 			} else {
@@ -51,7 +86,6 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 			}
 			continue
 		}
-		// child row
 		if fieldMap[m.FieldNo] == nil {
 			fieldMap[m.FieldNo] = &group{}
 		}
@@ -70,7 +104,7 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 
 		for _, m := range meta {
 			if len(fund.FundData) > 0 && fund.FundData[len(fund.FundData)-1].FieldNo == m.FieldNo {
-				continue // already handled
+				continue
 			}
 			g := fieldMap[m.FieldNo]
 			switch m.DataType {
@@ -98,9 +132,8 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 
 /* ---------- universal table builder ---------- */
 func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) models.FieldItem {
-	// 1. parent row (the one whose formLineItemNo == fieldNo)
 	par := g.parent
-	if par.FormLineItemNo == "" { // fallback if parent not found
+	if par.FormLineItemNo == "" {
 		for _, v := range g.children {
 			if v.FormLineItemNo == fieldNo {
 				par = v
@@ -109,15 +142,13 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		}
 	}
 
-	// 2. group children by row-key (second token after first underscore)
-	//    never allow the parent key itself to slip in.
-	rowMap := make(map[string]map[string]string) // rowKey -> columnKey -> value
+	// Group children by row-key
+	rowMap := make(map[string]map[string]string)
 	for _, v := range g.children {
-		if v.FormLineItemNo == fieldNo { //always ignore the parent key
+		if v.FormLineItemNo == fieldNo {
 			continue
 		}
-		tokens := strings.SplitN(v.FormLineItemNo, "_", 3) // 17_a_xxx -> [17,a,xxx]
-		// fmt.Printf("tokens:%v len:%v \n", tokens, len(tokens))
+		tokens := strings.SplitN(v.FormLineItemNo, "_", 3)
 		if len(tokens) <= 2 {
 			continue
 		}
@@ -125,19 +156,18 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		if rowMap[rowKey] == nil {
 			rowMap[rowKey] = make(map[string]string)
 		}
-
 		rowMap[rowKey][colKey] = vm[v.FormLineItemNo]
-
 	}
-	// 3. stable row order (a,b,c...r for 17, assets/liabilities for 14, etc.)
+
+	// Stable row order
 	rowKeys := make([]string, 0, len(rowMap))
 	for k := range rowMap {
 		rowKeys = append(rowKeys, k)
 	}
 	sort.Strings(rowKeys)
 
-	// 4. convert to final objects
-	tableData := make([]map[string]interface{}, 0, len(rowMap))
+	// Convert to ordered maps
+	tableData := make([]*OrderedMap, 0, len(rowMap))
 	for _, rk := range rowKeys {
 		var label string
 		for _, v := range g.children {
@@ -146,18 +176,26 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 				break
 			}
 		}
-		obj := map[string]interface{}{
-			"s.name": rk,
-			"s.text": label,
+
+		// Create ordered map with s.name and s.text first
+		obj := NewOrderedMap()
+		obj.Set("s.name", rk)
+		obj.Set("s.text", label)
+
+		// Add remaining columns in sorted order
+		colKeys := make([]string, 0, len(rowMap[rk]))
+		for ck := range rowMap[rk] {
+			colKeys = append(colKeys, ck)
 		}
-		for ck, val := range rowMap[rk] {
-			// fmt.Printf("ck:%v val:%v\n", ck, val)
-			obj[ck] = val
+		sort.Strings(colKeys)
+
+		for _, ck := range colKeys {
+			obj.Set(ck, rowMap[rk][ck])
 		}
+
 		tableData = append(tableData, obj)
 	}
 
-	// 5. assemble FieldItem
 	return models.FieldItem{
 		FieldNo:          fieldNo,
 		HasFieldItemText: par.LineText != "",
@@ -166,21 +204,12 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		FieldText:        par.LineText,
 		FieldHeading:     headingFor(fieldNo),
 		Value:            vm[fieldNo],
-		// FieldData: []models.LineDetail{{
-		// 	LineItemNo:     par.FormLineItemNo,
-		// 	LineItemType:   par.DataType,
-		// 	LineText:       "",
-		// 	Value:          vm[fieldNo],
-		// 	Options:        nil,
-		// 	TableData:      tableData,
-		// 	DisclaimerText: "",
-		// }},
-		FieldData:      []models.LineDetail{{}},
-		TableData:      tableData,
-		Confirmed:      false,
-		Editing:        true,
-		IsMultipleAdd:  par.IsMultipleAdd,
-		DisclaimerText: par.DisclaimerText,
+		FieldData:        []models.LineDetail{{}},
+		TableData:        tableData,
+		Confirmed:        false,
+		Editing:          true,
+		IsMultipleAdd:    par.IsMultipleAdd,
+		DisclaimerText:   par.DisclaimerText,
 	}
 }
 
