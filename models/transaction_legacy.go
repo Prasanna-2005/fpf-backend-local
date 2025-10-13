@@ -47,10 +47,11 @@ type FieldItem struct {
 	HasFieldItemText bool         `json:"has_field_item_text"`
 	FieldItemType    string       `json:"field_item_type"`
 	HasTableData     bool         `json:"has_table_data"`
+	TableData        interface{}  `json:"table_data,omitempty"`
 	FieldText        string       `json:"field_text"`
 	FieldHeading     string       `json:"field_heading"`
 	Value            string       `json:"value"`
-	FieldData        []LineDetail `json:"field_data"`
+	FieldData        []LineDetail `json:"field_data,omitempty"`
 	Confirmed        bool         `json:"confirmed"`
 	Editing          bool         `json:"editing"`
 	IsMultipleAdd    bool         `json:"is_multiple_add"`
@@ -60,13 +61,13 @@ type FieldItem struct {
 
 // LineDetail is used inside FieldData when the field is broken into sub-lines.
 type LineDetail struct {
-	LineItemNo     string      `json:"line_item_no"`
-	LineItemType   string      `json:"line_item_type"`
-	LineText       string      `json:"line_text"`
-	Value          string      `json:"value"`
+	LineItemNo     string      `json:"line_item_no,omitempty"`
+	LineItemType   string      `json:"line_item_type,omitempty"`
+	LineText       string      `json:"line_text,omitempty"`
+	Value          string      `json:"value,omitempty"`
 	Options        []string    `json:"options,omitempty"`
 	TableData      interface{} `json:"table_data,omitempty"`
-	RequireDate    bool        `json:"require_date"`
-	DateValue      string      `json:"date_value"`
-	DisclaimerText string      `json:"disclaimer_text"`
+	RequireDate    bool        `json:"require_date,omitempty"`
+	DateValue      string      `json:"date_value,omitempty"`
+	DisclaimerText string      `json:"disclaimer_text,omitempty"`
 }

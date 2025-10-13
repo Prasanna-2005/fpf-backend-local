@@ -125,11 +125,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		if rowMap[rowKey] == nil {
 			rowMap[rowKey] = make(map[string]string)
 		}
-		if v.FormLineItemNo == "14_assests_level3" {
-			fmt.Printf(" v.FormLineItemNo:%v vm[v.FormLineItemNo]: %v \n", strings.TrimSpace(v.FormLineItemNo), vm[strings.TrimSpace(v.FormLineItemNo)])
-			fmt.Printf(" v.FormLineItemNo:%v vm[v.FormLineItemNo]: %v \n", len(strings.TrimSpace(v.FormLineItemNo)), len("14_assets_level3"))
 
-		}
 		rowMap[rowKey][colKey] = vm[v.FormLineItemNo]
 
 	}
@@ -170,15 +166,17 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		FieldText:        par.LineText,
 		FieldHeading:     headingFor(fieldNo),
 		Value:            vm[fieldNo],
-		FieldData: []models.LineDetail{{
-			LineItemNo:     par.FormLineItemNo,
-			LineItemType:   par.DataType,
-			LineText:       "",
-			Value:          vm[fieldNo],
-			Options:        nil,
-			TableData:      tableData,
-			DisclaimerText: "",
-		}},
+		// FieldData: []models.LineDetail{{
+		// 	LineItemNo:     par.FormLineItemNo,
+		// 	LineItemType:   par.DataType,
+		// 	LineText:       "",
+		// 	Value:          vm[fieldNo],
+		// 	Options:        nil,
+		// 	TableData:      tableData,
+		// 	DisclaimerText: "",
+		// }},
+		FieldData:      []models.LineDetail{{}},
+		TableData:      tableData,
 		Confirmed:      false,
 		Editing:        true,
 		IsMultipleAdd:  par.IsMultipleAdd,
