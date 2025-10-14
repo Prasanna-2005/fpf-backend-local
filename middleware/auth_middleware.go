@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"form_pf_backend/utility"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,8 +27,8 @@ var logger = utility.LoggerFunc()
 
 ------------------------------------------------------------------
 */
+
 func Authenticate(required ...interface{}) gin.HandlerFunc {
-	// normalise whatever the caller passed into a []string
 	allowed := make([]string, 0, len(required))
 	for _, r := range required {
 		switch v := r.(type) {
@@ -50,21 +51,38 @@ func Authenticate(required ...interface{}) gin.HandlerFunc {
 
 		token, ok := findAccessToken(c, uid)
 		if !ok {
-			return // already aborted inside helper
+			return
 		}
 
 		claims, err := utility.VerifyAccessToken(token)
 		if err != nil {
-			abortWithMsg(c, http.StatusUnauthorized, AuthError, "")
+			if strings.Contains(err.Error(), "expired") {
+				abortWithMsg(c, http.StatusUnauthorized,
+					"Token expired. Please login again",
+					"Token expired for user: "+uid)
+				return
+			}
+			if strings.Contains(err.Error(), "revoked") {
+				abortWithMsg(c, http.StatusUnauthorized,
+					"Session terminated. Please login again",
+					"Revoked token for user: "+uid)
+				return
+			}
+			abortWithMsg(c, http.StatusUnauthorized, AuthError,
+				"Token verification failed for user "+uid+": "+err.Error())
 			return
 		}
 
 		if !roleAllowed(claims.AccessType, allowed) {
-			abortWithMsg(c, http.StatusForbidden, Restriction, "")
+			abortWithMsg(c, http.StatusForbidden, Restriction,
+				fmt.Sprintf("User %s with role '%s' attempted to access restricted resource",
+					claims.ID, claims.AccessType))
 			return
 		}
 
-		logger.Log("DEBUG", fmt.Sprintf("clientID:%v ", claims.ClientID))
+		logger.Log("DEBUG", fmt.Sprintf("Authenticated user: %s, role: %s, clientID: %v",
+			claims.ID, claims.AccessType, claims.ClientID))
+
 		c.Set("userId", claims.ID)
 		c.Set("role", claims.AccessType)
 		c.Set("clientId", claims.ClientID)
@@ -72,7 +90,6 @@ func Authenticate(required ...interface{}) gin.HandlerFunc {
 	}
 }
 
-/* ---------- helpers ---------- */
 func abortWithMsg(c *gin.Context, code int, msg, logMsg string) {
 	if logMsg != "" {
 		logger.Log("WARNING", logMsg)
@@ -83,22 +100,26 @@ func abortWithMsg(c *gin.Context, code int, msg, logMsg string) {
 func findAccessToken(c *gin.Context, uid string) (string, bool) {
 	cookieName := uid + "access"
 	if _, err := c.Cookie(cookieName); err != nil {
-		logger.Log("DEBUG", cookieName)
-		abortWithMsg(c, http.StatusUnauthorized, "access cookie not found", err.Error())
+		logger.Log("DEBUG", "Cookie not found: "+cookieName)
+		abortWithMsg(c, http.StatusUnauthorized,
+			"Access token not found",
+			"Missing cookie '"+cookieName+"': "+err.Error())
 		return "", false
 	}
-	token, _ := c.Cookie(cookieName) // err already checked above
+
+	token, _ := c.Cookie(cookieName)
 	if token == "" {
-		abortWithMsg(c, http.StatusUnauthorized, AuthError, "")
+		abortWithMsg(c, http.StatusUnauthorized, AuthError,
+			"Empty access token in cookie: "+cookieName)
 		return "", false
 	}
+
 	return token, true
 }
 
-// true if userRole is in the allowed slice OR if no roles are required.
 func roleAllowed(userRole string, allowed []string) bool {
 	if len(allowed) == 0 {
-		return true // empty requirement = allow all
+		return true
 	}
 	for _, r := range allowed {
 		if r == userRole {
@@ -108,7 +129,6 @@ func roleAllowed(userRole string, allowed []string) bool {
 	return false
 }
 
-// ExtractUserID pulls the user id from the X-User-ID header.
 func ExtractUserID(c *gin.Context) (string, error) {
 	id := c.GetHeader("X-User-ID")
 	if id == "" {
