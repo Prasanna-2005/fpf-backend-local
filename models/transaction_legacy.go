@@ -53,7 +53,7 @@ type FieldItem struct {
 	FieldText        string       `json:"field_text"`
 	FieldHeading     string       `json:"field_heading"`
 	Value            string       `json:"value"`
-	FieldData        []LineDetail `json:"field_data,omitempty"`
+	FieldData        []LineDetail `json:"field_data"`
 	Confirmed        bool         `json:"confirmed"`
 	Editing          bool         `json:"editing"`
 	IsMultipleAdd    bool         `json:"is_multiple_add"`

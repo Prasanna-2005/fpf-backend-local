@@ -103,18 +103,23 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 		}
 
 		for _, m := range meta {
+			/* skip if we already emitted this fieldNo */
 			if len(fund.FundData) > 0 && fund.FundData[len(fund.FundData)-1].FieldNo == m.FieldNo {
 				continue
 			}
+
 			g := fieldMap[m.FieldNo]
-			switch m.DataType {
-			case "text":
-				fund.FundData = append(fund.FundData, buildFieldItemGroup(g, valueMap))
-			case "bool":
-				fund.FundData = append(fund.FundData, buildFieldItemGroup(g, valueMap))
-			case "table":
-				fund.FundData = append(fund.FundData, buildTableFieldItemGroup(m.FieldNo, fieldMap[m.FieldNo], valueMap))
+
+			/* 1. table lives at field level (14, 17, …) */
+			if g.parent.IsTableData {
+				fund.FundData = append(fund.FundData,
+					buildTableFieldItemGroup(m.FieldNo, g, valueMap))
+				continue
 			}
+
+			/* 2. normal text / bool / options block */
+			fund.FundData = append(fund.FundData,
+				buildFieldItemGroup(g, valueMap))
 		}
 		resp.Funds = append(resp.Funds, fund)
 	}
@@ -180,7 +185,9 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		// Create ordered map with s.name and s.text first
 		obj := NewOrderedMap()
 		obj.Set("s.name", rk)
-		obj.Set("s.text", label)
+		if label != "" {
+			obj.Set("s.text", label)
+		}
 
 		// Add remaining columns in sorted order
 		colKeys := make([]string, 0, len(rowMap[rk]))
@@ -204,7 +211,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		FieldText:        par.LineText,
 		FieldHeading:     headingFor(fieldNo),
 		Value:            vm[fieldNo],
-		FieldData:        []models.LineDetail{{}},
+		FieldData:        []models.LineDetail{},
 		TableData:        tableData,
 		Confirmed:        false,
 		Editing:          true,
