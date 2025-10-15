@@ -200,113 +200,113 @@ func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 // 	return sqlDb.Create(&newRow).Error
 // }
 
-func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
-	sqlDb := GetDB()
-	if !dbAlive(sqlDb) {
-		return ServerError
-	}
+// func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
+// 	sqlDb := GetDB()
+// 	if !dbAlive(sqlDb) {
+// 		return ServerError
+// 	}
 
-	var count int64
-	if err := sqlDb.Model(&models.FormDataLegacy{}).Where("filingId = ?", fid).Count(&count).Error; err != nil {
-		return err
-	}
-	if count == 0 {
-		return ErrFilingNotFound
-	}
+// 	var count int64
+// 	if err := sqlDb.Model(&models.FormDataLegacy{}).Where("filingId = ?", fid).Count(&count).Error; err != nil {
+// 		return err
+// 	}
+// 	if count == 0 {
+// 		return ErrFilingNotFound
+// 	}
 
-	//outside value handling
-	if data.Value != nil {
-		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, true); err != nil && !errors.Is(err, ErrNothingToDo) {
-			return err
-		}
-	}
+// 	//outside value handling
+// 	if data.Value != nil {
+// 		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, true); err != nil && !errors.Is(err, ErrNothingToDo) {
+// 			return err
+// 		}
+// 	}
 
-	for i := range data.FieldData {
-		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, false, i); err != nil && !errors.Is(err, ErrNothingToDo) {
-			return err
-		}
-	}
+// 	for i := range data.FieldData {
+// 		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, false, i); err != nil && !errors.Is(err, ErrNothingToDo) {
+// 			return err
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
-func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
-	var targetLineNo string
+// func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
+// 	var targetLineNo string
 
-	if isOutside {
-		targetLineNo = data.FieldNo
-	} else {
-		idx := 0
-		if len(fieldIndex) > 0 {
-			idx = fieldIndex[0]
-		}
-		targetLineNo = data.FieldData[idx].LineItemNo
-	}
+// 	if isOutside {
+// 		targetLineNo = data.FieldNo
+// 	} else {
+// 		idx := 0
+// 		if len(fieldIndex) > 0 {
+// 			idx = fieldIndex[0]
+// 		}
+// 		targetLineNo = data.FieldData[idx].LineItemNo
+// 	}
 
-	// --- Begin transaction ---
-	tx := sqlDb.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
+// 	// --- Begin transaction ---
+// 	tx := sqlDb.Begin()
+// 	defer func() {
+// 		if r := recover(); r != nil {
+// 			tx.Rollback()
+// 		}
+// 	}()
 
-	var rows []models.FormDataLegacy
-	if err := tx.Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
-		fid, fundId, data.FieldNo, targetLineNo).
-		Order("createdAt DESC").
-		Find(&rows).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
+// 	var rows []models.FormDataLegacy
+// 	if err := tx.Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
+// 		fid, fundId, data.FieldNo, targetLineNo).
+// 		Order("createdAt DESC").
+// 		Find(&rows).Error; err != nil {
+// 		tx.Rollback()
+// 		return err
+// 	}
 
-	if len(rows) == 0 {
-		tx.Rollback()
-		return ErrNothingToDo
-	}
+// 	if len(rows) == 0 {
+// 		tx.Rollback()
+// 		return ErrNothingToDo
+// 	}
 
-	var currentIdx int = -1
-	for i, r := range rows {
-		if r.IsCurrentValue {
-			currentIdx = i
-			break
-		}
-	}
-	if currentIdx == -1 {
-		currentIdx = 0
-	}
+// 	var currentIdx int = -1
+// 	for i, r := range rows {
+// 		if r.IsCurrentValue {
+// 			currentIdx = i
+// 			break
+// 		}
+// 	}
+// 	if currentIdx == -1 {
+// 		currentIdx = 0
+// 	}
 
-	if currentIdx+1 >= len(rows) {
-		tx.Rollback()
-		return ErrNothingToDo
-	}
+// 	if currentIdx+1 >= len(rows) {
+// 		tx.Rollback()
+// 		return ErrNothingToDo
+// 	}
 
-	prev := &rows[currentIdx+1]
-	now := time.Now()
+// 	prev := &rows[currentIdx+1]
+// 	now := time.Now()
 
-	//  mark all rows for this field as not current
-	if err := tx.Model(&models.FormDataLegacy{}).
-		Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
-			fid, fundId, data.FieldNo, targetLineNo).
-		Update("isCurrentValue", false).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
+// 	//  mark all rows for this field as not current
+// 	if err := tx.Model(&models.FormDataLegacy{}).
+// 		Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
+// 			fid, fundId, data.FieldNo, targetLineNo).
+// 		Update("isCurrentValue", false).Error; err != nil {
+// 		tx.Rollback()
+// 		return err
+// 	}
 
-	// mark the previous record as current
-	if err := tx.Model(&models.FormDataLegacy{}).
-		Where("id = ?", prev.ID).
-		Updates(map[string]interface{}{
-			"isCurrentValue": true,
-			"updatedAt":      now,
-			"updatedBy":      uid,
-		}).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
+// 	// mark the previous record as current
+// 	if err := tx.Model(&models.FormDataLegacy{}).
+// 		Where("id = ?", prev.ID).
+// 		Updates(map[string]interface{}{
+// 			"isCurrentValue": true,
+// 			"updatedAt":      now,
+// 			"updatedBy":      uid,
+// 		}).Error; err != nil {
+// 		tx.Rollback()
+// 		return err
+// 	}
 
-	return tx.Commit().Error
-}
+// 	return tx.Commit().Error
+// }
 
 // ---------- 1.  UpdateLineItem  (transaction_db.go) ----------
 func UpdateLineItem(data *models.FieldItem, fid, uid, fundId string) error {
@@ -437,4 +437,116 @@ func castTableData(raw interface{}) ([]map[string]interface{}, error) {
 		out = append(out, row)
 	}
 	return out, nil
+}
+
+func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
+	sqlDb := GetDB()
+	if !dbAlive(sqlDb) {
+		return ServerError
+	}
+
+	/* ----- 0.  filing exists? ----- */
+	var cnt int64
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
+		Where("filingid = ?", fid).Count(&cnt).Error; err != nil || cnt == 0 {
+		return ErrFilingNotFound
+	}
+
+	/* ----- 1.  TABLE  (many rows) ----- */
+	if data.HasTableData && data.TableData != nil {
+		rows, err := castTableData(data.TableData)
+		if err != nil {
+			return err
+		}
+		cells := explodeTableCells(data.FieldNo, rows)
+		for formLineNo := range cells {
+			// revert each cell independently
+			if err := revertSingleRecord(sqlDb, fid, uid, fundId,
+				data.FieldNo, formLineNo); err != nil && !errors.Is(err, ErrNothingToDo) {
+				return err
+			}
+		}
+		return nil
+	}
+
+	/* ----- 2.  BOOL / TEXT / OPTIONS  (single rows) ----- */
+	/* outside value */
+	if data.Value != "" {
+		if err := revertSingleRecord(sqlDb, fid, uid, fundId,
+			data.FieldNo, data.FieldNo); err != nil && !errors.Is(err, ErrNothingToDo) {
+			return err
+		}
+	}
+	/* inside field_data lines */
+	for _, line := range data.FieldData {
+		if err := revertSingleRecord(sqlDb, fid, uid, fundId,
+			data.FieldNo, line.LineItemNo); err != nil && !errors.Is(err, ErrNothingToDo) {
+			return err
+		}
+	}
+	return nil
+}
+
+func revertSingleRecord(sqlDb *gorm.DB, fid, uid, fundId, fieldNo, formLineNo string) error {
+	tx := sqlDb.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var rows []models.FormDataLegacy
+	if err := tx.Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
+		fid, fundId, fieldNo, formLineNo).
+		Order("createdAt DESC").
+		Find(&rows).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+	if len(rows) == 0 {
+		tx.Rollback()
+		return ErrNothingToDo
+	}
+
+	// find current row
+	curr := -1
+	for i, r := range rows {
+		if r.IsCurrentValue {
+			curr = i
+			break
+		}
+	}
+	if curr == -1 { // nothing marked current → treat newest as current
+		curr = 0
+	}
+	if curr+1 >= len(rows) { // no older row to restore
+		tx.Rollback()
+		return ErrNothingToDo
+	}
+
+	prev := &rows[curr+1]
+	now := time.Now()
+
+	// mark all versions of this cell/line not-current
+	if err := tx.Model(&models.FormDataLegacy{}).
+		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
+			fid, fundId, fieldNo, formLineNo).
+		Update("isCurrentValue", false).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// restore the previous version
+	if err := tx.Model(&models.FormDataLegacy{}).
+		Where("id = ?", prev.ID).
+		Updates(map[string]interface{}{
+			"isCurrentValue": true,
+			"updatedAt":      now,
+			"updatedBy":      uid,
+		}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }
