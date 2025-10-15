@@ -27,7 +27,7 @@ func AcceptItemValue(c *gin.Context) {
 		return
 	}
 
-	var payload *models.ResponseField
+	var payload *models.FieldItem
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		logger.Log("ERROR", "Payload error:"+err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
