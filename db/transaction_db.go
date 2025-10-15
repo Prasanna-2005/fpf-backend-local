@@ -65,139 +65,139 @@ func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 	return rows, err
 }
 
-// func UpdateLineItem(data *models.ResponseField, fid, uid, fundId string) error {
-// 	sqlDb := GetDB()
-// 	ok := dbAlive(sqlDb)
-// 	if !ok {
-// 		return ServerError
-// 	}
+func UpdateLineItem(data *models.ResponseField, fid, uid, fundId string) error {
+	sqlDb := GetDB()
+	ok := dbAlive(sqlDb)
+	if !ok {
+		return ServerError
+	}
 
-// 	var count int64
-// 	err := sqlDb.Model(&models.FormDataLegacy{}).Where("filingid = ?", fid).Count(&count).Error
-// 	if err != nil {
-// 		return err
-// 	}
-// 	if count == 0 {
-// 		return ErrFilingNotFound
-// 	}
+	var count int64
+	err := sqlDb.Model(&models.FormDataLegacy{}).Where("filingid = ?", fid).Count(&count).Error
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrFilingNotFound
+	}
 
-// 	// First check outside value case - formLineNo = fieldNo
-// 	// Skip if outside value is empty or null
-// 	hasOutsideValue := false
+	// First check outside value case - formLineNo = fieldNo
+	// Skip if outside value is empty or null
+	hasOutsideValue := false
 
-// 	// Replace these field names with actual ones from ResponseField model
-// 	if data.Value != nil { // Assuming there's a Value field for outside values
-// 		if v, ok := data.Value.(string); ok && v != "" {
-// 			hasOutsideValue = true
-// 		}
-// 	}
+	// Replace these field names with actual ones from ResponseField model
+	if data.Value != nil { // Assuming there's a Value field for outside values
+		if v, ok := data.Value.(string); ok && v != "" {
+			hasOutsideValue = true
+		}
+	}
 
-// 	if hasOutsideValue {
-// 		err := updateSingleRecord(sqlDb, data, fid, uid, fundId, true) // true for outside value
-// 		if err != nil {
-// 			return err
-// 		}
-// 	}
+	if hasOutsideValue {
+		err := updateSingleRecord(sqlDb, data, fid, uid, fundId, true) // true for outside value
+		if err != nil {
+			return err
+		}
+	}
 
-// 	// Then check all FieldData items
-// 	for i := range data.FieldData {
-// 		err := updateSingleRecord(sqlDb, data, fid, uid, fundId, false, i) // false for inside, with index
-// 		if err != nil || errors.Is(err, ErrNothingToDo) {
-// 			return err
-// 		}
-// 	}
+	// Then check all FieldData items
+	for i := range data.FieldData {
+		err := updateSingleRecord(sqlDb, data, fid, uid, fundId, false, i) // false for inside, with index
+		if err != nil || errors.Is(err, ErrNothingToDo) {
+			return err
+		}
+	}
 
-// 	return nil
-// }
+	return nil
+}
 
-// func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
-// 	fmt.Println(uid)
-// 	var targetLineNo string
-// 	var value, dateValue interface{}
+func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
+	fmt.Println(uid)
+	var targetLineNo string
+	var value, dateValue interface{}
 
-// 	if isOutside {
-// 		// Outside value case - formLineNo = fieldNo
-// 		targetLineNo = data.FieldNo
-// 		value = data.Value
-// 		// dateValue = data.OutsideDateValue // uncomment if field exists
-// 	} else {
-// 		// Inside FieldData case
-// 		idx := 0
-// 		if len(fieldIndex) > 0 {
-// 			idx = fieldIndex[0]
-// 		}
-// 		targetLineNo = data.FieldData[idx].LineItemNo
-// 		value = data.FieldData[idx].Value
-// 		dateValue = data.FieldData[idx].DateValue
-// 	}
-// 	// Extract new values
-// 	var newValue, newDate string
+	if isOutside {
+		// Outside value case - formLineNo = fieldNo
+		targetLineNo = data.FieldNo
+		value = data.Value
+		// dateValue = data.OutsideDateValue // uncomment if field exists
+	} else {
+		// Inside FieldData case
+		idx := 0
+		if len(fieldIndex) > 0 {
+			idx = fieldIndex[0]
+		}
+		targetLineNo = data.FieldData[idx].LineItemNo
+		value = data.FieldData[idx].Value
+		dateValue = data.FieldData[idx].DateValue
+	}
+	// Extract new values
+	var newValue, newDate string
 
-// 	if value != nil {
-// 		if v, ok := value.(string); ok && v != "" {
-// 			newValue = v
-// 		}
-// 	}
-// 	if dateValue != nil {
-// 		if dv, ok := dateValue.(string); ok && dv != "" {
-// 			newDate = dv
-// 		}
-// 	}
-// 	fmt.Println(newDate)
-// 	// Find the existing record
-// 	var old models.FormDataLegacy
-// 	err := sqlDb.Where(map[string]interface{}{
-// 		"filingid":       fid,
-// 		"fundSeriesId":   fundId,
-// 		"fieldNo":        data.FieldNo,
-// 		"formLineNo":     targetLineNo,
-// 		"isCurrentValue": true,
-// 	}).First(&old).Error
+	if value != nil {
+		if v, ok := value.(string); ok && v != "" {
+			newValue = v
+		}
+	}
+	if dateValue != nil {
+		if dv, ok := dateValue.(string); ok && dv != "" {
+			newDate = dv
+		}
+	}
+	fmt.Println(newDate)
+	// Find the existing record
+	var old models.FormDataLegacy
+	err := sqlDb.Where(map[string]interface{}{
+		"filingid":       fid,
+		"fundSeriesId":   fundId,
+		"fieldNo":        data.FieldNo,
+		"formLineNo":     targetLineNo,
+		"isCurrentValue": true,
+	}).First(&old).Error
 
-// 	if err != nil {
-// 		if errors.Is(err, gorm.ErrRecordNotFound) {
-// 			return gorm.ErrRecordNotFound
-// 		}
-// 		return err
-// 	}
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return gorm.ErrRecordNotFound
+		}
+		return err
+	}
 
-// 	// Check if there's actually something to update
-// 	// valueSame := (old.Value == nil && newValue == nil) ||
-// 	// 	(old.Value != nil && newValue != nil && *old.Value == *newValue)
-// 	// dateSame := (old.Date == nil && newDate == nil) ||
-// 	// 	(old.Date != nil && newDate != nil && *old.Date == *newDate)
+	// Check if there's actually something to update
+	// valueSame := (old.Value == nil && newValue == nil) ||
+	// 	(old.Value != nil && newValue != nil && *old.Value == *newValue)
+	// dateSame := (old.Date == nil && newDate == nil) ||
+	// 	(old.Date != nil && newDate != nil && *old.Date == *newDate)
 
-// 	// if valueSame && dateSame {
-// 	// 	return ErrNothingToDo
-// 	// }
+	// if valueSame && dateSame {
+	// 	return ErrNothingToDo
+	// }
 
-// 	// Update existing record to mark as not current
-// 	now := time.Now()
-// 	if err := sqlDb.Model(&old).
-// 		Select("isCurrentValue", "updatedAt", "updatedBy").
-// 		Updates(models.FormDataLegacy{
-// 			IsCurrentValue: false,
-// 			UpdatedAt:      now,
-// 			UpdatedBy:      uid,
-// 		}).Error; err != nil {
-// 		return err
-// 	}
+	// Update existing record to mark as not current
+	now := time.Now()
+	if err := sqlDb.Model(&old).
+		Select("isCurrentValue", "updatedAt", "updatedBy").
+		Updates(models.FormDataLegacy{
+			IsCurrentValue: false,
+			UpdatedAt:      now,
+			UpdatedBy:      uid,
+		}).Error; err != nil {
+		return err
+	}
 
-// 	// Create new record with updated values
-// 	newRow := models.FormDataLegacy{
-// 		FilingID:       fid,
-// 		FundSeriesid:   fundId,
-// 		FieldNo:        data.FieldNo,
-// 		FormLineNo:     targetLineNo,
-// 		Value:          newValue,
-// 		IsCurrentValue: true,
-// 		CreatedBy:      uid,
-// 		CreatedAt:      now,
-// 		UpdatedBy:      uid,
-// 	}
+	// Create new record with updated values
+	newRow := models.FormDataLegacy{
+		FilingID:       fid,
+		FundSeriesid:   fundId,
+		FieldNo:        data.FieldNo,
+		FormLineNo:     targetLineNo,
+		Value:          newValue,
+		IsCurrentValue: true,
+		CreatedBy:      uid,
+		CreatedAt:      now,
+		UpdatedBy:      uid,
+	}
 
-// 	return sqlDb.Create(&newRow).Error
-// }
+	return sqlDb.Create(&newRow).Error
+}
 
 func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
 	sqlDb := GetDB()
@@ -305,134 +305,4 @@ func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fu
 	}
 
 	return tx.Commit().Error
-}
-
-// ---------- 1.  UpdateLineItem  (transaction_db.go) ----------
-func UpdateLineItem(data *models.FieldItem, fid, uid, fundId string) error {
-	sqlDb := GetDB()
-	if !dbAlive(sqlDb) {
-		return ServerError
-	}
-
-	/* ----- 0.  filing exists? ----- */
-	var cnt int64
-	if err := sqlDb.Model(&models.FormDataLegacy{}).
-		Where("filingid = ?", fid).Count(&cnt).Error; err != nil || cnt == 0 {
-		return ErrFilingNotFound
-	}
-
-	/* ----- 1.  TABLE  (many rows) ----- */
-	if data.HasTableData && data.TableData != nil {
-		rows, err := castTableData(data.TableData)
-		if err != nil {
-			return err
-		}
-		cells := explodeTableCells(data.FieldNo, rows)
-		for formLineNo, cellValue := range cells {
-			tableCell := map[string]string{"ln": formLineNo, "vl": cellValue}
-			if err := updateSingleRecord(sqlDb, data, fid, uid, fundId,
-				true, tableCell); err != nil && !errors.Is(err, ErrNothingToDo) {
-				return err
-			}
-		}
-		return nil
-	}
-
-	/* ----- 2.  BOOL / TEXT / OPTIONS  (single rows) ----- */
-	if data.Value != "" {
-		_ = updateSingleRecord(sqlDb, data, fid, uid, fundId, true, nil)
-	}
-	for i := range data.FieldData {
-		_ = updateSingleRecord(sqlDb, data, fid, uid, fundId, false, nil, i)
-	}
-	return nil
-}
-
-func updateSingleRecord(sqlDb *gorm.DB, data *models.FieldItem,
-	fid, uid, fundId string, isOutside bool, tableCell map[string]string, fieldIndex ...int) error {
-
-	var targetLineNo, newValue string
-
-	switch {
-	case isOutside && data.HasTableData:
-		/* TABLE – strings come from the captured map */
-		if tableCell != nil {
-			targetLineNo = tableCell["ln"]
-			newValue = tableCell["vl"]
-		}
-
-	case isOutside && !data.HasTableData:
-		/* classic field-level value */
-		targetLineNo = data.FieldNo
-		newValue = data.Value
-
-	default:
-		/* inside FieldData line */
-		idx := 0
-		if len(fieldIndex) > 0 {
-			idx = fieldIndex[0]
-		}
-		targetLineNo = data.FieldData[idx].LineItemNo
-		newValue = data.FieldData[idx].Value
-	}
-
-	now := time.Now()
-	// mark old row(s) not-current
-	if err := sqlDb.Model(&models.FormDataLegacy{}).
-		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ? AND isCurrentValue = ?",
-			fid, fundId, data.FieldNo, targetLineNo, true).
-		Update("isCurrentValue", false).Error; err != nil {
-		return err
-	}
-
-	newRow := models.FormDataLegacy{
-		FilingID:       fid,
-		FundSeriesid:   fundId,
-		FieldNo:        data.FieldNo,
-		FormLineNo:     targetLineNo,
-		Value:          newValue,
-		IsCurrentValue: true,
-		CreatedBy:      uid,
-		CreatedAt:      now,
-		UpdatedBy:      uid,
-	}
-	return sqlDb.Create(&newRow).Error
-}
-
-// ---------- 3.  explodeTableCells  (transaction_db.go) ----------
-func explodeTableCells(fieldNo string, rows []map[string]interface{}) map[string]string {
-	out := make(map[string]string, len(rows)*4)
-	for _, row := range rows {
-		rk, ok := row["s.name"].(string)
-		if !ok || rk == "" {
-			continue
-		}
-		for ck, val := range row {
-			if ck == "s.name" || ck == "s.text" {
-				continue // meta keys
-			}
-			formLineNo := fmt.Sprintf("%s_%s_%s", fieldNo, rk, ck)
-			if v, ok := val.(string); ok {
-				out[formLineNo] = v
-			}
-		}
-	}
-	return out
-}
-
-/* ---------- safe table extractor ---------- */
-func castTableData(raw interface{}) ([]map[string]interface{}, error) {
-	slice, ok := raw.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("table_data is not an array")
-	}
-	out := make([]map[string]interface{}, 0, len(slice))
-	for _, v := range slice {
-		row, ok := v.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("table row is not an object")
-		}
-		out = append(out, row)
-	}
-	return out, nil
 }
