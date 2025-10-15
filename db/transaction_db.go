@@ -49,14 +49,14 @@ func GetFundBrief(seriesID string) (fundID, fundName string, err error) {
 func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 	var rows []models.FormDatum
 	err := GetDB().
-		Table("form_fields_ms fld").
+		Table("form_fields_ms_legacy fld").
 		Select(`d.createdAt, d.createdBy, d.updatedAt, d.updatedBy, d.value,
-		        d.fundSeriesId, d.date,
+		        d.fundSeriesId,
 		        f.fundName, f.fundType,
-		        fld.fieldNo, fld.formLineNo,fld.fieldHeading, fld.lineText, fld.dataType,
-		        fld.isMultipleAdd, fld.isMSQ, fld.isMCQ, fld.requiresDate,
+		        fld.fieldNo, fld.formLineNo, fld.lineText, fld.dataType,
+		        fld.isMultipleAdd, fld.isMSQ, fld.isMCQ,
 		        fld.isTableData, fld.disclaimerText, fld.xmlTags`).
-		Joins("LEFT JOIN form_data d ON fld.fieldNo = d.fieldNo AND "+
+		Joins("LEFT JOIN form_data_legacy d ON fld.fieldNo = d.fieldNo AND "+
 			"fld.formLineNo = d.formLineNo AND "+
 			"d.filingId = ? AND d.isCurrentValue = 1", filingID).
 		Joins("INNER JOIN feg_funds f ON f.fegFundId = d.fundSeriesId").
