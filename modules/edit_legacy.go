@@ -185,9 +185,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		// Create ordered map with s.name and s.text first
 		obj := NewOrderedMap()
 		obj.Set("s.name", rk)
-		if label != "" {
-			obj.Set("s.text", rk+" "+label)
-		}
+		obj.Set("s.text", rk+" "+label)
 
 		// Add remaining columns in sorted order
 		colKeys := make([]string, 0, len(rowMap[rk]))
