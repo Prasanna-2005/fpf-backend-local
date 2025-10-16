@@ -4,9 +4,9 @@ import "time"
 
 type FormDataLegacy struct {
 	ID             uint64    `gorm:"primaryKey;autoIncrement"`
-	FilingID       string    `gorm:"column:filingid"`
+	FilingID       string    `gorm:"column:filingId"`
 	FieldNo        string    `gorm:"column:fieldNo"`
-	FundSeriesid   string    `gorm:"column:fundSeriesid"`
+	FundSeriesid   string    `gorm:"column:fundSeriesId"`
 	FormLineNo     string    `gorm:"column:formLineNo"`
 	Value          string    `gorm:"column:value"`
 	CreatedBy      string    `gorm:"column:createdBy"`
