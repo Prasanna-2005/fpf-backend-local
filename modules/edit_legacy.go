@@ -49,6 +49,24 @@ func (om *OrderedMap) MarshalJSON() ([]byte, error) {
 	return []byte(result), nil
 }
 
+func optionSlice(dataType string) []string {
+	if dataType == "bool" {
+		return []string{"YES", "NO"}
+	}
+	return nil
+}
+
+func headingFor(fieldNo string) string {
+	switch fieldNo {
+	case "5", "6", "7":
+		return "Item A. Reporting fund identifying information"
+	case "8", "9", "10", "11", "12", "13", "14", "15", "16", "17":
+		return "Item B. Assets, financing and investor concentration"
+	default:
+		return ""
+	}
+}
+
 /* ---------- public entry point ---------- */
 func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) {
 	meta, err := db.FetchFormFieldMSLegacy()
@@ -75,7 +93,7 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 		return nil, err
 	}
 
-	/* ---------- 1. group meta rows by fieldNo ---------- */
+	// / 1. group meta rows by fieldNo
 	fieldMap := make(map[string]*group, 30)
 	for _, m := range meta {
 		if m.FormLineItemNo == m.FieldNo {
@@ -92,7 +110,7 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 		fieldMap[m.FieldNo].children = append(fieldMap[m.FieldNo].children, m)
 	}
 
-	/* ---------- 2. build response ---------- */
+	// 2. build response
 	resp := &models.FilingResponselegacy{Funds: make([]models.Fundlegacy, 0, len(fsIDs))}
 
 	for _, fsID := range fsIDs {
@@ -100,6 +118,12 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 		fund := models.Fundlegacy{
 			FundID:   fundRec.FundID,
 			FundName: fundRec.FundName,
+		}
+
+		// pick the value sub-map for this fund-series
+		vm := valueMap[fsID]
+		if vm == nil { // no data yet
+			vm = make(map[string]string)
 		}
 
 		for _, m := range meta {
@@ -113,21 +137,21 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 			/* 1. table lives at field level (14, 17, …) */
 			if g.parent.IsTableData {
 				fund.FundData = append(fund.FundData,
-					buildTableFieldItemGroup(m.FieldNo, g, valueMap))
+					buildTableFieldItemGroup(m.FieldNo, g, vm))
 				continue
 			}
 
-			/* 2. normal text / bool / options block */
+			// 2. normal text / bool (options) block
 			fund.FundData = append(fund.FundData,
-				buildFieldItemGroup(g, valueMap))
+				buildFieldItemGroup(g, vm))
 		}
 		resp.Funds = append(resp.Funds, fund)
 	}
 
-	/* ---------- 3. sort funds by name ---------- */
+	// 3. sort funds by name
 	sort.Sort(byFundName(resp.Funds))
 
-	/* ---------- 4. sort field_data inside every fund by field_no ---------- */
+	// 4. sort field_data inside every fund by field_no
 	for i := range resp.Funds {
 		sort.Sort(byFieldNo(resp.Funds[i].FundData))
 	}
@@ -135,7 +159,7 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 	return resp, nil
 }
 
-/* ---------- universal table builder ---------- */
+// table builder
 func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) models.FieldItem {
 	par := g.parent
 	if par.FormLineItemNo == "" {
@@ -185,9 +209,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		// Create ordered map with s.name and s.text first
 		obj := NewOrderedMap()
 		obj.Set("s.name", rk)
-		if label != "" {
-			obj.Set("s.text", rk+" "+label)
-		}
+		obj.Set("s.text", rk+" "+label)
 
 		// Add remaining columns in sorted order
 		colKeys := make([]string, 0, len(rowMap[rk]))
@@ -220,7 +242,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 	}
 }
 
-/* ---------- helpers for text / bool ---------- */
+// builder for text / bool
 func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 	par := g.parent
 	fItem := models.FieldItem{
@@ -253,22 +275,4 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 		})
 	}
 	return fItem
-}
-
-func optionSlice(dataType string) []string {
-	if dataType == "bool" {
-		return []string{"YES", "NO"}
-	}
-	return nil
-}
-
-func headingFor(fieldNo string) string {
-	switch fieldNo {
-	case "5", "6", "7":
-		return "Item A. Reporting fund identifying information"
-	case "8", "9", "10", "11", "12", "13", "14", "15", "16", "17":
-		return "Item B. Assets, financing and investor concentration"
-	default:
-		return ""
-	}
 }
