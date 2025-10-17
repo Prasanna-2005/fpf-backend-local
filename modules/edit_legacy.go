@@ -49,24 +49,6 @@ func (om *OrderedMap) MarshalJSON() ([]byte, error) {
 	return []byte(result), nil
 }
 
-func optionSlice(dataType string) []string {
-	if dataType == "bool" {
-		return []string{"YES", "NO"}
-	}
-	return nil
-}
-
-func headingFor(fieldNo string) string {
-	switch fieldNo {
-	case "5", "6", "7":
-		return "Item A. Reporting fund identifying information"
-	case "8", "9", "10", "11", "12", "13", "14", "15", "16", "17":
-		return "Item B. Assets, financing and investor concentration"
-	default:
-		return ""
-	}
-}
-
 /* ---------- public entry point ---------- */
 func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) {
 	meta, err := db.FetchFormFieldMSLegacy()
@@ -275,4 +257,22 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 		})
 	}
 	return fItem
+}
+
+func optionSlice(dataType string) []string {
+	if dataType == "bool" {
+		return []string{"YES", "NO"}
+	}
+	return nil
+}
+
+func headingFor(fieldNo string) string {
+	switch fieldNo {
+	case "5", "6", "7":
+		return "Item A. Reporting fund identifying information"
+	case "8", "9", "10", "11", "12", "13", "14", "15", "16", "17":
+		return "Item B. Assets, financing and investor concentration"
+	default:
+		return ""
+	}
 }
