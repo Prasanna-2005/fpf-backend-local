@@ -298,7 +298,7 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 		return nil, err
 	}
 
-	/* ---------- 1. group meta rows by fieldNo ---------- */
+	// / 1. group meta rows by fieldNo
 	fieldMap := make(map[string]*group, 30)
 	for _, m := range meta {
 		if m.FormLineItemNo == m.FieldNo {
@@ -315,7 +315,7 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 		fieldMap[m.FieldNo].children = append(fieldMap[m.FieldNo].children, m)
 	}
 
-	/* ---------- 2. build response ---------- */
+	// 2. build response
 	resp := &models.FilingResponselegacy{Funds: make([]models.Fundlegacy, 0, len(fsIDs))}
 
 	for _, fsID := range fsIDs {
@@ -346,17 +346,17 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 				continue
 			}
 
-			/* 2. normal text / bool / options block */
+			// 2. normal text / bool (options) block
 			fund.FundData = append(fund.FundData,
 				buildFieldItemGroup(g, vm))
 		}
 		resp.Funds = append(resp.Funds, fund)
 	}
 
-	/* ---------- 3. sort funds by name ---------- */
+	// 3. sort funds by name
 	sort.Sort(byFundName(resp.Funds))
 
-	/* ---------- 4. sort field_data inside every fund by field_no ---------- */
+	// 4. sort field_data inside every fund by field_no
 	for i := range resp.Funds {
 		sort.Sort(byFieldNo(resp.Funds[i].FundData))
 	}
@@ -364,7 +364,7 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 	return resp, nil
 }
 
-/* ---------- universal table builder ---------- */
+// table builder
 func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) models.FieldItem {
 	par := g.parent
 	if par.FormLineItemNo == "" {
@@ -447,7 +447,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 	}
 }
 
-/* ---------- helpers for text / bool ---------- */
+// builder for text / bool
 func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 	par := g.parent
 	fItem := models.FieldItem{
