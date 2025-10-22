@@ -1,9 +1,11 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
 type FormDataLegacy struct {
-	ID             uint64    `gorm:"primaryKey;autoIncrement"`
+	ID             uint64    `gorm:"primaryKey;autoIncrement,column:id"`
 	FilingID       string    `gorm:"column:filingId"`
 	FieldNo        string    `gorm:"column:fieldNo"`
 	FundSeriesid   string    `gorm:"column:fundSeriesId"`

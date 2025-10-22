@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"form_pf_backend/models"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -487,66 +488,70 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	return nil
 }
 
-func revertSingleRecord(sqlDb *gorm.DB, fid, uid, fundId, fieldNo, formLineNo string) error {
-	tx := sqlDb.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
+func revertSingleRecord(sqlDb *gorm.DB,
+	fid, uid, fundId, fieldNo, formLineNo string) error {
 
-	var rows []models.FormDataLegacy
-	if err := tx.Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
-		fid, fundId, fieldNo, formLineNo).
-		Order("createdAt DESC").
-		Find(&rows).Error; err != nil {
-		tx.Rollback()
+	// 1.  load the two latest versions (we only need their IDs and flags)
+	type mini struct {
+		ID             uint `gorm:"column:id"`
+		IsCurrentValue bool `gorm:"column:isCurrentValue"`
+	}
+	var rows []mini
+	if err := sqlDb.
+		Model(&models.FormDataLegacy{}).
+		Select("id, isCurrentValue").
+		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
+						fid, fundId, fieldNo, formLineNo).
+		Order("createdAt DESC"). // newest first
+		Limit(2).
+		Scan(&rows).Error; err != nil {
 		return err
 	}
-	if len(rows) == 0 {
-		tx.Rollback()
-		return ErrNothingToDo
+
+	switch len(rows) {
+	case 0:
+		return ErrNothingToDo // no data at all
+	case 1:
+		return ErrNothingToDo // only one version – nothing to revert to
+	}
+	log.Printf("[rows:%d] %#v\n", len(rows), rows)
+	fmt.Println(rows)
+	// rows[0] = newest (the one we will turn OFF)
+	// rows[1] = previous (the one we will turn ON)
+	if !rows[0].IsCurrentValue {
+		fmt.Println("hi0")
+		return ErrNothingToDo // newest is already OFF → nothing to do
 	}
 
-	// find current row
-	curr := -1
-	for i, r := range rows {
-		if r.IsCurrentValue {
-			curr = i
-			break
-		}
-	}
-	if curr == -1 { // nothing marked current → treat newest as current
-		curr = 0
-	}
-	if curr+1 >= len(rows) { // no older row to restore
-		tx.Rollback()
-		return ErrNothingToDo
-	}
-
-	prev := &rows[curr+1]
+	fmt.Printf("hi")
 	now := time.Now()
 
-	// mark all versions of this cell/line not-current
-	if err := tx.Model(&models.FormDataLegacy{}).
-		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
-			fid, fundId, fieldNo, formLineNo).
-		Update("isCurrentValue", false).Error; err != nil {
-		tx.Rollback()
+	// 2.  turn OFF the current row (identified by its PK)
+	if err := sqlDb.
+		Model(&models.FormDataLegacy{}).
+		Where("id = ?", rows[0].ID).
+		Updates(map[string]interface{}{
+			"isCurrentValue": false,
+			"updatedAt":      now,
+			"updatedBy":      uid,
+		}).Error; err != nil {
+		fmt.Println(err.Error())
 		return err
 	}
+	fmt.Println("hi1")
 
-	// restore the previous version
-	if err := tx.Model(&models.FormDataLegacy{}).
-		Where("id = ?", prev.ID).
+	// 3.  turn ON the previous row (identified by its PK)
+	err := sqlDb.
+		Model(&models.FormDataLegacy{}).
+		Where("id = ?", rows[1].ID).
 		Updates(map[string]interface{}{
 			"isCurrentValue": true,
 			"updatedAt":      now,
 			"updatedBy":      uid,
-		}).Error; err != nil {
-		tx.Rollback()
-		return err
+		}).Error
+	if err != nil {
+		fmt.Println(err.Error())
 	}
-
-	return tx.Commit().Error
+	fmt.Println("hi2")
+	return err
 }
