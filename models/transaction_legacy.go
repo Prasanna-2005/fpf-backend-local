@@ -70,6 +70,7 @@ type LineDetail struct {
 	LineText       string      `json:"line_text,omitempty"`
 	Value          string      `json:"value"`
 	Options        []string    `json:"options,omitempty"`
+	HasTableData   bool        `json:"has_table_data"`
 	TableData      interface{} `json:"table_data,omitempty"`
 	RequireDate    bool        `json:"require_date,omitempty"`
 	DateValue      string      `json:"date_value,omitempty"`

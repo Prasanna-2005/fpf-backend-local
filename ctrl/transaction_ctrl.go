@@ -6,7 +6,9 @@ import (
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
 	"net/http"
+	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -106,7 +108,28 @@ func RevertLatest(c *gin.Context) {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"message": "line item not confirmed or still in edit mode"})
 		return
 	}
+	if strings.TrimSpace(payload.FieldItemType) == "" {
+		logger.Log("WARNING", "Field item type cannot be empty. It should NULL if no datatype present")
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid payload"})
+		return
+	}
 
+	if len(payload.FieldData) != 0 {
+		for _, lineItem := range payload.FieldData {
+			if strings.TrimSpace(lineItem.LineItemType) == "" {
+				logger.Log("WARNING", "Line item type cannot be empty. It should NULL if no datatype present")
+			}
+			if lineItem.HasTableData == true && reflect.ValueOf(payload.TableData).Len() == 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"message": "Line item type cannot be empty. It should NULL if no datatype present"})
+				return
+			}
+		}
+	}
+	if payload.HasTableData == true && reflect.ValueOf(payload.TableData).Len() == 0 {
+		logger.Log("WARNING", "No data present in table data but has_table_data marked true")
+		c.JSON(http.StatusBadRequest, gin.H{"message": "No data present in table data but has_table_data marked true"})
+		return
+	}
 	userID := c.GetHeader("X-User-Id")
 	if userID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "missing user ID"})
