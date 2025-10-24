@@ -63,15 +63,13 @@ func GetFilingResponse(c *gin.Context) {
 		return
 	}
 
-	resp, err := modules.BuildResponse(id)
+	resp, err := modules.BuildResponselegacy(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, resp)
 }
-
-
 
 func GetApprovedFilingResponse(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("filing_id"), 10, 64)
@@ -96,7 +94,6 @@ func RevertLatest(c *gin.Context) {
 		return
 	}
 
-	
 	var payload models.ResponseField
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		logger.Log("ERROR", "Payload error: "+err.Error())
@@ -104,13 +101,11 @@ func RevertLatest(c *gin.Context) {
 		return
 	}
 
-
 	if !payload.Confirmed || payload.Editing {
 		logger.Log("INFO", "line item still in edit mode")
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"message": "line item not confirmed or still in edit mode"})
 		return
 	}
-
 
 	userID := c.GetHeader("X-User-Id")
 	if userID == "" {
@@ -118,7 +113,6 @@ func RevertLatest(c *gin.Context) {
 		return
 	}
 
-	
 	err := db.RevertLineItem(&payload, filingID, userID, fundID)
 
 	switch {

@@ -4,6 +4,7 @@ package modules
 import (
 	"errors"
 	"fmt"
+	"form_pf_backend/db"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -156,24 +157,36 @@ func handleSaveError(c *gin.Context, targetDir string, err error) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Internal Server Error"})
 	}
 }
-func RemoveDir(dir string) error {
-	if dir == "" || dir == "." || dir == ".." || dir == "/" {
-		return errors.New("refusing to delete risky path: " + dir)
-	}
 
-	if info, err := os.Stat(dir); err != nil {
-		return fmt.Errorf("cannot stat %q: %w", dir, err)
-	} else if !info.IsDir() {
-		return fmt.Errorf("%q is not a directory", dir)
-	}
+// func RemoveDir(dir string) error {
+// 	if dir == "" || dir == "." || dir == ".." || dir == "/" {
+// 		return errors.New("refusing to delete risky path: " + dir)
+// 	}
 
-	if err := os.RemoveAll(dir); err != nil {
-		return fmt.Errorf("failed to remove %q: %w", dir, err)
-	}
-	return nil
-}
+// 	if info, err := os.Stat(dir); err != nil {
+// 		return fmt.Errorf("cannot stat %q: %w", dir, err)
+// 	} else if !info.IsDir() {
+// 		return fmt.Errorf("%q is not a directory", dir)
+// 	}
+
+// 	if err := os.RemoveAll(dir); err != nil {
+// 		return fmt.Errorf("failed to remove %q: %w", dir, err)
+// 	}
+// 	return nil
+// }
 
 func filingExists(clientDir, filingName string) bool {
+	recPresent := false
+	allfilings, err := db.GetAllFilings()
+	if err != nil {
+		logger.Log("ERROR", "Db error: "+err.Error())
+		return true
+	}
+	for _, filing := range *allfilings {
+		if filing.FilingName == filingName {
+			recPresent = true
+		}
+	}
 	targetDirName := sanitize(filingName)
 	entries, err := os.ReadDir(clientDir)
 	if err != nil {
@@ -182,11 +195,22 @@ func filingExists(clientDir, filingName string) bool {
 	}
 
 	for _, e := range entries {
-		if e.IsDir() && e.Name() == targetDirName {
+		if e.IsDir() && e.Name() == targetDirName && recPresent {
 			logger.Log("INFO", fmt.Sprintf("[filingExists] Found existing filing: %s", e.Name()))
 			return true
+		} else if e.IsDir() && e.Name() == targetDirName && !recPresent {
+			brokenDir := filepath.Join(clientDir, targetDirName)
+			err := RemoveDir(brokenDir)
+			if err != nil {
+				logger.Log("ERROR", fmt.Sprintf("Incomplete filing Directory not removed:%v", brokenDir))
+				logger.Log("ERROR", "The above error occured :"+err.Error())
+				return true
+			}
+			fmt.Println(err)
+			logger.Log("INFO", fmt.Sprintf("Incomplete filing Directory removed:%v", filingName))
 		}
 	}
+
 	return false
 }
 
@@ -250,6 +274,26 @@ func saveUploadedFile(src *multipart.FileHeader, dst string) error {
 	}
 
 	logger.Log("INFO", fmt.Sprintf("[saveUploadedFile] Copied %d bytes to %s", bytesWritten, dst))
+	return nil
+}
+
+func RemoveDir(dir string) error {
+	// sanity check: refuse to delete “/”, “.”, “..”, “”, etc.
+	if dir == "" || dir == "." || dir == ".." || dir == "/" {
+		return errors.New("refusing to delete risky path: " + dir)
+	}
+
+	//make sure it exists and is a directory
+	if info, err := os.Stat(dir); err != nil {
+		return fmt.Errorf("cannot stat %q: %w", dir, err)
+	} else if !info.IsDir() {
+		return fmt.Errorf("%q is not a directory", dir)
+	}
+
+	// Actual deletion
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("failed to remove %q: %w", dir, err)
+	}
 	return nil
 }
 

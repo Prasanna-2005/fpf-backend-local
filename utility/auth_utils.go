@@ -385,20 +385,22 @@ func VerifyAccessToken(token string) (models.User, error) {
 		3. Check token type is 'access'
 		4. Extract userId from claims
 	*/
+
 	logger.Log("INFO", "VerifyAccessToken: verifying access token")
 
 	cfg := config.Token()
 	if cfg.TokenSecret == "" {
 		logger.Log("CRITICAL", "VerifyAccessToken: missing token secret in configuration")
-		return models.User{}, nil
+		return models.User{}, fmt.Errorf("missing token secret configuration")
 	}
 
-	token, err := DecryptToken(token, cfg.TokenSecret)
+	decryptedToken, err := DecryptToken(token, cfg.TokenSecret)
 	if err != nil {
-		logger.log("Error", "Decryption error:"+err.Error())
+		logger.Log("ERROR", "VerifyAccessToken: decryption failed - "+err.Error())
+		return models.User{}, fmt.Errorf("token decryption failed: %w", err)
 	}
 
-	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+	parsedToken, err := jwt.Parse(decryptedToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -406,70 +408,101 @@ func VerifyAccessToken(token string) (models.User, error) {
 	})
 
 	if err != nil {
+		if ve, ok := err.(*jwt.ValidationError); ok {
+			if ve.Errors&jwt.ValidationErrorExpired != 0 {
+				logger.Log("WARNING", "VerifyAccessToken: token has expired")
+				return models.User{}, fmt.Errorf("token has expired")
+			}
+		}
 		logger.Log("ERROR", "VerifyAccessToken: failed to parse token - "+err.Error())
-		return models.User{}, err
+		return models.User{}, fmt.Errorf("token parse failed: %w", err)
 	}
 
 	if !parsedToken.Valid {
 		logger.Log("ERROR", "VerifyAccessToken: token is invalid")
-		return models.User{}, err
+		return models.User{}, fmt.Errorf("invalid token")
 	}
 
 	claims, ok := parsedToken.Claims.(jwt.MapClaims)
 	if !ok {
 		logger.Log("ERROR", "VerifyAccessToken: invalid token claims")
-		return models.User{}, err
+		return models.User{}, fmt.Errorf("invalid token claims format")
 	}
 
-	// Check if it's an access token
+	if err := claims.Valid(); err != nil {
+		logger.Log("WARNING", "VerifyAccessToken: token validation failed (likely expired) - "+err.Error())
+		return models.User{}, fmt.Errorf("token expired or invalid: %w", err)
+	}
+
+	if exp, ok := claims["exp"].(float64); ok {
+		if int64(exp) < time.Now().Unix() {
+			logger.Log("WARNING", "VerifyAccessToken: token has expired")
+			return models.User{}, fmt.Errorf("token has expired")
+		}
+	} else {
+		logger.Log("ERROR", "VerifyAccessToken: token missing expiration claim")
+		return models.User{}, fmt.Errorf("token missing required 'exp' claim")
+	}
+
 	tokenType, ok := claims["type"].(string)
-	if !ok || tokenType != "access" {
+	if !ok {
+		logger.Log("ERROR", "VerifyAccessToken: missing token type claim")
+		return models.User{}, fmt.Errorf("missing token type claim")
+	}
+	if tokenType != "access" {
 		logger.Log("ERROR", "VerifyAccessToken: provided token is not an access token")
-		return models.User{}, err
+		return models.User{}, fmt.Errorf("invalid token type: expected 'access', got '%s'", tokenType)
 	}
 
-	// Get userId from claims
 	userId, ok := claims["userId"].(string)
-	if !ok {
+	if !ok || userId == "" {
 		logger.Log("ERROR", "VerifyAccessToken: token missing userId claim")
-		return models.User{}, err
+		return models.User{}, fmt.Errorf("missing or invalid userId claim")
 	}
 
-	AccessType, ok := claims["AccessType"].(string)
-	if !ok {
+	accessType, ok := claims["AccessType"].(string)
+	if !ok || accessType == "" {
 		logger.Log("ERROR", "VerifyAccessToken: token missing AccessType claim")
-		return models.User{}, err
+		return models.User{}, fmt.Errorf("missing or invalid AccessType claim")
 	}
 
 	email, ok := claims["email"].(string)
-	if !ok {
-		logger.Log("ERROR", "VerifyAccessToken: token missing userId claim")
-		return models.User{}, err
+	if !ok || email == "" {
+		logger.Log("ERROR", "VerifyAccessToken: token missing email claim")
+		return models.User{}, fmt.Errorf("missing or invalid email claim")
 	}
+
 	cid, ok := claims["cid"].(float64)
 	if !ok {
-		logger.Log("ERROR", "No client id present")
+		logger.Log("ERROR", "VerifyAccessToken: token missing clientId claim")
+		return models.User{}, fmt.Errorf("missing or invalid clientId claim")
 	}
+
 	jwtId, ok := claims["jti"].(float64)
 	if !ok {
-		logger.Log("ERROR", "No jwt id present in claims")
+		logger.Log("ERROR", "VerifyAccessToken: token missing jti claim")
+		return models.User{}, fmt.Errorf("missing or invalid jti claim")
 	}
+
 	usr, err := db.GetUser(userId)
 	if err != nil {
-		logger.Log("ERROR", "couldn't fetch uid from DB")
+		logger.Log("ERROR", "VerifyAccessToken: failed to fetch user from DB - "+err.Error())
+		return models.User{}, fmt.Errorf("user validation failed: %w", err)
 	}
+
 	if jwtId != float64(usr.Jti) {
-		logger.Log("WARNING", "JwtId expired. user session terminated")
-		return models.User{}, fmt.Errorf("expired JwtId present in token")
+		logger.Log("WARNING", "VerifyAccessToken: JTI mismatch for user "+userId+" - token may be revoked")
+		return models.User{}, fmt.Errorf("token has been revoked or is invalid")
 	}
+
 	user := models.User{
 		ID:         userId,
-		AccessType: AccessType,
+		AccessType: accessType,
 		Email:      email,
 		ClientID:   int(cid),
 	}
 
-	logger.Log("INFO", "VerifyAccessToken: successfully verified access token for user ")
+	logger.Log("INFO", "VerifyAccessToken: successfully verified access token for user "+userId)
 
 	return user, nil
 }
