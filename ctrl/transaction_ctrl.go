@@ -19,6 +19,8 @@ const (
 	Modified       = "Changes accepted successfully"
 	NotConfirmed   = "Line item still in edit mode"
 	Accepted       = "Your values accepted successfully"
+	LineItemErr    = "Line item type cannot be empty. It should NULL if no datatype present"
+	EmptyTableErr  = "No data present in table data but has_table_data marked true"
 )
 
 func AcceptItemValue(c *gin.Context) {
@@ -38,6 +40,28 @@ func AcceptItemValue(c *gin.Context) {
 	if !payload.Confirmed || payload.Editing {
 		logger.Log("INFO", "line item still in edit mode")
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"message": NotConfirmed})
+		return
+	}
+	if strings.TrimSpace(payload.FieldItemType) == "" {
+		logger.Log("WARNING", "Field item type cannot be empty. It should NULL if no datatype present")
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+
+	if len(payload.FieldData) != 0 {
+		for _, lineItem := range payload.FieldData {
+			if strings.TrimSpace(lineItem.LineItemType) == "" {
+				logger.Log("WARNING", LineItemErr)
+			}
+			if lineItem.HasTableData && reflect.ValueOf(payload.TableData).Len() == 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"message": LineItemErr})
+				return
+			}
+		}
+	}
+	if payload.HasTableData && reflect.ValueOf(payload.TableData).Len() == 0 {
+		logger.Log("WARNING", EmptyTableErr)
+		c.JSON(http.StatusBadRequest, gin.H{"message": EmptyTableErr})
 		return
 	}
 	userID := c.GetHeader("X-User-Id")
@@ -99,7 +123,7 @@ func RevertLatest(c *gin.Context) {
 	var payload models.FieldItem
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		logger.Log("ERROR", "Payload error: "+err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid payload"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
 
@@ -110,24 +134,24 @@ func RevertLatest(c *gin.Context) {
 	}
 	if strings.TrimSpace(payload.FieldItemType) == "" {
 		logger.Log("WARNING", "Field item type cannot be empty. It should NULL if no datatype present")
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid payload"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
 
 	if len(payload.FieldData) != 0 {
 		for _, lineItem := range payload.FieldData {
 			if strings.TrimSpace(lineItem.LineItemType) == "" {
-				logger.Log("WARNING", "Line item type cannot be empty. It should NULL if no datatype present")
+				logger.Log("WARNING", LineItemErr)
 			}
-			if lineItem.HasTableData == true && reflect.ValueOf(payload.TableData).Len() == 0 {
-				c.JSON(http.StatusBadRequest, gin.H{"message": "Line item type cannot be empty. It should NULL if no datatype present"})
+			if lineItem.HasTableData && reflect.ValueOf(payload.TableData).Len() == 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"message": LineItemErr})
 				return
 			}
 		}
 	}
-	if payload.HasTableData == true && reflect.ValueOf(payload.TableData).Len() == 0 {
-		logger.Log("WARNING", "No data present in table data but has_table_data marked true")
-		c.JSON(http.StatusBadRequest, gin.H{"message": "No data present in table data but has_table_data marked true"})
+	if payload.HasTableData && reflect.ValueOf(payload.TableData).Len() == 0 {
+		logger.Log("WARNING", EmptyTableErr)
+		c.JSON(http.StatusBadRequest, gin.H{"message": EmptyTableErr})
 		return
 	}
 	userID := c.GetHeader("X-User-Id")
