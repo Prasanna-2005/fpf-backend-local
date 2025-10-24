@@ -249,67 +249,73 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 func revertSingleRecord(sqlDb *gorm.DB,
 	fid, uid, fundId, fieldNo, formLineNo string) error {
 
-	// 1.  load the two latest versions (we only need their IDs and flags)
-	type mini struct {
-		ID             uint `gorm:"column:id"`
-		IsCurrentValue bool `gorm:"column:isCurrentValue"`
+	// 1. Find the current active record
+	type recordVersion struct {
+		ID        uint      `gorm:"column:id"`
+		CreatedAt time.Time `gorm:"column:createdAt"`
 	}
-	var rows []mini
+
+	var currentRecord recordVersion
 	if err := sqlDb.
 		Model(&models.FormDataLegacy{}).
-		Select("id, isCurrentValue").
-		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
-						fid, fundId, fieldNo, formLineNo).
-		Order("createdAt DESC"). // newest first
-		Limit(2).
-		Scan(&rows).Error; err != nil {
+		Select("id, createdAt").
+		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ? AND isCurrentValue = ?",
+			fid, fundId, fieldNo, formLineNo, true).
+		First(&currentRecord).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			log.Printf("[INFO] No active record found to revert")
+			return ErrNothingToDo
+		}
+		log.Printf("[ERROR] Failed to fetch current record: %v", err)
 		return err
 	}
 
-	switch len(rows) {
-	case 0:
-		return ErrNothingToDo // no data at all
-	case 1:
-		return ErrNothingToDo // only one version – nothing to revert to
-	}
-	log.Printf("[rows:%d] %#v\n", len(rows), rows)
-	fmt.Println(rows)
-	// rows[0] = newest (the one we will turn OFF)
-	// rows[1] = previous (the one we will turn ON)
-	if !rows[0].IsCurrentValue {
-		fmt.Println("hi0")
-		return ErrNothingToDo // newest is already OFF → nothing to do
-	}
-
-	fmt.Printf("hi")
-	now := time.Now()
-
-	// 2.  turn OFF the current row (identified by its PK)
+	// 2. Find the immediate previous record (by createdAt)
+	var previousRecord recordVersion
 	if err := sqlDb.
 		Model(&models.FormDataLegacy{}).
-		Where("id = ?", rows[0].ID).
+		Select("id, createdAt").
+		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ? AND createdAt < ?",
+			fid, fundId, fieldNo, formLineNo, currentRecord.CreatedAt).
+		Order("createdAt DESC").
+		Limit(1).
+		First(&previousRecord).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			log.Printf("[INFO] No previous version found - this is the first record created")
+			return ErrNothingToDo
+		}
+		log.Printf("[ERROR] Failed to fetch previous record: %v", err)
+		return err
+	}
+
+	now := time.Now()
+
+	// 3. Deactivate the current version
+	if err := sqlDb.
+		Model(&models.FormDataLegacy{}).
+		Where("id = ?", currentRecord.ID).
 		Updates(map[string]interface{}{
 			"isCurrentValue": false,
 			"updatedAt":      now,
 			"updatedBy":      uid,
 		}).Error; err != nil {
-		fmt.Println(err.Error())
+		log.Printf("[ERROR] Failed to deactivate record id=%d: %v", currentRecord.ID, err)
 		return err
 	}
-	fmt.Println("hi1")
 
-	// 3.  turn ON the previous row (identified by its PK)
-	err := sqlDb.
+	// 4. Activate the previous version
+	if err := sqlDb.
 		Model(&models.FormDataLegacy{}).
-		Where("id = ?", rows[1].ID).
+		Where("id = ?", previousRecord.ID).
 		Updates(map[string]interface{}{
 			"isCurrentValue": true,
 			"updatedAt":      now,
 			"updatedBy":      uid,
-		}).Error
-	if err != nil {
-		fmt.Println(err.Error())
+		}).Error; err != nil {
+		log.Printf("[ERROR] Failed to activate record id=%d: %v", previousRecord.ID, err)
+		return err
 	}
-	fmt.Println("hi2")
-	return err
+
+	log.Printf("[SUCCESS] Reverted from record id=%d to id=%d", currentRecord.ID, previousRecord.ID)
+	return nil
 }
