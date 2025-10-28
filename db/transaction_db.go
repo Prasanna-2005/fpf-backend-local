@@ -37,6 +37,8 @@ func loadFundCache() {
 	fundCache = m
 }
 
+type pair struct{ ln, vl string }
+
 // GetFundBrief returns fundID & fundName for a fundSeriesId
 func GetFundBrief(seriesID string) (fundID, fundName string, err error) {
 	onceFundCache.Do(loadFundCache)
@@ -67,97 +69,85 @@ func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 	return rows, err
 }
 
-// UpdateLineItem  (transaction_db.go)
+// UpdateLineItemFast – same signature as before, but no updateSingleRecord
 func UpdateLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	sqlDb := GetDB()
 	if !dbAlive(sqlDb) {
 		return ServerError
 	}
 
-	// filing exists
+	// 1. filing exists check (single SELECT, uses PK index)
 	var cnt int64
 	if err := sqlDb.Model(&models.FormDataLegacy{}).
-		Where("filingid = ?", fid).Count(&cnt).Error; err != nil || cnt == 0 {
+		Where("filingid = ?", fid).
+		Limit(1).
+		Count(&cnt).Error; err != nil || cnt == 0 {
 		return ErrFilingNotFound
 	}
 
-	//.  TABLE  (many rows)
+	// collect every (lineNo, value) pair we need to upsert
+
+	var pairs []pair
+	now := time.Now()
+
+	// TABLE branch
 	if data.HasTableData && data.TableData != nil {
 		rows, err := castTableData(data.TableData)
 		if err != nil {
 			return err
 		}
 		cells := explodeTableCells(data.FieldNo, rows)
-		for formLineNo, cellValue := range cells {
-			tableCell := map[string]string{"ln": formLineNo, "vl": cellValue}
-			if err := updateSingleRecord(sqlDb, data, fid, uid, fundId,
-				true, tableCell); err != nil && !errors.Is(err, ErrNothingToDo) {
-				return err
-			}
+		for ln, vl := range cells {
+			pairs = append(pairs, pair{ln: ln, vl: vl})
 		}
-		return nil
-	}
-
-	//  BOOL / TEXT / OPTIONS  (single rows)
-	if data.Value != "" {
-		_ = updateSingleRecord(sqlDb, data, fid, uid, fundId, true, nil)
-	}
-	for i := range data.FieldData {
-		_ = updateSingleRecord(sqlDb, data, fid, uid, fundId, false, nil, i)
-	}
-	return nil
-}
-
-// updateSingleRecord  (transaction_db.go)
-func updateSingleRecord(sqlDb *gorm.DB, data *models.FieldItem,
-	fid, uid, fundId string, isOutside bool, tableCell map[string]string, fieldIndex ...int) error {
-
-	var targetLineNo, newValue string
-
-	switch {
-	case isOutside && data.HasTableData:
-		// TABLE – strings come from the captured map
-		if tableCell != nil {
-			targetLineNo = tableCell["ln"]
-			newValue = tableCell["vl"]
+	} else {
+		// single field
+		if data.Value != "" {
+			pairs = append(pairs, pair{ln: data.FieldNo, vl: data.Value})
 		}
-
-	case isOutside && !data.HasTableData:
-		// classic field-level value
-		targetLineNo = data.FieldNo
-		newValue = data.Value
-
-	default:
-		// inside FieldData line
-		idx := 0
-		if len(fieldIndex) > 0 {
-			idx = fieldIndex[0]
+		// FieldData slice
+		for _, fd := range data.FieldData {
+			pairs = append(pairs, pair{ln: fd.LineItemNo, vl: fd.Value})
 		}
-		targetLineNo = data.FieldData[idx].LineItemNo
-		newValue = data.FieldData[idx].Value
+	}
+	if len(pairs) == 0 {
+		return nil // nothing to do
 	}
 
-	now := time.Now()
-	// mark old row(s) not-current
+	// 2. one UPDATE to mark old rows non-current
 	if err := sqlDb.Model(&models.FormDataLegacy{}).
-		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ? AND isCurrentValue = ?",
-			fid, fundId, data.FieldNo, targetLineNo, true).
+		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND isCurrentValue = ? AND formLineNo IN ?",
+			fid, fundId, data.FieldNo, true, pairLineNos(pairs)).
 		Update("isCurrentValue", false).Error; err != nil {
 		return err
 	}
 
-	newRow := models.FormDataLegacy{
-		FilingID:       fid,
-		FundSeriesid:   fundId,
-		FieldNo:        data.FieldNo,
-		FormLineNo:     targetLineNo,
-		Value:          newValue,
-		IsCurrentValue: true,
-		CreatedBy:      uid,
-		CreatedAt:      now,
-		UpdatedBy:      uid,
+	// 3. bulk INSERT new rows
+	rowsToInsert := make([]models.FormDataLegacy, len(pairs))
+	for i, p := range pairs {
+		rowsToInsert[i] = models.FormDataLegacy{
+			FilingID:       fid,
+			FundSeriesid:   fundId,
+			FieldNo:        data.FieldNo,
+			FormLineNo:     p.ln,
+			Value:          p.vl,
+			IsCurrentValue: true,
+			CreatedBy:      uid,
+			CreatedAt:      now,
+			UpdatedBy:      uid,
+		}
 	}
-	return sqlDb.Create(&newRow).Error
+	// CreateInBatches sends one INSERT with multiple values
+	return sqlDb.CreateInBatches(rowsToInsert, 200).Error
+}
+
+// helper to extract []string of line numbers for the IN clause
+func pairLineNos(pp []pair) []string {
+	out := make([]string, len(pp))
+	for i, p := range pp {
+		out[i] = p.ln
+	}
+	return out
 }
 
 // explodeTableCells
