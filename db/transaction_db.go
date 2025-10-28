@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"form_pf_backend/models"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -194,118 +193,129 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 		return ServerError
 	}
 
-	//filing exists
+	// 1. filing exists
 	var cnt int64
 	if err := sqlDb.Model(&models.FormDataLegacy{}).
-		Where("filingid = ?", fid).Count(&cnt).Error; err != nil || cnt == 0 {
+		Where("filingid = ?", fid).Limit(1).Count(&cnt).Error; err != nil || cnt == 0 {
 		return ErrFilingNotFound
 	}
 
-	//  TABLE  (many rows)
+	// 2. collect every (fieldNo, formLineNo) we must revert
+	type target struct{ fieldNo, lineNo string }
+	targets := make([]target, 0, 8)
+
 	if data.HasTableData && data.TableData != nil {
 		rows, err := castTableData(data.TableData)
 		if err != nil {
 			return err
 		}
-		cells := explodeTableCells(data.FieldNo, rows)
-		for formLineNo := range cells {
-			// revert each cell independently
-			if err := revertSingleRecord(sqlDb, fid, uid, fundId,
-				data.FieldNo, formLineNo); err != nil && !errors.Is(err, ErrNothingToDo) {
-				return err
+		for ln := range explodeTableCells(data.FieldNo, rows) {
+			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: ln})
+		}
+	} else {
+		if data.Value != "" {
+			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: data.FieldNo})
+		}
+		for _, fd := range data.FieldData {
+			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: fd.LineItemNo})
+		}
+	}
+	if len(targets) == 0 {
+		return ErrNothingToDo
+	}
+
+	// 3. bulk fetch CURRENT rows (isCurrentValue = 1)
+	fieldNos := make([]string, len(targets))
+	lineNos := make([]string, len(targets))
+	for i, t := range targets {
+		fieldNos[i] = t.fieldNo
+		lineNos[i] = t.lineNo
+	}
+
+	type curRow struct {
+		ID         uint64    `gorm:"column:id"`
+		FieldNo    string    `gorm:"column:fieldNo"`
+		FormLineNo string    `gorm:"column:formLineNo"`
+		CreatedAt  time.Time `gorm:"column:createdAt"`
+	}
+	var currents []curRow
+
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
+		Select("id", "fieldNo", "formLineNo", "createdAt").
+		Where("filingid = ? AND fundSeriesId = ? AND isCurrentValue = ? AND fieldNo IN ? AND formLineNo IN ?",
+			fid, fundId, true, fieldNos, lineNos).
+		Find(&currents).Error; err != nil {
+		return err
+	}
+	if len(currents) == 0 {
+		return ErrNothingToDo
+	}
+
+	// 4. bulk fetch IMMEDIATE PREDECESSOR for every current row
+	//    (biggest created_at < current.createdAt per fieldNo+formLineNo)
+	type oldRow struct {
+		ID         uint64 `gorm:"column:id"`
+		FieldNo    string `gorm:"column:fieldNo"`
+		FormLineNo string `gorm:"column:formLineNo"`
+	}
+	var olds []oldRow
+
+	// build OR-clause of (fieldNo, formLineNo, createdAt) tuples
+	cond := sqlDb.Session(&gorm.Session{NewDB: true}) // fresh builder
+	for _, c := range currents {
+		cond = cond.Or("(fieldNo = ? AND formLineNo = ? AND createdAt < ?)",
+			c.FieldNo, c.FormLineNo, c.CreatedAt)
+	}
+
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
+		Select("id", "fieldNo", "formLineNo", "createdAt").
+		Where("filingid = ? AND fundSeriesId = ?", fid, fundId).
+		Where(cond).
+		Order("fieldNo, formLineNo, createdAt DESC"). // important
+		Find(&olds).Error; err != nil {
+		return err
+	}
+
+	// 5. match each current row to its immediate predecessor
+	reverts := make([]struct{ curID, oldID uint64 }, 0, len(currents))
+	for _, c := range currents {
+		for _, o := range olds {
+			if o.FieldNo == c.FieldNo && o.FormLineNo == c.FormLineNo && o.ID != c.ID {
+				reverts = append(reverts, struct{ curID, oldID uint64 }{curID: c.ID, oldID: o.ID})
+				break // first hit is the latest one because of ORDER BY
 			}
 		}
-		return nil
+	}
+	if len(reverts) == 0 {
+		return ErrNothingToDo
 	}
 
-	//BOOL / TEXT / OPTIONS  (single rows)
-	//outside value
-	if data.Value != "" {
-		if err := revertSingleRecord(sqlDb, fid, uid, fundId,
-			data.FieldNo, data.FieldNo); err != nil && !errors.Is(err, ErrNothingToDo) {
-			return err
-		}
+	// 6. bulk switch OFF current versions
+	curIDs := make([]uint64, len(reverts))
+	for i, p := range reverts {
+		curIDs[i] = p.curID
 	}
-	//inside field_data lines
-	for _, line := range data.FieldData {
-		if err := revertSingleRecord(sqlDb, fid, uid, fundId,
-			data.FieldNo, line.LineItemNo); err != nil && !errors.Is(err, ErrNothingToDo) {
-			return err
-		}
-	}
-	return nil
-}
-
-func revertSingleRecord(sqlDb *gorm.DB,
-	fid, uid, fundId, fieldNo, formLineNo string) error {
-
-	// 1. Find the current active record
-	type recordVersion struct {
-		ID        uint      `gorm:"column:id"`
-		CreatedAt time.Time `gorm:"column:createdAt"`
-	}
-
-	var currentRecord recordVersion
-	if err := sqlDb.
-		Model(&models.FormDataLegacy{}).
-		Select("id, createdAt").
-		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ? AND isCurrentValue = ?",
-			fid, fundId, fieldNo, formLineNo, true).
-		First(&currentRecord).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			log.Printf("[INFO] No active record found to revert")
-			return ErrNothingToDo
-		}
-		log.Printf("[ERROR] Failed to fetch current record: %v", err)
-		return err
-	}
-
-	// 2. Find the immediate previous record (by createdAt)
-	var previousRecord recordVersion
-	if err := sqlDb.
-		Model(&models.FormDataLegacy{}).
-		Select("id, createdAt").
-		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ? AND createdAt < ?",
-			fid, fundId, fieldNo, formLineNo, currentRecord.CreatedAt).
-		Order("createdAt DESC").
-		Limit(1).
-		First(&previousRecord).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			log.Printf("[INFO] No previous version found - this is the first record created")
-			return ErrNothingToDo
-		}
-		log.Printf("[ERROR] Failed to fetch previous record: %v", err)
-		return err
-	}
-
 	now := time.Now()
-
-	// 3. Deactivate the current version
-	if err := sqlDb.
-		Model(&models.FormDataLegacy{}).
-		Where("id = ?", currentRecord.ID).
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
+		Where("id IN ?", curIDs).
 		Updates(map[string]interface{}{
 			"isCurrentValue": false,
 			"updatedAt":      now,
 			"updatedBy":      uid,
 		}).Error; err != nil {
-		log.Printf("[ERROR] Failed to deactivate record id=%d: %v", currentRecord.ID, err)
 		return err
 	}
 
-	// 4. Activate the previous version
-	if err := sqlDb.
-		Model(&models.FormDataLegacy{}).
-		Where("id = ?", previousRecord.ID).
+	// 7. bulk switch ON previous versions
+	oldIDs := make([]uint64, len(reverts))
+	for i, p := range reverts {
+		oldIDs[i] = p.oldID
+	}
+	return sqlDb.Model(&models.FormDataLegacy{}).
+		Where("id IN ?", oldIDs).
 		Updates(map[string]interface{}{
 			"isCurrentValue": true,
 			"updatedAt":      now,
 			"updatedBy":      uid,
-		}).Error; err != nil {
-		log.Printf("[ERROR] Failed to activate record id=%d: %v", previousRecord.ID, err)
-		return err
-	}
-
-	log.Printf("[SUCCESS] Reverted from record id=%d to id=%d", currentRecord.ID, previousRecord.ID)
-	return nil
+		}).Error
 }
