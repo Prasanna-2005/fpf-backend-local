@@ -328,9 +328,7 @@ func TransformToSimpleResponse(filingID uint64) (*SimpleResponse, error) {
 				FundType: r.FundType,
 			}
 		}
-		if r.LineItemType == "bool" && r.Value != nil {
-			*r.Value = map[string]string{"true": "Y", "false": "N"}[*r.Value]
-		}
+
 		tagMap[r.FundID] = append(tagMap[r.FundID], TagInfo{
 			FundID:  r.FundID,
 			XMLTags: string(r.XmlTags),
