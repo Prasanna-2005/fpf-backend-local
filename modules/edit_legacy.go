@@ -304,18 +304,33 @@ func TransformToSimpleResponse(filingID uint64) (*SimpleResponse, error) {
 		return nil, fmt.Errorf("no data found for filingID %d", filingID)
 	}
 
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].FundName != rows[j].FundName {
+			return rows[i].FundName < rows[j].FundName
+		}
+		if rows[i].FieldNo != rows[j].FieldNo {
+			return rows[i].FieldNo < rows[j].FieldNo
+		}
+		return rows[i].FormLineNo < rows[j].FormLineNo
+	})
+
 	fundMap := make(map[string]FundInfo)
 	tagMap := make(map[string][]TagInfo)
 
 	for _, r := range rows {
-		if _, exists := fundMap[r.FundID]; !exists {
+		if r.Value == nil || *r.Value == "" {
+			continue
+		}
+		if _, ok := fundMap[r.FundID]; !ok {
 			fundMap[r.FundID] = FundInfo{
 				FundID:   r.FundID,
 				FundName: r.FundName,
 				FundType: r.FundType,
 			}
 		}
-
+		if r.LineItemType == "bool" && r.Value != nil {
+			*r.Value = map[string]string{"true": "Y", "false": "N"}[*r.Value]
+		}
 		tagMap[r.FundID] = append(tagMap[r.FundID], TagInfo{
 			FundID:  r.FundID,
 			XMLTags: string(r.XmlTags),
@@ -323,16 +338,19 @@ func TransformToSimpleResponse(filingID uint64) (*SimpleResponse, error) {
 		})
 	}
 
-	fundInfo := make([]FundInfo, 0, len(fundMap))
-	tagsInfo := make([][]TagInfo, 0, len(tagMap))
+	fundSlc := make([]FundInfo, 0, len(fundMap))
+	tagSlc := make([][]TagInfo, 0, len(tagMap))
 
-	for fundID, f := range fundMap {
-		fundInfo = append(fundInfo, f)
-		tagsInfo = append(tagsInfo, tagMap[fundID])
+	for _, r := range rows {
+		if fi, ok := fundMap[r.FundID]; ok {
+			fundSlc = append(fundSlc, fi)
+			tagSlc = append(tagSlc, tagMap[r.FundID])
+			delete(fundMap, r.FundID)
+		}
 	}
 
 	return &SimpleResponse{
-		FundInfo: fundInfo,
-		TagsInfo: tagsInfo,
+		FundInfo: fundSlc,
+		TagsInfo: tagSlc,
 	}, nil
 }

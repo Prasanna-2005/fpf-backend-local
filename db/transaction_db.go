@@ -63,7 +63,6 @@ func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 			"d.filingId = ? AND d.isCurrentValue = 1", filingID).
 		Joins("INNER JOIN feg_funds f ON f.fegFundId = d.fundSeriesId").
 		Order(`d.fundSeriesId IS NULL, d.fundSeriesId, fld.fieldNo, fld.formLineNo`). // NULLs last, then by fund, then field/line
-		Limit(400).
 		Find(&rows).Error
 	return rows, err
 }
