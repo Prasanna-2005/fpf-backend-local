@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"form_pf_backend/models"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,6 +36,8 @@ func loadFundCache() {
 	fundCache = m
 }
 
+type pair struct{ ln, vl string }
+
 // GetFundBrief returns fundID & fundName for a fundSeriesId
 func GetFundBrief(seriesID string) (fundID, fundName string, err error) {
 	onceFundCache.Do(loadFundCache)
@@ -48,261 +51,270 @@ func GetFundBrief(seriesID string) (fundID, fundName string, err error) {
 func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
 	var rows []models.FormDatum
 	err := GetDB().
-		Table("form_fields_ms fld").
+		Table("form_fields_ms_legacy fld").
 		Select(`d.createdAt, d.createdBy, d.updatedAt, d.updatedBy, d.value,
-		        d.fundSeriesId, d.date,
+		        d.fundSeriesId,
 		        f.fundName, f.fundType,
-		        fld.fieldNo, fld.formLineNo,fld.fieldHeading, fld.lineText, fld.dataType,
-		        fld.isMultipleAdd, fld.isMSQ, fld.isMCQ, fld.requiresDate,
+		        fld.fieldNo, fld.formLineNo, fld.lineText, fld.dataType,
+		        fld.isMultipleAdd, fld.isMSQ, fld.isMCQ,
 		        fld.isTableData, fld.disclaimerText, fld.xmlTags`).
-		Joins("LEFT JOIN form_data d ON fld.fieldNo = d.fieldNo AND "+
+		Joins("LEFT JOIN form_data_legacy d ON fld.fieldNo = d.fieldNo AND "+
 			"fld.formLineNo = d.formLineNo AND "+
 			"d.filingId = ? AND d.isCurrentValue = 1", filingID).
 		Joins("INNER JOIN feg_funds f ON f.fegFundId = d.fundSeriesId").
 		Order(`d.fundSeriesId IS NULL, d.fundSeriesId, fld.fieldNo, fld.formLineNo`). // NULLs last, then by fund, then field/line
-		Limit(400).
 		Find(&rows).Error
 	return rows, err
 }
 
-func UpdateLineItem(data *models.ResponseField, fid, uid, fundId string) error {
-	sqlDb := GetDB()
-	ok := dbAlive(sqlDb)
-	if !ok {
-		return ServerError
-	}
-
-	var count int64
-	err := sqlDb.Model(&models.FormDataLegacy{}).Where("filingid = ?", fid).Count(&count).Error
-	if err != nil {
-		return err
-	}
-	if count == 0 {
-		return ErrFilingNotFound
-	}
-
-	// First check outside value case - formLineNo = fieldNo
-	// Skip if outside value is empty or null
-	hasOutsideValue := false
-
-	// Replace these field names with actual ones from ResponseField model
-	if data.Value != nil { // Assuming there's a Value field for outside values
-		if v, ok := data.Value.(string); ok && v != "" {
-			hasOutsideValue = true
-		}
-	}
-
-	if hasOutsideValue {
-		err := updateSingleRecord(sqlDb, data, fid, uid, fundId, true) // true for outside value
-		if err != nil {
-			return err
-		}
-	}
-
-	// Then check all FieldData items
-	for i := range data.FieldData {
-		err := updateSingleRecord(sqlDb, data, fid, uid, fundId, false, i) // false for inside, with index
-		if err != nil || errors.Is(err, ErrNothingToDo) {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func updateSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
-	fmt.Println(uid)
-	var targetLineNo string
-	var value, dateValue interface{}
-
-	if isOutside {
-		// Outside value case - formLineNo = fieldNo
-		targetLineNo = data.FieldNo
-		value = data.Value
-		// dateValue = data.OutsideDateValue // uncomment if field exists
-	} else {
-		// Inside FieldData case
-		idx := 0
-		if len(fieldIndex) > 0 {
-			idx = fieldIndex[0]
-		}
-		targetLineNo = data.FieldData[idx].LineItemNo
-		value = data.FieldData[idx].Value
-		dateValue = data.FieldData[idx].DateValue
-	}
-	// Extract new values
-	var newValue, newDate string
-
-	if value != nil {
-		if v, ok := value.(string); ok && v != "" {
-			newValue = v
-		}
-	}
-	if dateValue != nil {
-		if dv, ok := dateValue.(string); ok && dv != "" {
-			newDate = dv
-		}
-	}
-	fmt.Println(newDate)
-	// Find the existing record
-	var old models.FormDataLegacy
-	err := sqlDb.Where(map[string]interface{}{
-		"filingid":       fid,
-		"fundSeriesId":   fundId,
-		"fieldNo":        data.FieldNo,
-		"formLineNo":     targetLineNo,
-		"isCurrentValue": true,
-	}).First(&old).Error
-
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return gorm.ErrRecordNotFound
-		}
-		return err
-	}
-
-	// Check if there's actually something to update
-	// valueSame := (old.Value == nil && newValue == nil) ||
-	// 	(old.Value != nil && newValue != nil && *old.Value == *newValue)
-	// dateSame := (old.Date == nil && newDate == nil) ||
-	// 	(old.Date != nil && newDate != nil && *old.Date == *newDate)
-
-	// if valueSame && dateSame {
-	// 	return ErrNothingToDo
-	// }
-
-	// Update existing record to mark as not current
-	now := time.Now()
-	if err := sqlDb.Model(&old).
-		Select("isCurrentValue", "updatedAt", "updatedBy").
-		Updates(models.FormDataLegacy{
-			IsCurrentValue: false,
-			UpdatedAt:      now,
-			UpdatedBy:      uid,
-		}).Error; err != nil {
-		return err
-	}
-
-	// Create new record with updated values
-	newRow := models.FormDataLegacy{
-		FilingID:       fid,
-		FundSeriesid:   fundId,
-		FieldNo:        data.FieldNo,
-		FormLineNo:     targetLineNo,
-		Value:          newValue,
-		IsCurrentValue: true,
-		CreatedBy:      uid,
-		CreatedAt:      now,
-		UpdatedBy:      uid,
-	}
-
-	return sqlDb.Create(&newRow).Error
-}
-
-func RevertLineItem(data *models.ResponseField, fid, uid, fundId string) error {
+// UpdateLineItemFast – same signature as before, but no updateSingleRecord
+func UpdateLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	sqlDb := GetDB()
 	if !dbAlive(sqlDb) {
 		return ServerError
 	}
 
-	var count int64
-	if err := sqlDb.Model(&models.FormDataLegacy{}).Where("filingId = ?", fid).Count(&count).Error; err != nil {
-		return err
-	}
-	if count == 0 {
+	// 1. filing exists check (single SELECT, uses PK index)
+	var cnt int64
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
+		Where("filingid = ?", fid).
+		Limit(1).
+		Count(&cnt).Error; err != nil || cnt == 0 {
 		return ErrFilingNotFound
 	}
 
-	//outside value handling
-	if data.Value != nil {
-		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, true); err != nil && !errors.Is(err, ErrNothingToDo) {
-			return err
-		}
-	}
+	// collect every (lineNo, value) pair we need to upsert
 
-	for i := range data.FieldData {
-		if err := RevertSingleRecord(sqlDb, data, fid, uid, fundId, false, i); err != nil && !errors.Is(err, ErrNothingToDo) {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func RevertSingleRecord(sqlDb *gorm.DB, data *models.ResponseField, fid, uid, fundId string, isOutside bool, fieldIndex ...int) error {
-	var targetLineNo string
-
-	if isOutside {
-		targetLineNo = data.FieldNo
-	} else {
-		idx := 0
-		if len(fieldIndex) > 0 {
-			idx = fieldIndex[0]
-		}
-		targetLineNo = data.FieldData[idx].LineItemNo
-	}
-
-	// --- Begin transaction ---
-	tx := sqlDb.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	var rows []models.FormDataLegacy
-	if err := tx.Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
-		fid, fundId, data.FieldNo, targetLineNo).
-		Order("createdAt DESC").
-		Find(&rows).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	if len(rows) == 0 {
-		tx.Rollback()
-		return ErrNothingToDo
-	}
-
-	var currentIdx int = -1
-	for i, r := range rows {
-		if r.IsCurrentValue {
-			currentIdx = i
-			break
-		}
-	}
-	if currentIdx == -1 {
-		currentIdx = 0
-	}
-
-	if currentIdx+1 >= len(rows) {
-		tx.Rollback()
-		return ErrNothingToDo
-	}
-
-	prev := &rows[currentIdx+1]
+	var pairs []pair
 	now := time.Now()
 
-	//  mark all rows for this field as not current
-	if err := tx.Model(&models.FormDataLegacy{}).
-		Where("filingId = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ?",
-			fid, fundId, data.FieldNo, targetLineNo).
+	// TABLE branch
+	if data.HasTableData && data.TableData != nil {
+		rows, err := castTableData(data.TableData)
+		if err != nil {
+			return err
+		}
+		cells := explodeTableCells(data.FieldNo, rows)
+		for ln, vl := range cells {
+			pairs = append(pairs, pair{ln: ln, vl: vl})
+		}
+	} else {
+		// single field
+		if data.Value != "" {
+			pairs = append(pairs, pair{ln: data.FieldNo, vl: data.Value})
+		}
+		// FieldData slice
+		for _, fd := range data.FieldData {
+			pairs = append(pairs, pair{ln: fd.LineItemNo, vl: fd.Value})
+		}
+	}
+	if len(pairs) == 0 {
+		return nil // nothing to do
+	}
+
+	// 2. one UPDATE to mark old rows non-current
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
+		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND isCurrentValue = ? AND formLineNo IN ?",
+			fid, fundId, data.FieldNo, true, pairLineNos(pairs)).
 		Update("isCurrentValue", false).Error; err != nil {
-		tx.Rollback()
 		return err
 	}
 
-	// mark the previous record as current
-	if err := tx.Model(&models.FormDataLegacy{}).
-		Where("id = ?", prev.ID).
+	// 3. bulk INSERT new rows
+	rowsToInsert := make([]models.FormDataLegacy, len(pairs))
+	for i, p := range pairs {
+		rowsToInsert[i] = models.FormDataLegacy{
+			FilingID:       fid,
+			FundSeriesid:   fundId,
+			FieldNo:        data.FieldNo,
+			FormLineNo:     p.ln,
+			Value:          p.vl,
+			IsCurrentValue: true,
+			CreatedBy:      uid,
+			CreatedAt:      now,
+			UpdatedBy:      uid,
+		}
+	}
+	// CreateInBatches sends one INSERT with multiple values
+	return sqlDb.CreateInBatches(rowsToInsert, 200).Error
+}
+
+// helper to extract []string of line numbers for the IN clause
+func pairLineNos(pp []pair) []string {
+	out := make([]string, len(pp))
+	for i, p := range pp {
+		out[i] = p.ln
+	}
+	return out
+}
+
+// explodeTableCells
+func explodeTableCells(fieldNo string, rows []map[string]interface{}) map[string]string {
+	out := make(map[string]string, len(rows)*4)
+	for _, row := range rows {
+		rk, ok := row["s.name"].(string)
+		if !ok || rk == "" {
+			continue
+		}
+		for ck, val := range row {
+			if ck == "s.name" || ck == "s.text" {
+				continue // meta keys
+			}
+			formLineNo := fmt.Sprintf("%s_%s_%s", fieldNo, strings.TrimSpace(rk), ck)
+			if v, ok := val.(string); ok {
+				out[formLineNo] = v
+			}
+		}
+	}
+	return out
+}
+
+// safe table extractor
+func castTableData(raw interface{}) ([]map[string]interface{}, error) {
+	slice, ok := raw.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("table_data is not an array")
+	}
+	out := make([]map[string]interface{}, 0, len(slice))
+	for _, v := range slice {
+		row, ok := v.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("table row is not an object")
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
+	sqlDb := GetDB()
+	if !dbAlive(sqlDb) {
+		return ServerError
+	}
+
+	// 1. filing exists
+	var cnt int64
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
+		Where("filingid = ?", fid).Limit(1).Count(&cnt).Error; err != nil || cnt == 0 {
+		return ErrFilingNotFound
+	}
+
+	// 2. collect every (fieldNo, formLineNo) we must revert
+	type target struct{ fieldNo, lineNo string }
+	targets := make([]target, 0, 8)
+
+	if data.HasTableData && data.TableData != nil {
+		rows, err := castTableData(data.TableData)
+		if err != nil {
+			return err
+		}
+		for ln := range explodeTableCells(data.FieldNo, rows) {
+			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: ln})
+		}
+	} else {
+		if data.Value != "" {
+			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: data.FieldNo})
+		}
+		for _, fd := range data.FieldData {
+			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: fd.LineItemNo})
+		}
+	}
+	if len(targets) == 0 {
+		return ErrNothingToDo
+	}
+
+	// 3. bulk fetch CURRENT rows (isCurrentValue = 1)
+	fieldNos := make([]string, len(targets))
+	lineNos := make([]string, len(targets))
+	for i, t := range targets {
+		fieldNos[i] = t.fieldNo
+		lineNos[i] = t.lineNo
+	}
+
+	type curRow struct {
+		ID         uint64    `gorm:"column:id"`
+		FieldNo    string    `gorm:"column:fieldNo"`
+		FormLineNo string    `gorm:"column:formLineNo"`
+		CreatedAt  time.Time `gorm:"column:createdAt"`
+	}
+	var currents []curRow
+
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
+		Select("id", "fieldNo", "formLineNo", "createdAt").
+		Where("filingid = ? AND fundSeriesId = ? AND isCurrentValue = ? AND fieldNo IN ? AND formLineNo IN ?",
+			fid, fundId, true, fieldNos, lineNos).
+		Find(&currents).Error; err != nil {
+		return err
+	}
+	if len(currents) == 0 {
+		return ErrNothingToDo
+	}
+
+	// 4. bulk fetch IMMEDIATE PREDECESSOR for every current row
+	//    (biggest created_at < current.createdAt per fieldNo+formLineNo)
+	type oldRow struct {
+		ID         uint64 `gorm:"column:id"`
+		FieldNo    string `gorm:"column:fieldNo"`
+		FormLineNo string `gorm:"column:formLineNo"`
+	}
+	var olds []oldRow
+
+	// build OR-clause of (fieldNo, formLineNo, createdAt) tuples
+	cond := sqlDb.Session(&gorm.Session{NewDB: true}) // fresh builder
+	for _, c := range currents {
+		cond = cond.Or("(fieldNo = ? AND formLineNo = ? AND createdAt < ?)",
+			c.FieldNo, c.FormLineNo, c.CreatedAt)
+	}
+
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
+		Select("id", "fieldNo", "formLineNo", "createdAt").
+		Where("filingid = ? AND fundSeriesId = ?", fid, fundId).
+		Where(cond).
+		Order("fieldNo, formLineNo, createdAt DESC"). // important
+		Find(&olds).Error; err != nil {
+		return err
+	}
+
+	// 5. match each current row to its immediate predecessor
+	reverts := make([]struct{ curID, oldID uint64 }, 0, len(currents))
+	for _, c := range currents {
+		for _, o := range olds {
+			if o.FieldNo == c.FieldNo && o.FormLineNo == c.FormLineNo && o.ID != c.ID {
+				reverts = append(reverts, struct{ curID, oldID uint64 }{curID: c.ID, oldID: o.ID})
+				break // first hit is the latest one because of ORDER BY
+			}
+		}
+	}
+	if len(reverts) == 0 {
+		return ErrNothingToDo
+	}
+
+	// 6. bulk switch OFF current versions
+	curIDs := make([]uint64, len(reverts))
+	for i, p := range reverts {
+		curIDs[i] = p.curID
+	}
+	now := time.Now()
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
+		Where("id IN ?", curIDs).
+		Updates(map[string]interface{}{
+			"isCurrentValue": false,
+			"updatedAt":      now,
+			"updatedBy":      uid,
+		}).Error; err != nil {
+		return err
+	}
+
+	// 7. bulk switch ON previous versions
+	oldIDs := make([]uint64, len(reverts))
+	for i, p := range reverts {
+		oldIDs[i] = p.oldID
+	}
+	return sqlDb.Model(&models.FormDataLegacy{}).
+		Where("id IN ?", oldIDs).
 		Updates(map[string]interface{}{
 			"isCurrentValue": true,
 			"updatedAt":      now,
 			"updatedBy":      uid,
-		}).Error; err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	return tx.Commit().Error
+		}).Error
 }

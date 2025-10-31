@@ -49,7 +49,25 @@ func (om *OrderedMap) MarshalJSON() ([]byte, error) {
 	return []byte(result), nil
 }
 
-/* ---------- public entry point ---------- */
+func optionSlice(dataType string) []string {
+	if dataType == "bool" {
+		return []string{"YES", "NO"}
+	}
+	return nil
+}
+
+func headingFor(fieldNo string) string {
+	switch fieldNo {
+	case "5", "6", "7":
+		return "Item A. Reporting fund identifying information"
+	case "8", "9", "10", "11", "12", "13", "14", "15", "16", "17":
+		return "Item B. Assets, financing and investor concentration"
+	default:
+		return ""
+	}
+}
+
+// response entry point
 func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) {
 	meta, err := db.FetchFormFieldMSLegacy()
 	if err != nil {
@@ -65,6 +83,7 @@ func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) 
 			fmt.Errorf("extraction is still in process")
 	}
 
+	// valueMap is now 2-level: fundSeriesid -> formLineNo -> value
 	valueMap, err := db.FetchCurrentValuesForFiling(filingID)
 	if err != nil {
 		return nil, err
@@ -259,20 +278,77 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 	return fItem
 }
 
-func optionSlice(dataType string) []string {
-	if dataType == "bool" {
-		return []string{"YES", "NO"}
-	}
-	return nil
+type FundInfo struct {
+	FundID   string `json:"fund_id"`
+	FundName string `json:"fund_name"`
+	FundType string `json:"fund_type"`
 }
 
-func headingFor(fieldNo string) string {
-	switch fieldNo {
-	case "5", "6", "7":
-		return "Item A. Reporting fund identifying information"
-	case "8", "9", "10", "11", "12", "13", "14", "15", "16", "17":
-		return "Item B. Assets, financing and investor concentration"
-	default:
-		return ""
+type TagInfo struct {
+	FundID  string      `json:"fund_id"`
+	XMLTags string      `json:"xmltags"`
+	Value   interface{} `json:"value"`
+}
+
+type SimpleResponse struct {
+	FundInfo []FundInfo  `json:"fund_info"`
+	TagsInfo [][]TagInfo `json:"tags_info"`
+}
+
+func TransformToSimpleResponse(filingID uint64) (*SimpleResponse, error) {
+	rows, err := db.FetchFormDataByFiling(filingID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch form data: %w", err)
 	}
+	if len(rows) == 0 {
+		return nil, fmt.Errorf("no data found for filingID %d", filingID)
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].FundName != rows[j].FundName {
+			return rows[i].FundName < rows[j].FundName
+		}
+		if rows[i].FieldNo != rows[j].FieldNo {
+			return rows[i].FieldNo < rows[j].FieldNo
+		}
+		return rows[i].FormLineNo < rows[j].FormLineNo
+	})
+
+	fundMap := make(map[string]FundInfo)
+	tagMap := make(map[string][]TagInfo)
+
+	for _, r := range rows {
+		if r.Value == nil || *r.Value == "" {
+			continue
+		}
+		if _, ok := fundMap[r.FundID]; !ok {
+			fundMap[r.FundID] = FundInfo{
+				FundID:   r.FundID,
+				FundName: r.FundName,
+				FundType: r.FundType,
+			}
+		}
+
+		tagMap[r.FundID] = append(tagMap[r.FundID], TagInfo{
+			FundID:  r.FundID,
+			XMLTags: string(r.XmlTags),
+			Value:   r.Value,
+		})
+	}
+
+	fundSlc := make([]FundInfo, 0, len(fundMap))
+	tagSlc := make([][]TagInfo, 0, len(tagMap))
+
+	for _, r := range rows {
+		if fi, ok := fundMap[r.FundID]; ok {
+			fundSlc = append(fundSlc, fi)
+			tagSlc = append(tagSlc, tagMap[r.FundID])
+			delete(fundMap, r.FundID)
+		}
+	}
+
+	return &SimpleResponse{
+		FundInfo: fundSlc,
+		TagsInfo: tagSlc,
+	}, nil
 }

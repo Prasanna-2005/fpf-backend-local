@@ -1,12 +1,14 @@
 package models
 
-import "time"
+import (
+	"time"
+)
 
 type FormDataLegacy struct {
-	ID             uint64    `gorm:"primaryKey;autoIncrement"`
-	FilingID       string    `gorm:"column:filingid"`
+	ID             uint64    `gorm:"primaryKey;autoIncrement,column:id"`
+	FilingID       string    `gorm:"column:filingId"`
 	FieldNo        string    `gorm:"column:fieldNo"`
-	FundSeriesid   string    `gorm:"column:fundSeriesid"`
+	FundSeriesid   string    `gorm:"column:fundSeriesId"`
 	FormLineNo     string    `gorm:"column:formLineNo"`
 	Value          string    `gorm:"column:value"`
 	CreatedBy      string    `gorm:"column:createdBy"`
@@ -66,8 +68,9 @@ type LineDetail struct {
 	LineItemNo     string      `json:"line_item_no,omitempty"`
 	LineItemType   string      `json:"line_item_type,omitempty"`
 	LineText       string      `json:"line_text,omitempty"`
-	Value          string      `json:"value,omitempty"`
+	Value          string      `json:"value"`
 	Options        []string    `json:"options,omitempty"`
+	HasTableData   bool        `json:"has_table_data"`
 	TableData      interface{} `json:"table_data,omitempty"`
 	RequireDate    bool        `json:"require_date,omitempty"`
 	DateValue      string      `json:"date_value,omitempty"`
