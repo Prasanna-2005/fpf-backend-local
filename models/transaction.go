@@ -20,9 +20,9 @@ type FormField struct {
 	IsTableData    bool       `gorm:"column:isTableData;not null;default:0"`
 	DisclaimerText *string    `gorm:"column:disclaimerText;type:text"` // nullable
 	CreatedAt      time.Time  `gorm:"column:createdAt;not null;autoCreateTime"`
-	CreatedBy      int64      `gorm:"column:createdBy;not null"`
+	CreatedBy      string     `gorm:"column:createdBy;not null"`
 	UpdatedAt      *time.Time `gorm:"column:updatedAt;autoUpdateTime"` // nullable
-	UpdatedBy      *int64     `gorm:"column:updatedBy"`                // nullable
+	UpdatedBy      string     `gorm:"column:updatedBy"`                // nullable
 	// UI helpers
 	HasFieldItemText bool           `gorm:"column:has_field_item_text"`
 	HasTableData     bool           `gorm:"column:has_table_data"`
@@ -33,16 +33,16 @@ type FormField struct {
 }
 
 type FormDatum struct {
-	ID               uint64         `gorm:"column:id;primaryKey"                           json:"id"`
-	FilingID         uint64         `gorm:"column:filingId;not null"                       json:"filing_id"`
+	ID               string         `gorm:"column:id;primaryKey"                           json:"id"`
+	FilingID         string         `gorm:"column:filingId;not null"                       json:"filing_id"`
 	FieldNo          string         `gorm:"column:fieldNo;type:varchar(255);not null"      json:"field_no"`
 	FormLineNo       string         `gorm:"column:formLineNo;type:varchar(255);not null"   json:"form_line_no"`
 	Value            *string        `gorm:"column:value;type:varchar(255)"                 json:"value,omitempty"`
 	IsMultipleAdd    bool           `gorm:"column:isMultipleAdd"                            json:"is_multiple_add"`
 	CreatedAt        time.Time      `gorm:"column:createdAt;not null;autoCreateTime"       json:"created_at"`
-	CreatedBy        uint64         `gorm:"column:createdBy;not null"                      json:"created_by"`
+	CreatedBy        string         `gorm:"column:createdBy;not null"                      json:"created_by"`
 	UpdatedAt        *time.Time     `gorm:"column:updatedAt;autoUpdateTime"                json:"updated_at,omitempty"`
-	UpdatedBy        *int64         `gorm:"column:updatedBy"                               json:"updated_by,omitempty"`
+	UpdatedBy        string         `gorm:"column:updatedBy"                               json:"updated_by,omitempty"`
 	IsCurrentValue   bool           `gorm:"column:isCurrentValue"                          json:"is_current_value"`
 	FundID           string         `gorm:"column:fundSeriesId"                            json:"fund_series_id"`
 	FundName         string         `gorm:"column:fundName"                                json:"fund_name"`
@@ -99,7 +99,7 @@ type FundEntry struct {
 }
 
 type FormData struct {
-	ID             uint64     `gorm:"column:id;primaryKey;autoIncrement"`
+	ID             string     `gorm:"column:id;primaryKey;autoIncrement"`
 	FilingID       string     `gorm:"column:filingid;type:varchar(255);not null"` // BIGINT(20) - string
 	FundSeriesID   string     `gorm:"column:fundSeriesId;type:varchar(50);not null"`
 	FieldNo        string     `gorm:"column:fieldNo;type:varchar(255);not null"`

@@ -472,7 +472,7 @@ func VerifyAccessToken(token string) (models.User, error) {
 		return models.User{}, fmt.Errorf("missing or invalid email claim")
 	}
 
-	cid, ok := claims["cid"].(float64)
+	cid, ok := claims["cid"].(string)
 	if !ok {
 		logger.Log("ERROR", "VerifyAccessToken: token missing clientId claim")
 		return models.User{}, fmt.Errorf("missing or invalid clientId claim")
@@ -499,7 +499,7 @@ func VerifyAccessToken(token string) (models.User, error) {
 		ID:         userId,
 		AccessType: accessType,
 		Email:      email,
-		ClientID:   int(cid),
+		ClientID:   cid,
 	}
 
 	logger.Log("INFO", "VerifyAccessToken: successfully verified access token for user "+userId)

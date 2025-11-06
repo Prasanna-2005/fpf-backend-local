@@ -109,10 +109,10 @@ func SubmitFiles(c *gin.Context) {
 	if err != nil {
 		logger.Log("WARNING", err.Error())
 	}
-	uid, err := strconv.Atoi(req.UserID)
-	if err != nil {
-		logger.Log("ERROR", err.Error())
-	}
+	uid := req.UserID
+	// if err != nil {
+	// 	logger.Log("ERROR", err.Error())
+	// }
 
 	if req.NewFiling {
 		filingId, err := db.CreateTracker(&req, cid)

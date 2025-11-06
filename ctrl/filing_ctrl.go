@@ -31,7 +31,7 @@ func GetFilings(c *gin.Context) {
 	}
 
 	type respFiling struct {
-		ID          int       `json:"id"`
+		ID          string    `json:"id"`
 		FilingName  string    `json:"filing_name"`
 		PreparedBy  string    `json:"prepared_by"`
 		IsSubmitted bool      `json:"is_submitted"`

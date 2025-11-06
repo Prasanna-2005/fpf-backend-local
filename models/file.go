@@ -3,7 +3,7 @@ package models
 import "time"
 
 type FilingTracker struct {
-	Id          int       `gorm:"primaryKey;autoIncrement;column:id"`
+	Id          string    `gorm:"primaryKey;autoIncrement;column:id"`
 	FilingName  string    `gorm:"type:varchar(50);not null;column:filingName"`
 	ClientCode  string    `gorm:"type:varchar(20);not null;column:clientCode"`
 	UploadCount int       `gorm:"not null;column:uploadCount"`
@@ -20,7 +20,7 @@ func (FilingTracker) TableName() string {
 }
 
 type FilingStatus struct {
-	Id                int       `gorm:"column:id;primaryKey;autoIncrement"`
+	Id                string    `gorm:"column:id;primaryKey;autoIncrement"`
 	FilingID          string    `gorm:"column:filing_id"`
 	ExtractionStatus  string    `gorm:"column:extraction_status"`
 	UpdatedAt         time.Time `gorm:"column:updated_at"`

@@ -35,12 +35,12 @@ func BatchSaveFileMappings(rows []models.FileMapper) error {
 	return GetDB().CreateInBatches(rows, 100).Error
 }
 
-func CreateTracker(req *models.SubmitReq, cid string) (int, error) {
+func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
 	uid, err := strconv.Atoi(req.UserID)
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 	row := models.FilingTracker{
 		ClientCode:  cid,
@@ -52,12 +52,12 @@ func CreateTracker(req *models.SubmitReq, cid string) (int, error) {
 		CreatedBy:   uid,
 	}
 	if err := sqlDb.Create(&row).Error; err != nil {
-		return 0, err
+		return "", err
 	}
-	return int(row.Id), nil
+	return row.Id, nil
 }
 
-func CreateMapper(req *models.SubmitReq, filingId int) ([]models.FileMapper, error) {
+func CreateMapper(req *models.SubmitReq, filingId string) ([]models.FileMapper, error) {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
 	identities, err := GetAllFileMapId()
@@ -66,7 +66,7 @@ func CreateMapper(req *models.SubmitReq, filingId int) ([]models.FileMapper, err
 	}
 
 	// build a quick look-up:  shortCode -> ID
-	idByShort := make(map[string]int, len(identities))
+	idByShort := make(map[string]string, len(identities))
 	for _, id := range identities {
 		idByShort[id.ShortCode] = id.ID
 	}
@@ -117,7 +117,7 @@ func UpdateTracker(tracker *models.FilingTracker, req *models.SubmitReq) error {
 }
 
 // UpdateMapper updates every mapper row that belongs to the given filingId:
-func UpdateMapper(filingId int, req *models.SubmitReq) error {
+func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	// 1. build lookup: short-code -> new file data
 	newData := make(map[string]struct{ fileName, filePath string })
 	for _, m := range req.FileMappings {
