@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -124,6 +125,7 @@ func UpdateLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	rowsToInsert := make([]models.FormDataLegacy, len(pairs))
 	for i, p := range pairs {
 		rowsToInsert[i] = models.FormDataLegacy{
+			ID:             uuid.New().String(),
 			FilingID:       fid,
 			FundSeriesid:   fundId,
 			FieldNo:        data.FieldNo,
@@ -232,7 +234,7 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	}
 
 	type curRow struct {
-		ID         uint64    `gorm:"column:id"`
+		ID         string    `gorm:"column:id"`
 		FieldNo    string    `gorm:"column:fieldNo"`
 		FormLineNo string    `gorm:"column:formLineNo"`
 		CreatedAt  time.Time `gorm:"column:createdAt"`
@@ -253,7 +255,7 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	// 4. bulk fetch IMMEDIATE PREDECESSOR for every current row
 	//    (biggest created_at < current.createdAt per fieldNo+formLineNo)
 	type oldRow struct {
-		ID         uint64 `gorm:"column:id"`
+		ID         string `gorm:"column:id"`
 		FieldNo    string `gorm:"column:fieldNo"`
 		FormLineNo string `gorm:"column:formLineNo"`
 	}
@@ -276,11 +278,11 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	}
 
 	// 5. match each current row to its immediate predecessor
-	reverts := make([]struct{ curID, oldID uint64 }, 0, len(currents))
+	reverts := make([]struct{ curID, oldID string }, 0, len(currents))
 	for _, c := range currents {
 		for _, o := range olds {
 			if o.FieldNo == c.FieldNo && o.FormLineNo == c.FormLineNo && o.ID != c.ID {
-				reverts = append(reverts, struct{ curID, oldID uint64 }{curID: c.ID, oldID: o.ID})
+				reverts = append(reverts, struct{ curID, oldID string }{curID: c.ID, oldID: o.ID})
 				break // first hit is the latest one because of ORDER BY
 			}
 		}
@@ -290,7 +292,7 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	}
 
 	// 6. bulk switch OFF current versions
-	curIDs := make([]uint64, len(reverts))
+	curIDs := make([]string, len(reverts))
 	for i, p := range reverts {
 		curIDs[i] = p.curID
 	}
@@ -306,7 +308,7 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	}
 
 	// 7. bulk switch ON previous versions
-	oldIDs := make([]uint64, len(reverts))
+	oldIDs := make([]string, len(reverts))
 	for i, p := range reverts {
 		oldIDs[i] = p.oldID
 	}
