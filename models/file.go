@@ -3,16 +3,16 @@ package models
 import "time"
 
 type FilingTracker struct {
-	Id          string    `gorm:"primaryKey;autoIncrement;column:id"`
+	Id          string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
 	FilingName  string    `gorm:"type:varchar(50);not null;column:filingName"`
 	ClientCode  string    `gorm:"type:varchar(20);not null;column:clientCode"`
 	UploadCount int       `gorm:"not null;column:uploadCount"`
 	IsSubmitted bool      `gorm:"not null;column:isSubmitted"`
 	IsDeleted   bool      `gorm:"not null;column:isDeleted"`
 	CreatedAt   time.Time `gorm:"not null;column:createdAt"`
-	CreatedBy   int       `gorm:"not null;column:createdBy"`
+	CreatedBy   string    `gorm:"not null;column:createdBy"`
 	UpdatedAt   time.Time `gorm:"column:updatedAt"`
-	UpdatedBy   int       `gorm:"column:updatedBy"`
+	UpdatedBy   string    `gorm:"column:updatedBy"`
 }
 
 func (FilingTracker) TableName() string {
