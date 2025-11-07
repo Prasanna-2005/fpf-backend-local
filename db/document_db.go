@@ -1,10 +1,11 @@
 package db
 
 import (
+	"fmt"
 	"form_pf_backend/models"
-	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -38,22 +39,21 @@ func BatchSaveFileMappings(rows []models.FileMapper) error {
 func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
-	uid, err := strconv.Atoi(req.UserID)
-	if err != nil {
-		return "", err
-	}
 	row := models.FilingTracker{
+		Id:          uuid.New().String(),
 		ClientCode:  cid,
 		FilingName:  req.FilingName,
 		UploadCount: 1,
 		IsSubmitted: true,
 		IsDeleted:   false,
 		CreatedAt:   ts,
-		CreatedBy:   uid,
+		CreatedBy:   req.UserID,
 	}
-	if err := sqlDb.Create(&row).Error; err != nil {
+	if err := sqlDb.Create(&row).Error; err != nil { // normal call
 		return "", err
 	}
+
+	fmt.Printf("row ID: %vhi\n", row)
 	return row.Id, nil
 }
 
@@ -106,13 +106,10 @@ func GetFilingTrackerByName(filingName string) (*models.FilingTracker, error) {
 
 func UpdateTracker(tracker *models.FilingTracker, req *models.SubmitReq) error {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
-	uid, err := strconv.Atoi(req.UserID)
-	if err != nil {
-		return err
-	}
+
 	tracker.UploadCount += 1
 	tracker.UpdatedAt = ts
-	tracker.UpdatedBy = uid
+	tracker.UpdatedBy = req.UserID
 	return sqlDb.Save(tracker).Error
 }
 
