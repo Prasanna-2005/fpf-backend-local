@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
-	"strconv"
 
 	"form_pf_backend/db"
 	"form_pf_backend/ipc"
@@ -75,7 +74,7 @@ func MapFiles(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
-	cid = strconv.Itoa(temp.(int))
+	cid = temp.(string)
 	resp, err := modules.IdentifyFiles(&req, cid)
 	sort.Slice(resp.FileMappings, func(i, j int) bool {
 		if resp.FileMappings[i].FundName == resp.FileMappings[j].FundName {
@@ -101,18 +100,13 @@ func SubmitFiles(c *gin.Context) {
 	if !ok {
 		logger.Log("WARNING", "No client id found")
 	}
-	// cid, ok = temp.(string)
-	// if !ok {
-	// 	logger.Log("WARNING", "client id cannot be parsed as string")
-	// }
-	cid, err := db.GetClient(temp.(int))
-	if err != nil {
-		logger.Log("WARNING", err.Error())
+
+	cid, ok = temp.(string)
+
+	if !ok {
+		logger.Log("WARNING", "clientid parsing error")
 	}
 	uid := req.UserID
-	// if err != nil {
-	// 	logger.Log("ERROR", err.Error())
-	// }
 
 	if req.NewFiling {
 		filingId, err := db.CreateTracker(&req, cid)
