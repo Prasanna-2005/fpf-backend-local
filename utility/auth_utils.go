@@ -337,7 +337,7 @@ func GenerateAccessToken(refreshToken, clientIP string) (string, error) {
 		logger.Log("ERROR", "JWT id is missing for refresh token!")
 	}
 	// Generate access token
-	cid, ok := claims["cid"].(float64)
+	cid, ok := claims["cid"].(string)
 	if !ok {
 		logger.Log("ERROR", "client id not present in refresh token")
 	}
@@ -473,6 +473,8 @@ func VerifyAccessToken(token string) (models.User, error) {
 	}
 
 	cid, ok := claims["cid"].(string)
+	fmt.Println(claims["cid"])
+	fmt.Println(cid)
 	if !ok {
 		logger.Log("ERROR", "VerifyAccessToken: token missing clientId claim")
 		return models.User{}, fmt.Errorf("missing or invalid clientId claim")

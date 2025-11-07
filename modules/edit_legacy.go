@@ -68,7 +68,7 @@ func headingFor(fieldNo string) string {
 }
 
 // response entry point
-func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) {
+func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) {
 	meta, err := db.FetchFormFieldMSLegacy()
 	if err != nil {
 		return nil, err
