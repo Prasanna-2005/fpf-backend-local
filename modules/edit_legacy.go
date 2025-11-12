@@ -295,7 +295,7 @@ type SimpleResponse struct {
 	TagsInfo [][]TagInfo `json:"tags_info"`
 }
 
-func TransformToSimpleResponse(filingID uint64) (*SimpleResponse, error) {
+func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 	rows, err := db.FetchFormDataByFiling(filingID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch form data: %w", err)

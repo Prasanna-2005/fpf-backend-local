@@ -2,13 +2,11 @@ package ctrl
 
 import (
 	"errors"
-	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
 	"net/http"
 	"reflect"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -85,7 +83,6 @@ func AcceptItemValue(c *gin.Context) {
 
 func GetFilingResponse(c *gin.Context) {
 	id := c.Param("filing_id")
-	fmt.Printf("id:%v\n", id)
 	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
 		return
@@ -100,8 +97,8 @@ func GetFilingResponse(c *gin.Context) {
 }
 
 func GetApprovedFilingResponse(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("filing_id"), 10, 64)
-	if err != nil {
+	id := c.Param("filing_id")
+	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
 		return
 	}

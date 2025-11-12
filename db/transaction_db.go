@@ -49,7 +49,7 @@ func GetFundBrief(seriesID string) (fundID, fundName string, err error) {
 	return b.FundID, b.FundName, nil
 }
 
-func FetchFormDataByFiling(filingID uint64) ([]models.FormDatum, error) {
+func FetchFormDataByFiling(filingID string) ([]models.FormDatum, error) {
 	var rows []models.FormDatum
 	err := GetDB().
 		Table("form_fields_ms_legacy fld").
