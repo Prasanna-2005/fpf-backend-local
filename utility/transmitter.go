@@ -2,13 +2,12 @@ package utility
 
 import (
 	"form_pf_backend/ipc"
-	"strconv"
 )
 
-func CreateSignal(uid, fid int) *ipc.Signal {
+func CreateSignal(uid, fid string) *ipc.Signal {
 	return &ipc.Signal{
 		UserId:   uid,
-		FilingId: strconv.Itoa(fid),
+		FilingId: fid,
 	}
 
 }

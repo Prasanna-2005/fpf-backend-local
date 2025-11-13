@@ -1,12 +1,13 @@
 package db
 
 import (
+	"errors"
 	"fmt"
 	"form_pf_backend/models"
 	"time"
 
-	"github.com/jinzhu/gorm"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // var logger = utility.LoggerFunc()
@@ -39,7 +40,7 @@ func GetUser(userId string) (*models.User, error) {
 	var user models.User
 	// Correct the Where clause and pass the userId as a separate argument
 	if err := sqlDb.Where(idQuery, userId).First(&user).Error; err != nil {
-		if gorm.IsRecordNotFoundError(err) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("record not found")
 		}
 		return nil, err
@@ -145,11 +146,11 @@ func RemoveUser(uid string) error {
 	return sqlDb.Delete(&models.User{}, "id = ?", uid).Error
 }
 
-func GetClient(cid int) (string, error) {
+func GetClient(cid string) (string, error) {
 	var user models.Client
 	// Correct the Where clause and pass the userId as a separate argument
 	if err := sqlDb.Where(idQuery, cid).First(&user).Error; err != nil {
-		if gorm.IsRecordNotFoundError(err) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", fmt.Errorf("no client found")
 		}
 		return "", err

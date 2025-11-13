@@ -68,7 +68,7 @@ func headingFor(fieldNo string) string {
 }
 
 // response entry point
-func BuildResponselegacy(filingID uint64) (*models.FilingResponselegacy, error) {
+func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) {
 	meta, err := db.FetchFormFieldMSLegacy()
 	if err != nil {
 		return nil, err
@@ -295,7 +295,7 @@ type SimpleResponse struct {
 	TagsInfo [][]TagInfo `json:"tags_info"`
 }
 
-func TransformToSimpleResponse(filingID uint64) (*SimpleResponse, error) {
+func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 	rows, err := db.FetchFormDataByFiling(filingID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch form data: %w", err)

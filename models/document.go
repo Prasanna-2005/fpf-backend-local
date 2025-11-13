@@ -17,7 +17,7 @@ type FileIdentificationResponse struct {
 }
 
 type FileMappingDetail struct {
-	MapID       int    `json:"Map_ID"  gorm:"column:Map_ID"`
+	MapID       string `json:"Map_ID"  gorm:"column:Map_ID"`
 	DateCellNo  int    `json:"date_cell_no"  gorm:"column:dateCellNo"`
 	FundCellNo  int    `json:"fund_cell_no"  gorm:"column:fundCellNo"`
 	FileName    string `json:"file_name"     gorm:"column:fileName"`
@@ -30,12 +30,12 @@ type FileMappingDetail struct {
 }
 
 type FileMapper struct {
-	ID            int       `gorm:"column:id;primaryKey;autoIncrement"`
+	ID            string    `gorm:"column:id;primaryKey;autoIncrement"`
 	FileName      string    `gorm:"column:fileName;not null"`
 	FilingPath    string    `gorm:"column:filingPath;not null"`
 	FundShortCode string    `gorm:"column:fundShortCode"`
-	FilingID      int       `gorm:"column:filingId;not null"` // legacy DB column – keep
-	FileMapID     int       `gorm:"column:fileMapId"`
+	FilingID      string    `gorm:"column:filingId;not null"` // legacy DB column – keep
+	FileMapID     string    `gorm:"column:fileMapId"`
 	QuarterNo     int       `gorm:"column:quarterNo"`
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`
 	CreatedAt     time.Time `gorm:"column:createdAt;not null"`
@@ -55,7 +55,7 @@ type SubmitReq struct {
 	FileMappings []MappedResp `json:"file_mappings" binding:"min=1,dive" gorm:"-"`
 }
 type FegFileIdentification struct {
-	ID        int       `gorm:"column:id;primaryKey;autoIncrement"`
+	ID        string    `gorm:"column:id;primaryKey;autoIncrement"`
 	ShortCode string    `gorm:"column:shortCode;not null"`
 	FundName  string    `gorm:"column:fundName;not null"`
 	Quarter   int       `gorm:"column:quarter;not null"`

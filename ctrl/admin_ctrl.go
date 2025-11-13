@@ -6,7 +6,6 @@ import (
 	"form_pf_backend/models"
 	"form_pf_backend/utility"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -61,12 +60,12 @@ func NewUser(c *gin.Context) {
 	}
 	role, _ := c.Get("role")
 
-	cid, err := strconv.Atoi(req.ClientCode)
-	if err != nil {
-		logger.Log("ERROR", "Client id parsing error: "+err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
-		return
-	}
+	cid := req.ClientCode
+	// if err != nil {
+	// 	logger.Log("ERROR", "Client id parsing error: "+err.Error())
+	// 	c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+	// 	return
+	// }
 	jti := int(time.Now().Unix())
 
 	user := models.User{
