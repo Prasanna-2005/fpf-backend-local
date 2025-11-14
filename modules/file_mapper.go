@@ -75,6 +75,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	}
 	return &models.FileIdentificationResponse{
 		Message:       msg,
+		Series:        series,
 		FilingName:    req.FilingName,
 		FileMappings:  mapped,
 		UnmappedFiles: unmapped,
