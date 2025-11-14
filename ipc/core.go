@@ -4,4 +4,5 @@ package ipc
 type Signal struct {
 	FilingId string `json:"filing_id"`
 	UserId   string `json:"user_id"`
+	Series   string `json:"series"`
 }

@@ -76,6 +76,7 @@ func MapFiles(c *gin.Context) {
 	}
 	cid = temp.(string)
 	resp, err := modules.IdentifyFiles(&req, cid)
+
 	if resp != nil && len(resp.FileMappings) > 0 {
 		sort.Slice(resp.FileMappings, func(i, j int) bool {
 			if resp.FileMappings[i].FundName == resp.FileMappings[j].FundName {
@@ -137,7 +138,7 @@ func SubmitFiles(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 			return
 		}
-		err = ipc.TransferSignal(utility.CreateSignal(uid, filingId))
+		err = ipc.TransferSignal(utility.CreateSignal(uid, filingId, req.Series))
 		if err != nil {
 			logger.Log("ERROR", "Service error: "+err.Error())
 		}
@@ -162,7 +163,7 @@ func SubmitFiles(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 	}
 
-	err = ipc.TransferSignal(utility.CreateSignal(uid, tracker.Id))
+	err = ipc.TransferSignal(utility.CreateSignal(uid, tracker.Id, req.Series))
 	if err != nil {
 		logger.Log("ERROR", "Service error: "+err.Error())
 	}

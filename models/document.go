@@ -10,6 +10,7 @@ type FileIdentificationRequest struct {
 
 type FileIdentificationResponse struct {
 	Message       string       `json:"message,omitempty"        gorm:"-"`
+	Series        string       `json:"series,omitempty"        gorm:"-"`
 	FilingName    string       `json:"filing_name,omitempty"    gorm:"-"`
 	FileMappings  []MappedResp `json:"file_mappings,omitempty"  gorm:"-"`
 	UnmappedFiles []MappedResp `json:"unmapped_files," `
@@ -49,6 +50,7 @@ type FileMapper struct {
 }
 
 type SubmitReq struct {
+	Series       string       `json:"series"      binding:"required" gorm:"-"`
 	UserID       string       `json:"user_id"      binding:"required" gorm:"-"`
 	FilingName   string       `json:"filing_name"  binding:"required" gorm:"-"`
 	NewFiling    bool         `json:"new_filing"                gorm:"-"`
