@@ -67,64 +67,12 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	}
 	mapped := FindFileType(candidates, funds, series)
 
-	// type result struct {
-	// 	detail models.MappedResp
-	// 	ok     bool
-	// }
-	// jobs := make(chan job, len(excels))
-	// fmt.Printf("job:%vhi\n", jobs)
-	// res := make(chan result, len(excels))
-	// workers := 16
-	// if len(excels) < workers {
-	// 	workers = len(excels)
-	// }
-	// var wg sync.WaitGroup
-	// for i := 0; i < workers; i++ {
-	// 	wg.Add(1)
-	// 	go func() {
-	// 		defer wg.Done()
-	// 		for j := range jobs {
-	// 			detail, ok := matchFile(j.name, scoped)
-	// 			detail.FileName = j.name
-	// 			detail.FilePath = j.path
-	// 			res <- result{detail, ok}
-	// 		}
-	// 	}()
-	// }
-	// for _, p := range excels {
-	// 	jobs <- job{p, filepath.Base(p)}
-	// }
-	// close(jobs)
-	// wg.Wait()
-	// close(res)
-	// var mapped, unmapped []models.FileMappingDetail
-	// for r := range res {
-	// 	if r.ok {
-	// 		mapped = append(mapped, r.detail)
-	// 	} else {
-	// 		unmapped = append(unmapped, r.detail)
-	// 	}
-	// }
 	msg := "File mappings updated successfully"
 	if len(mapped) == 0 {
 		msg = "Invalid file format for one or more files"
 	} else if len(unmapped) > 0 {
 		msg = "Partial success"
 	}
-	// toResp := func(src []models.FileMappingDetail) []models.MappedResp {
-	// 	out := make([]models.MappedResp, len(src))
-	// 	for i, v := range src {
-	// 		out[i] = models.MappedResp{
-	// 			FileName:  v.FileName,
-	// 			FundName:  v.FundName,
-	// 			FileType:  v.FileType,
-	// 			ShortCode: v.ShortCode,
-	// 			Path:      strings.TrimPrefix(v.FilePath, os.Getenv("STORAGE_PATH")),
-	// 		}
-	// 	}
-	// 	return out
-	// }
-
 	return &models.FileIdentificationResponse{
 		Message:       msg,
 		FilingName:    req.FilingName,
@@ -150,7 +98,6 @@ func findExcelFiles(root string) ([]string, error) {
 }
 
 func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentification, series string) []models.MappedResp {
-	// seen := make(map[string]bool) // key = shortCode+"|"+filePath
 	var out []models.MappedResp
 
 	// longest code first to avoid FSAE vs FSAE2 overlap
@@ -209,21 +156,6 @@ func matchByidentifier(filename string, filetype string) bool {
 	return flg
 }
 
-func matchFile(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-	series := decideSeries(funds)
-	if series == "" {
-		return models.FileMappingDetail{}, false
-	}
-	switch series {
-	case "Private Investors":
-		return matchPrivateInvestors(name, funds)
-	case "Investment Services":
-		return matchInvestmentServices(name, funds)
-	default:
-		return models.FileMappingDetail{}, false
-	}
-}
-
 func decideSeries(funds []models.FegFileIdentification) string {
 	var concrete []string
 	for _, f := range funds {
@@ -241,59 +173,6 @@ func decideSeries(funds []models.FegFileIdentification) string {
 		}
 	}
 	return first // uniform concrete series
-}
-
-func matchPrivateInvestors(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-	var out models.FileMappingDetail
-	fund, fundOk := matchFundByFilename(name, funds)
-	quarter, qCell := matchQuarterByFilename(name)
-	if fund.ShortCode == "Q15_Q16" {
-		quarter = 0
-		qCell = 0
-	}
-	out = models.FileMappingDetail{
-		FileName:   name,
-		Quarter:    quarter,
-		DateCellNo: qCell,
-	}
-	if fundOk {
-		out.FundName = fund.FundName
-		out.ShortCode = fund.ShortCode
-		out.MatchMethod = "filename"
-	}
-	return out, fundOk && qCell != -1
-}
-
-func matchInvestmentServices(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-	fund, ok := matchFundByFilename(name, funds)
-	if !ok {
-		return models.FileMappingDetail{}, false
-	}
-	fileType := classifyInvestmentFile(name)
-	if fileType == "unknown" {
-		return models.FileMappingDetail{}, false
-	}
-	return models.FileMappingDetail{
-		FileName:    name,
-		FundName:    fund.FundName,
-		ShortCode:   fund.ShortCode,
-		MatchMethod: "filename",
-		FileType:    fileType,
-	}, true
-}
-
-func classifyInvestmentFile(name string) string {
-	ln := strings.ToLower(name)
-	switch {
-	case strings.Contains(ln, "nav") && strings.Contains(ln, "tb"):
-		return "nav_tb"
-	case strings.Contains(ln, "investors") && strings.Contains(ln, "capital register"):
-		return "capital_register"
-	case strings.Contains(ln, "nav") && strings.Contains(ln, "report"):
-		return "nav_report"
-	default:
-		return "unknown"
-	}
 }
 
 func matchFundByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
