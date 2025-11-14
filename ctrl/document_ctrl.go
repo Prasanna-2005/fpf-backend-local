@@ -76,13 +76,23 @@ func MapFiles(c *gin.Context) {
 	}
 	cid = temp.(string)
 	resp, err := modules.IdentifyFiles(&req, cid)
-	sort.Slice(resp.FileMappings, func(i, j int) bool {
-		if resp.FileMappings[i].FundName == resp.FileMappings[j].FundName {
-			return resp.FileMappings[i].Quarter < resp.FileMappings[j].Quarter
-		}
-		return resp.FileMappings[i].FundName < resp.FileMappings[j].FundName
-	})
+	if resp != nil && len(resp.FileMappings) > 0 {
+		sort.Slice(resp.FileMappings, func(i, j int) bool {
+			if resp.FileMappings[i].FundName == resp.FileMappings[j].FundName {
+				return resp.FileMappings[i].FileType < resp.FileMappings[j].FileType
+			}
+			return resp.FileMappings[i].FundName < resp.FileMappings[j].FundName
+		})
+		sort.Slice(resp.FundDetails, func(i, j int) bool {
+			if resp.FundDetails[i].FundName == resp.FundDetails[j].FundName {
+				return resp.FundDetails[i].FileType < resp.FundDetails[j].FileType
+			}
+			return resp.FundDetails[i].FundName < resp.FundDetails[j].FundName
+		})
+
+	}
 	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("mapper err: %v", err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
