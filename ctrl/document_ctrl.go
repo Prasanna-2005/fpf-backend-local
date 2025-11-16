@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-
+	"time"
 	"form_pf_backend/db"
 	"form_pf_backend/ipc"
 	"form_pf_backend/models"
@@ -175,3 +175,58 @@ func SubmitFiles(c *gin.Context) {
 // 		logger.Log("WARNING", "Cancellation not confirmed")
 // 	}
 // }
+
+
+
+type statusUpdateRequest struct {
+	Timestamp string `json:"timestamp"`
+	FilingStatus string `json:"filingStatus"`
+}
+func UpdateRequestTrackerStatus(c *gin.Context) {
+	```
+	Method for updating status in request tracker
+	```
+
+	userId,err := strconv.ParseUint(c.GetHeader("X-User-Id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid userId"})
+		return
+	}
+
+	var req statusUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid request body"})
+		return
+	}
+	var ts time.Time
+	ts, err = time.Parse(time.RFC3339, req.Timestamp)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid timestamp format"})
+		return
+	}
+	status:=req.FilingStatus
+
+
+	tracker, err := db.GetFilingTracker(c.Param("filing_id"))
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"message": "filing not found"})
+		return
+	}
+	//update tracker
+	
+	db.UpdateTrackerStatus(tracker,int(userId),status,ts)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
+		return
+	}
+
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Tracker status updated successfully",
+		"filing_id": tracker.Id,
+		"status":    status,
+	})
+}
+
+
