@@ -179,17 +179,16 @@ type statusUpdateRequest struct {
 func UpdateRequestTrackerStatus(c *gin.Context) {
 	
 
-	userId,err := strconv.ParseUint(c.GetHeader("X-User-Id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid userId"})
-		return
-	}
+	// userId,err := strconv.ParseUint(c.GetHeader("X-User-Id"), 10, 64)
+	userId:=c.GetHeader("X-User-Id")
+	
 
 	var req statusUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid request body"})
 		return
 	}
+	var err error
 	var ts time.Time
 	ts, err = time.Parse(time.RFC3339, req.Timestamp)
 	if err != nil {
@@ -207,7 +206,7 @@ func UpdateRequestTrackerStatus(c *gin.Context) {
 	}
 	//update tracker
 	
-	db.UpdateTrackerStatus(tracker,int(userId),status,ts)
+	db.UpdateTrackerStatus(tracker,userId,status,ts)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
 		return

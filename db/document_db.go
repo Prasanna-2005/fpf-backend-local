@@ -39,10 +39,6 @@ func BatchSaveFileMappings(rows []models.FileMapper) error {
 func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
-	
-	if err != nil {
-		return 0, err
-	}
 	defaultStatus:="In progress"
 
 	row := models.FilingTracker{
@@ -121,7 +117,7 @@ func UpdateTracker(tracker *models.FilingTracker, req *models.SubmitReq) error {
 }
 
 //tracker status update
-func UpdateTrackerStatus(tracker *models.FilingTracker,userId int, status string,ts time.Time) error {
+func UpdateTrackerStatus(tracker *models.FilingTracker,userId string, status string,ts time.Time) error {
 	// ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 	// uid, err := strconv.Atoi(userID)
 	// if err != nil {
