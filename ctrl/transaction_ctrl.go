@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -97,13 +96,16 @@ func GetFilingResponse(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+
+
 func GetApprovedFilingResponse(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("filing_id"), 10, 64)
 	if err != nil {
+		logger.Log("ERROR", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
 		return
-	}
-
+	}	
+	//response
 	resp, err := modules.TransformToSimpleResponse(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
