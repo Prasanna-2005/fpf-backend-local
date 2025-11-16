@@ -38,6 +38,7 @@ func GetFilings(c *gin.Context) {
 		IsDeleted   bool      `json:"is_deleted"`
 		ModifiedBy  string    `json:"modified_by"`
 		ModifiedOn  time.Time `json:"modified_on"`
+		FilingStatus      string	  `json:"filingStatus"`
 	}
 
 	list := make([]respFiling, 0, len(*filingsPtr))
@@ -54,6 +55,7 @@ func GetFilings(c *gin.Context) {
 			PreparedBy:  userMap[strconv.Itoa(f.CreatedBy)],
 			ModifiedOn:  modifiedOn,
 			ModifiedBy:  userMap[strconv.Itoa(f.UpdatedBy)],
+			FilingStatus: 	 f.FilingStatus,
 		})
 	}
 
