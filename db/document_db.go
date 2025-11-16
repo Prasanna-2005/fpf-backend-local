@@ -130,6 +130,9 @@ func UpdateTrackerStatus(tracker *models.FilingTracker,userId int, status string
 	tracker.UpdatedAt = ts
 	tracker.UpdatedBy = userId
 
+	if status=="Archived"{
+		tracker.IsDeleted=true
+	}
 	return sqlDb.Save(tracker).Error
 }
 
