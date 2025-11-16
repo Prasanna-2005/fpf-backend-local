@@ -13,6 +13,7 @@ type FilingTracker struct {
 	CreatedBy   int       `gorm:"not null;column:createdBy"`
 	UpdatedAt   time.Time `gorm:"column:updatedAt"`
 	UpdatedBy   int       `gorm:"column:updatedBy"`
+	FilingStatus      string    `gorm:"column:filingStatus"`
 }
 
 func (FilingTracker) TableName() string {
