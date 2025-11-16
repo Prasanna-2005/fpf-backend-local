@@ -39,7 +39,7 @@ func BatchSaveFileMappings(rows []models.FileMapper) error {
 func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
-	uid, err := strconv.Atoi(req.UserID)
+	
 	if err != nil {
 		return 0, err
 	}
@@ -53,7 +53,7 @@ func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
 		IsSubmitted: true,
 		IsDeleted:   false,
 		CreatedAt:   ts,
-		CreatedBy:   uid,
+		CreatedBy:   req.UserID,
 		FilingStatus:  defaultStatus,
 	}
 	if err := sqlDb.Create(&row).Error; err != nil { // normal call
