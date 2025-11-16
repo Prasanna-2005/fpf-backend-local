@@ -4,7 +4,6 @@ import (
 	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +30,7 @@ func GetFilings(c *gin.Context) {
 	}
 
 	type respFiling struct {
-		ID          int       `json:"id"`
+		ID          string    `json:"id"`
 		FilingName  string    `json:"filing_name"`
 		PreparedBy  string    `json:"prepared_by"`
 		IsSubmitted bool      `json:"is_submitted"`
@@ -52,9 +51,9 @@ func GetFilings(c *gin.Context) {
 			FilingName:  f.FilingName,
 			IsSubmitted: f.IsSubmitted,
 			IsDeleted:   f.IsDeleted,
-			PreparedBy:  userMap[strconv.Itoa(f.CreatedBy)],
+			PreparedBy:  userMap[f.CreatedBy],
 			ModifiedOn:  modifiedOn,
-			ModifiedBy:  userMap[strconv.Itoa(f.UpdatedBy)],
+			ModifiedBy:  userMap[f.UpdatedBy],
 			FilingStatus: 	 f.FilingStatus,
 		})
 	}

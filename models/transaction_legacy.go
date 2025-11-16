@@ -5,7 +5,7 @@ import (
 )
 
 type FormDataLegacy struct {
-	ID             uint64    `gorm:"primaryKey;autoIncrement,column:id"`
+	ID             string    `gorm:"primaryKey;autoIncrement,column:id"`
 	FilingID       string    `gorm:"column:filingId"`
 	FieldNo        string    `gorm:"column:fieldNo"`
 	FundSeriesid   string    `gorm:"column:fundSeriesId"`

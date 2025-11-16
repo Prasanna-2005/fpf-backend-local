@@ -11,7 +11,7 @@ func FetchFormFieldMSLegacy() ([]models.FormFieldMSLegacy, error) {
 	return rows, err
 }
 
-func FetchCurrentValuesForFiling(filingID uint64) (map[string]map[string]string, error) {
+func FetchCurrentValuesForFiling(filingID string) (map[string]map[string]string, error) {
 	type skinny struct {
 		FundSeriesid string `gorm:"column:fundSeriesid"`
 		FieldNo      string `gorm:"column:fieldNo"`
@@ -40,7 +40,7 @@ func FetchCurrentValuesForFiling(filingID uint64) (map[string]map[string]string,
 }
 
 /* ---------- filing → fund-series ---------- */
-func FetchFundSeriesForFiling(filingID uint64) ([]string, error) {
+func FetchFundSeriesForFiling(filingID string) ([]string, error) {
 	var rows []string
 	err := GetDB().
 		Table("form_data_legacy").

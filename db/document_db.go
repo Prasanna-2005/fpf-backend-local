@@ -1,10 +1,11 @@
 package db
 
 import (
+	"fmt"
 	"form_pf_backend/models"
-	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -35,7 +36,7 @@ func BatchSaveFileMappings(rows []models.FileMapper) error {
 	return GetDB().CreateInBatches(rows, 100).Error
 }
 
-func CreateTracker(req *models.SubmitReq, cid string) (int, error) {
+func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
 	uid, err := strconv.Atoi(req.UserID)
@@ -45,6 +46,7 @@ func CreateTracker(req *models.SubmitReq, cid string) (int, error) {
 	defaultStatus:="In progress"
 
 	row := models.FilingTracker{
+		Id:          uuid.New().String(),
 		ClientCode:  cid,
 		FilingName:  req.FilingName,
 		UploadCount: 1,
@@ -54,13 +56,15 @@ func CreateTracker(req *models.SubmitReq, cid string) (int, error) {
 		CreatedBy:   uid,
 		FilingStatus:  defaultStatus,
 	}
-	if err := sqlDb.Create(&row).Error; err != nil {
-		return 0, err
+	if err := sqlDb.Create(&row).Error; err != nil { // normal call
+		return "", err
 	}
-	return int(row.Id), nil
+
+	fmt.Printf("row ID: %vhi\n", row)
+	return row.Id, nil
 }
 
-func CreateMapper(req *models.SubmitReq, filingId int) ([]models.FileMapper, error) {
+func CreateMapper(req *models.SubmitReq, filingId string) ([]models.FileMapper, error) {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
 	identities, err := GetAllFileMapId()
@@ -69,7 +73,7 @@ func CreateMapper(req *models.SubmitReq, filingId int) ([]models.FileMapper, err
 	}
 
 	// build a quick look-up:  shortCode -> ID
-	idByShort := make(map[string]int, len(identities))
+	idByShort := make(map[string]string, len(identities))
 	for _, id := range identities {
 		idByShort[id.ShortCode] = id.ID
 	}
@@ -109,13 +113,10 @@ func GetFilingTrackerByName(filingName string) (*models.FilingTracker, error) {
 
 func UpdateTracker(tracker *models.FilingTracker, req *models.SubmitReq) error {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
-	uid, err := strconv.Atoi(req.UserID)
-	if err != nil {
-		return err
-	}
+
 	tracker.UploadCount += 1
 	tracker.UpdatedAt = ts
-	tracker.UpdatedBy = uid
+	tracker.UpdatedBy = req.UserID
 	return sqlDb.Save(tracker).Error
 }
 
@@ -138,7 +139,7 @@ func UpdateTrackerStatus(tracker *models.FilingTracker,userId int, status string
 
 
 // UpdateMapper updates every mapper row that belongs to the given filingId:
-func UpdateMapper(filingId int, req *models.SubmitReq) error {
+func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	// 1. build lookup: short-code -> new file data
 	newData := make(map[string]struct{ fileName, filePath string })
 	for _, m := range req.FileMappings {
