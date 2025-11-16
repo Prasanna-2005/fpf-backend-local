@@ -183,9 +183,7 @@ type statusUpdateRequest struct {
 	FilingStatus string `json:"filingStatus"`
 }
 func UpdateRequestTrackerStatus(c *gin.Context) {
-	```
-	Method for updating status in request tracker
-	```
+	
 
 	userId,err := strconv.ParseUint(c.GetHeader("X-User-Id"), 10, 64)
 	if err != nil {
