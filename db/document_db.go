@@ -42,6 +42,8 @@ func CreateTracker(req *models.SubmitReq, cid string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	defaultStatus:="In progress"
+
 	row := models.FilingTracker{
 		ClientCode:  cid,
 		FilingName:  req.FilingName,
@@ -50,6 +52,7 @@ func CreateTracker(req *models.SubmitReq, cid string) (int, error) {
 		IsDeleted:   false,
 		CreatedAt:   ts,
 		CreatedBy:   uid,
+		FilingStatus:  defaultStatus,
 	}
 	if err := sqlDb.Create(&row).Error; err != nil {
 		return 0, err
@@ -115,6 +118,21 @@ func UpdateTracker(tracker *models.FilingTracker, req *models.SubmitReq) error {
 	tracker.UpdatedBy = uid
 	return sqlDb.Save(tracker).Error
 }
+
+//tracker status update
+func UpdateTrackerStatus(tracker *models.FilingTracker,userId int, status string,ts time.Time) error {
+	// ts, _ := time.Parse(time.RFC3339, req.Timestamp)
+	// uid, err := strconv.Atoi(userID)
+	// if err != nil {
+	// 	return err
+	// }
+	tracker.FilingStatus = status
+	tracker.UpdatedAt = ts
+	tracker.UpdatedBy = userId
+
+	return sqlDb.Save(tracker).Error
+}
+
 
 // UpdateMapper updates every mapper row that belongs to the given filingId:
 func UpdateMapper(filingId int, req *models.SubmitReq) error {
