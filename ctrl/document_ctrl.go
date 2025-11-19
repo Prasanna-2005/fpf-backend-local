@@ -169,3 +169,11 @@ func SubmitFiles(c *gin.Context) {
 // 		logger.Log("WARNING", "Cancellation not confirmed")
 // 	}
 // }
+
+
+func DownloadFiles(volumeRoot string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Controller only delegates
+		modules.HandleFilingZipDownload(c, volumeRoot)
+	}
+}
