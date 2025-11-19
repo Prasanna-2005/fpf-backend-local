@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -96,13 +95,15 @@ func GetFilingResponse(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+
+
 func GetApprovedFilingResponse(c *gin.Context) {
 	id := c.Param("filing_id")
 	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
 		return
-	}
-
+	}	
+	//response
 	resp, err := modules.TransformToSimpleResponse(id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
