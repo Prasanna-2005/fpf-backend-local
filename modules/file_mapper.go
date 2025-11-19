@@ -123,7 +123,7 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 				quarter, loc := matchQuarterByFilename(resp.FileName)
 				resp.FileType = "Q" + strconv.Itoa(quarter)
 				if loc != -1 && resp.FileType == fund.FileType {
-					fmt.Printf("fndname:%vhi\n,filename:%vhi\n", fund.FundName, resp.FileName)
+					// fmt.Printf("fndname:%vhi\n,filename:%vhi\n", fund.FundName, resp.FileName)
 
 					out = append(out, resp)
 				}
@@ -131,8 +131,8 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 			} else {
 				if matchByidentifier(strings.ToLower(resp.FileName), strings.ToLower(fund.FileType)) {
 					resp.FileType = fund.FileType
+					out = append(out, resp)
 				}
-				out = append(out, resp)
 			}
 
 		}
@@ -144,7 +144,7 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 func matchByidentifier(filename string, filetype string) bool {
 	flg := true
 	if filetype == "na" {
-		fmt.Println("hi got into NA")
+		// fmt.Println("hi got into NA")
 		return true
 	}
 	identifiers := strings.Split(filetype, "_")
