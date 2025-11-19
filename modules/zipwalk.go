@@ -72,6 +72,7 @@ func validateZipContents(r *zip.Reader) error {
 		".zip":  validateNestedZip,
 		".xls":  func(*zip.File) error { return nil },
 		".xlsx": func(*zip.File) error { return nil },
+		".pdf":  func(*zip.File) error { return nil },
 	}
 
 	for _, f := range r.File {

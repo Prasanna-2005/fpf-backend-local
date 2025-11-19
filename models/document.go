@@ -10,6 +10,7 @@ type FileIdentificationRequest struct {
 
 type FileIdentificationResponse struct {
 	Message       string       `json:"message,omitempty"        gorm:"-"`
+	Series        string       `json:"series,omitempty"        gorm:"-"`
 	FilingName    string       `json:"filing_name,omitempty"    gorm:"-"`
 	FileMappings  []MappedResp `json:"file_mappings,omitempty"  gorm:"-"`
 	UnmappedFiles []MappedResp `json:"unmapped_files," `
@@ -26,7 +27,8 @@ type FileMappingDetail struct {
 	ShortCode   string `json:"short_code"    gorm:"column:shortCode"`
 	MatchMethod string `json:"match_method"  gorm:"column:matchMethod"`
 	// MatchScore  float64 `json:"match_score"   gorm:"column:matchScore"`
-	Quarter int `json:"quarter"       gorm:"column:quarterEndDate"`
+	Quarter  int    `json:"quarter"       gorm:"column:quarterEndDate"`
+	FileType string `json:"file_type,omitempty" gorm:"column:fileType;default:NULL"`
 }
 
 type FileMapper struct {
@@ -36,7 +38,7 @@ type FileMapper struct {
 	FundShortCode string    `gorm:"column:fundShortCode"`
 	FilingID      string    `gorm:"column:filingId;not null"` // legacy DB column – keep
 	FileMapID     string    `gorm:"column:fileMapId"`
-	QuarterNo     int       `gorm:"column:quarterNo"`
+	Quarter       string    `gorm:"column:quarterNo;default:NULL"`
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`
 	CreatedAt     time.Time `gorm:"column:createdAt;not null"`
 	CreatedBy     string    `gorm:"column:createdBy;not null"`
@@ -48,6 +50,7 @@ type FileMapper struct {
 }
 
 type SubmitReq struct {
+	Series       string       `json:"series"      binding:"required" gorm:"-"`
 	UserID       string       `json:"user_id"      binding:"required" gorm:"-"`
 	FilingName   string       `json:"filing_name"  binding:"required" gorm:"-"`
 	NewFiling    bool         `json:"new_filing"                gorm:"-"`
@@ -58,6 +61,7 @@ type FegFileIdentification struct {
 	ID        string    `gorm:"column:id;primaryKey;autoIncrement"`
 	ShortCode string    `gorm:"column:shortCode;not null"`
 	FundName  string    `gorm:"column:fundName;not null"`
+	FileType  string    `gorm:"column:filetype;not null"`
 	Quarter   int       `gorm:"column:quarter;not null"`
 	Month     string    `gorm:"column:month"`
 	Series    string    `gorm:"column:series;not null"`
@@ -76,9 +80,9 @@ func (FegFileIdentification) TableName() string {
 }
 
 type MappedResp struct {
-	FileName  string `json:"filename,omitempty"        gorm:"-"`
-	ShortCode string `json:"shortcode,omitempty"        gorm:"-"`
-	FundName  string `json:"fundname,omitempty"        gorm:"-"`
-	Quarter   int    `json:"quarter"        `
-	Path      string `json:"filepath,omitempty"        gorm:"-"`
+	FileName  string `json:"filename,omitempty"`
+	ShortCode string `json:"shortcode,omitempty"`
+	FundName  string `json:"fundname,omitempty"`
+	FileType  string `json:"quarter"`
+	Path      string `json:"filepath,"`
 }
