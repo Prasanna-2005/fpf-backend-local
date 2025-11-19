@@ -51,9 +51,7 @@ func HandleFilingZipDownload(c *gin.Context, root string) {
 	c.File(tmpZipPath)
 }
 
-// ---------------------------------------------------------------------------
-// Helper: zip entire directory recursively
-// ---------------------------------------------------------------------------
+
 func zipDirectory(sourceDir, zipPath string) error {
 	zipFile, err := os.Create(zipPath)
 	if err != nil {
@@ -76,7 +74,7 @@ func zipDirectory(sourceDir, zipPath string) error {
 
 		if info.IsDir() {
 			if relPath != "." {
-				_, err = archive.Create(relPath + "/") // supports empty folders
+				_, err = archive.Create(relPath + "/") 
 			}
 			return err
 		}
