@@ -9,6 +9,12 @@ import (
 	"gorm.io/gorm"
 )
 
+var FileTypeConvRev = map[string]string{
+	"Capital Register":   "capital_register",
+	"Trial Balance":      "nav_tb",
+	"Performance report": "nav_report",
+}
+
 // GetAllFegFileIdentifications -> models.FegFileIdentification
 func GetAllFegFileIdentifications() ([]models.FegFileIdentification, error) {
 	var list []models.FegFileIdentification
@@ -83,7 +89,7 @@ func CreateMapper(req *models.SubmitReq, filingId string) ([]models.FileMapper, 
 			FundShortCode: rec.ShortCode,
 			FilingID:      filingId,
 			FileMapID:     fileMapID,
-			Quarter:       rec.FileType,
+			Quarter:       FileTypeConvRev[rec.FileType],
 			IsUpdated:     false,
 			CreatedBy:     req.UserID, // string is fine per your ORM
 			CreatedAt:     ts,
