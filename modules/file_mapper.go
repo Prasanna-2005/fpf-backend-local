@@ -218,7 +218,7 @@ func toFundResp(funds []models.FegFileIdentification, series string) []models.Ma
 		if strings.EqualFold(strings.TrimSpace(f.Series), strings.TrimSpace(series)) || f.Series == "ALL" {
 			out = append(out, models.MappedResp{
 				FundName:  f.FundName,
-				FileType:  f.FileType,
+				FileType:  FileTypeConv[f.FileType],
 				ShortCode: f.ShortCode,
 			})
 		}
