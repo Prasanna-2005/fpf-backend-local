@@ -23,9 +23,14 @@ var (
 	q1to5       = regexp.MustCompile(`^Q[1-5]$`)
 )
 var FileTypeConv = map[string]string{
-	"capital_register": "Capital Register",
-	"nav_tb":           "Trial Balance",
-	"nav_report":       "Performance report",
+	"capital_register":     "Capital Register",
+	"nav_tb":               "Trial Balance",
+	"nav_report":           "Performance report",
+	"Unfunded_Commitments": "Unfunded_Commitments",
+	"NA":                   "NA",
+	"Q3":                   "Q3",
+	"Q2":                   "Q2",
+	"Q1":                   "Q1",
 }
 
 func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.FileIdentificationResponse, error) {
