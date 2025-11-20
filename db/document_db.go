@@ -10,9 +10,14 @@ import (
 )
 
 var FileTypeConvRev = map[string]string{
-	"Capital Register":   "capital_register",
-	"Trial Balance":      "nav_tb",
-	"Performance report": "nav_report",
+	"Capital Register":     "capital_register",
+	"Trial Balance":        "nav_tb",
+	"Performance report":   "nav_report",
+	"Unfunded_Commitments": "Unfunded_Commitments",
+	"NA":                   "NA",
+	"Q3":                   "3",
+	"Q2":                   "2",
+	"Q1":                   "1",
 }
 
 // GetAllFegFileIdentifications -> models.FegFileIdentification
@@ -162,7 +167,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 				FilingPath:    m.Path,
 				FundShortCode: m.ShortCode,
 				FilingID:      filingId,
-				Quarter:       m.FileType,
+				Quarter:       FileTypeConvRev[m.FileType],
 				IsUpdated:     true,
 				CreatedAt:     ts,
 				CreatedBy:     req.UserID,
