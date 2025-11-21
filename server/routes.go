@@ -106,7 +106,8 @@ func setupFileRoutes(api *gin.RouterGroup) {
 	file.POST("/upload", ctrl.UploadDoc(cfg.UploadVolumePath))
 	file.POST("/mapper", ctrl.MapFiles)
 	file.POST("/submit", ctrl.SubmitFiles)
-	
+	file.GET("/download_input_files", ctrl.DownloadFiles(cfg.UploadVolumePath))
+
 }
 
 func setUpEdit(api *gin.RouterGroup) {

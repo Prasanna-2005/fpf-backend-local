@@ -9,6 +9,17 @@ import (
 	"gorm.io/gorm"
 )
 
+var FileTypeConvRev = map[string]string{
+	"Capital Register":     "capital_register",
+	"Trial Balance":        "nav_tb",
+	"Performance report":   "nav_report",
+	"Unfunded_Commitments": "Unfunded_Commitments",
+	"NA":                   "NA",
+	"Q3":                   "3",
+	"Q2":                   "2",
+	"Q1":                   "1",
+}
+
 // GetAllFegFileIdentifications -> models.FegFileIdentification
 func GetAllFegFileIdentifications() ([]models.FegFileIdentification, error) {
 	var list []models.FegFileIdentification
@@ -83,7 +94,7 @@ func CreateMapper(req *models.SubmitReq, filingId string) ([]models.FileMapper, 
 			FundShortCode: rec.ShortCode,
 			FilingID:      filingId,
 			FileMapID:     fileMapID,
-			QuarterNo:     rec.Quarter,
+			Quarter:       FileTypeConvRev[rec.FileType],
 			IsUpdated:     false,
 			CreatedBy:     req.UserID, // string is fine per your ORM
 			CreatedAt:     ts,
@@ -177,7 +188,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 				FilingPath:    m.Path,
 				FundShortCode: m.ShortCode,
 				FilingID:      filingId,
-				QuarterNo:     m.Quarter,
+				Quarter:       FileTypeConvRev[m.FileType],
 				IsUpdated:     true,
 				CreatedAt:     ts,
 				CreatedBy:     req.UserID,
