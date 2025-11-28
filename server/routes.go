@@ -68,6 +68,10 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 	// gen.GET("/response/:filing_id", ctrl.EditDoc)
 	gen.GET("/fund_details", ctrl.GetFunds)
 	gen.GET("/status", ctrl.FilingStatus)
+	gen.GET("/verify_user", func(c *gin.Context) {
+    c.JSON(200, gin.H{
+        "status": "ok",
+    })
 }
 
 func setUpSubmission(api *gin.RouterGroup) {
