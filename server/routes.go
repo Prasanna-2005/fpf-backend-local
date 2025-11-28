@@ -71,7 +71,7 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 	gen.GET("/verify_user", func(c *gin.Context) {
     c.JSON(200, gin.H{
         "status": "ok",
-    })
+    })})
 }
 
 func setUpSubmission(api *gin.RouterGroup) {
