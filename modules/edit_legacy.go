@@ -96,7 +96,7 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 	}
 
 	// / 1. group meta rows by fieldNo
-	fieldMap := make(map[string]*group, 30)
+	fieldMap := make(map[string]*group)
 	for _, m := range meta {
 		if m.FormLineItemNo == m.FieldNo {
 			if g := fieldMap[m.FieldNo]; g == nil {
@@ -130,20 +130,23 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 
 		for _, m := range meta {
 			/* skip if we already emitted this fieldNo */
+			if m.FieldNo > "17" && fundRec.FundType != "HEDGE" {
+				continue
+			}
 			if len(fund.FundData) > 0 && fund.FundData[len(fund.FundData)-1].FieldNo == m.FieldNo {
 				continue
 			}
 
 			g := fieldMap[m.FieldNo]
 
-			/* 1. table lives at field level (14, 17, …) */
 			if g.parent.IsTableData {
 				fund.FundData = append(fund.FundData,
 					buildTableFieldItemGroup(m.FieldNo, g, vm))
 				continue
 			}
-			if g.parent.DataType == "mcq" {
+			if g.parent.IsMCQ {
 				fund.FundData = append(fund.FundData, buildMCQ(m.FieldNo, g, vm))
+				continue
 			}
 
 			// 2. normal text / bool (options) block
@@ -268,15 +271,16 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 	fItem.FieldData = make([]models.LineDetail, 0, len(g.children))
 	for _, l := range g.children {
 		fItem.FieldData = append(fItem.FieldData, models.LineDetail{
-			LineItemNo:     l.FormLineItemNo,
-			LineItemType:   l.DataType,
-			LineText:       l.LineText,
-			Value:          vm[l.FormLineItemNo],
-			Options:        optionSlice(l.DataType),
-			TableData:      nil,
-			RequireDate:    l.RequiresDate,
-			DateValue:      "",
-			DisclaimerText: l.DisclaimerText,
+			LineItemNo:      l.FormLineItemNo,
+			HasLineItemText: l.LineText != "",
+			LineItemType:    l.DataType,
+			LineText:        l.LineText,
+			Value:           vm[l.FormLineItemNo],
+			Options:         optionSlice(l.DataType),
+			TableData:       nil,
+			RequireDate:     l.RequiresDate,
+			DateValue:       "",
+			DisclaimerText:  l.DisclaimerText,
 		})
 	}
 	return fItem
