@@ -181,7 +181,9 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 
 	// Group children by row-key
 	rowMap := make(map[string]map[string]string)
+	rowMap["metadata"] = make(map[string]string)
 	for _, v := range g.children {
+
 		if v.FormLineItemNo == fieldNo {
 			continue
 		}
@@ -194,6 +196,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 			rowMap[rowKey] = make(map[string]string)
 		}
 		rowMap[rowKey][colKey] = vm[v.FormLineItemNo]
+		rowMap["metadata"][colKey] = v.DataType
 	}
 
 	// Stable row order
@@ -232,7 +235,6 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 
 		tableData = append(tableData, obj)
 	}
-
 	return models.FieldItem{
 		FieldNo:          fieldNo,
 		HasFieldItemText: par.LineText != "",
@@ -392,4 +394,14 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 		FundInfo: fundSlc,
 		TagsInfo: tagSlc,
 	}, nil
+}
+
+
+
+{
+"s.name": "metadata",
+"s.text": "metadata ",
+"Net_of_management_fees_and_incentives_fees_and_allocation": "text",
+"gross_performance": "text",
+"last_day_of_fiscal_period": "text"
 }
