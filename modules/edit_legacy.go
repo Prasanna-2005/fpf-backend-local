@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"os"
 	"sort"
 	"strings"
 )
@@ -140,6 +141,9 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 				fund.FundData = append(fund.FundData,
 					buildTableFieldItemGroup(m.FieldNo, g, vm))
 				continue
+			}
+			if g.parent.DataType == "mcq" {
+				fund.FundData = append(fund.FundData, buildMCQ(m.FieldNo, g, vm))
 			}
 
 			// 2. normal text / bool (options) block
@@ -276,6 +280,39 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 		})
 	}
 	return fItem
+}
+
+func buildMCQ(fieldNo string, g *group, vm map[string]string) models.FieldItem {
+	par := g.parent
+
+	return models.FieldItem{
+		FieldNo:          fieldNo,
+		HasFieldItemText: par.LineText != "",
+		FieldItemType:    par.DataType,
+		HasTableData:     false,
+		FieldText:        par.LineText,
+		FieldHeading:     headingFor(fieldNo),
+		Value:            vm[fieldNo],         // currently ticked choice
+		Options:          envChoices(fieldNo), // all choices in env order
+		Confirmed:        false,
+		Editing:          true,
+		IsMultipleAdd:    par.IsMultipleAdd,
+		DisclaimerText:   par.DisclaimerText,
+	}
+}
+
+func envChoices(fieldNo string) []string {
+	raw := os.Getenv(fieldNo + "_MCQ_OPTIONS")
+
+	if raw == "" {
+		return nil
+	}
+	var choices []string
+	err := json.Unmarshal([]byte(raw), &choices)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+	}
+	return choices
 }
 
 type FundInfo struct {
