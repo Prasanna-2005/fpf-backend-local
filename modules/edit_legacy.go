@@ -395,13 +395,3 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 		TagsInfo: tagSlc,
 	}, nil
 }
-
-
-
-{
-"s.name": "metadata",
-"s.text": "metadata ",
-"Net_of_management_fees_and_incentives_fees_and_allocation": "text",
-"gross_performance": "text",
-"last_day_of_fiscal_period": "text"
-}
