@@ -48,20 +48,21 @@ type Fundlegacy struct {
 
 // FieldItem mirrors the JSON block the frontend expects for every field_no.
 type FieldItem struct {
-	FieldNo          string       `json:"field_no"`
-	HasFieldItemText bool         `json:"has_field_item_text"`
-	FieldItemType    string       `json:"field_item_type"`
-	HasTableData     bool         `json:"has_table_data"`
-	TableData        interface{}  `json:"table_data,omitempty"`
-	FieldText        string       `json:"field_text"`
-	FieldHeading     string       `json:"field_heading"`
-	Value            string       `json:"value"`
-	FieldData        []LineDetail `json:"field_data"`
-	Confirmed        bool         `json:"confirmed"`
-	Editing          bool         `json:"editing"`
-	IsMultipleAdd    bool         `json:"is_multiple_add"`
-	DisclaimerText   string       `json:"disclaimer_text"`
-	Options          []string     `json:"options,omitempty"` // filled only when datatype = options
+	FieldNo          string            `json:"field_no"`
+	HasFieldItemText bool              `json:"has_field_item_text"`
+	FieldItemType    string            `json:"field_item_type"`
+	HasTableData     bool              `json:"has_table_data"`
+	TableMetadata    map[string]string `json:"table_metadata,omitempty"`
+	TableData        interface{}       `json:"table_data,omitempty"`
+	FieldText        string            `json:"field_text"`
+	FieldHeading     string            `json:"field_heading"`
+	Value            string            `json:"value"`
+	FieldData        []LineDetail      `json:"field_data"`
+	Confirmed        bool              `json:"confirmed"`
+	Editing          bool              `json:"editing"`
+	IsMultipleAdd    bool              `json:"is_multiple_add"`
+	DisclaimerText   string            `json:"disclaimer_text"`
+	Options          []string          `json:"options,omitempty"` // filled only when datatype = options
 }
 
 // LineDetail is used inside FieldData when the field is broken into sub-lines.

@@ -212,6 +212,9 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 	// Convert to ordered maps
 	tableData := make([]*OrderedMap, 0, len(rowMap))
 	for _, rk := range rowKeys {
+		if rk == "metadata" {
+			continue
+		}
 		var label string
 		for _, v := range g.children {
 			if strings.HasPrefix(v.FormLineItemNo, fieldNo+"_"+rk+"_") {
@@ -230,7 +233,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		for ck := range rowMap[rk] {
 			colKeys = append(colKeys, ck)
 		}
-		sort.Strings(colKeys)
+		// sort.Strings(colKeys)
 
 		for _, ck := range colKeys {
 			obj.Set(ck, rowMap[rk][ck])
@@ -243,6 +246,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		HasFieldItemText: par.LineText != "",
 		FieldItemType:    par.DataType,
 		HasTableData:     true,
+		TableMetadata:    rowMap["metadata"],
 		FieldText:        par.LineText,
 		FieldHeading:     headingFor(fieldNo),
 		Value:            vm[fieldNo],
