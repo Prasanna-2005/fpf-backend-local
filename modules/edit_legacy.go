@@ -8,6 +8,7 @@ import (
 	"form_pf_backend/models"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -127,15 +128,17 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 		if vm == nil { // no data yet
 			vm = make(map[string]string)
 		}
-
+		seen := make(map[string]bool)
 		for _, m := range meta {
 			/* skip if we already emitted this fieldNo */
-			if m.FieldNo > "17" && fundRec.FundType != "HEDGE" {
+			fieldNoInt, _ := strconv.Atoi(m.FieldNo)
+			if fieldNoInt > 17 && fundRec.FundType != "HEDGE" {
 				continue
 			}
-			if len(fund.FundData) > 0 && fund.FundData[len(fund.FundData)-1].FieldNo == m.FieldNo {
+			if seen[m.FieldNo] {
 				continue
 			}
+			seen[m.FieldNo] = true
 
 			g := fieldMap[m.FieldNo]
 
