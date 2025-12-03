@@ -233,7 +233,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		for ck := range rowMap[rk] {
 			colKeys = append(colKeys, ck)
 		}
-		// sort.Strings(colKeys)
+		sort.Strings(colKeys)
 
 		for _, ck := range colKeys {
 			obj.Set(ck, rowMap[rk][ck])
