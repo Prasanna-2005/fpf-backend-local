@@ -245,14 +245,12 @@ class PymupdfTableExtraction:
 
 
 if __name__ == "__main__":
-    data = json.load(sys.stdin)     
+    data = json.load(sys.stdin)  
     pdf_paths = data["pdf_paths"]
-    excel_dir = data["excel_dir"]  
-    print(pdf_paths)
-    print(excel_dir)  
+    excel_dir = data["excel_dir"]
     os.makedirs(excel_dir, exist_ok=True)
     for file_path in pdf_paths :
-         
+       
         page_dfs = PymupdfTableExtraction.load_page_text(file_path)
         if not page_dfs:
             continue
@@ -261,4 +259,4 @@ if __name__ == "__main__":
         with pd.ExcelWriter(workbook_path) as writer:
             for page_index, page_df in enumerate(page_dfs, start=1):
                 page_df.to_excel(writer, sheet_name=f"Page {page_index}", index=False)
-        print("Successfull conversion of pdf to excels")
+
