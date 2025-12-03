@@ -1,12 +1,15 @@
 package modules
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -33,6 +36,11 @@ var FileTypeConv = map[string]string{
 	"Q1":                   "Q1",
 }
 
+type Payload struct {
+	PDFPaths []string `json:"pdf_paths"`
+	ExcelDir string   `json:"excel_dir"`
+}
+
 func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.FileIdentificationResponse, error) {
 	funds, err := db.GetAllFegFileIdentifications()
 	if err != nil {
@@ -44,7 +52,28 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	}
 
 	baseDir := filepath.Join(cfg.UploadVolumePath, cid, sanitize(req.FilingName))
-	excels, err := findExcelFiles(baseDir)
+	excels, pdf, err := findFiles(baseDir)
+	excelDir := filepath.Join(baseDir, "convPdf")
+	pl := Payload{PDFPaths: pdf, ExcelDir: excelDir}
+	payload, _ := json.Marshal(pl)
+
+	scriptPath := "modules/pymupdf_table_extraction.py"
+	cmd := exec.Command("python", scriptPath)
+	cmd.Stdin = bytes.NewReader(payload)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil { // blocks until completion
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			fmt.Errorf("table extractor failed with exit code %d", exitErr.ExitCode())
+		}
+		fmt.Errorf("table extractor failed: %w", err)
+	}
+
+	for _, pdfPath := range pdf {
+		convExcelPath := filepath.Join(excelDir, filepath.Base(pdfPath)+".xlsx")
+		excels = append(excels, convExcelPath)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot walk dir: %w", err)
 	}
@@ -93,19 +122,22 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	}, nil
 }
 
-func findExcelFiles(root string) ([]string, error) {
-	var out []string
+func findFiles(root string) ([]string, []string, error) {
+	var out, pdf []string
 	err := filepath.Walk(root, func(p string, i os.FileInfo, e error) error {
 		if e != nil || i.IsDir() {
 			return e
 		}
 		ext := strings.ToLower(filepath.Ext(p))
-		if ext == ".xlsx" || ext == ".xls" || ext == ".pdf" {
+		if ext == ".xlsx" || ext == ".xls" {
 			out = append(out, p)
+		}
+		if ext == ".pdf" {
+			pdf = append(pdf, p)
 		}
 		return nil
 	})
-	return out, err
+	return out, pdf, err
 }
 
 func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentification, series string) []models.MappedResp {
