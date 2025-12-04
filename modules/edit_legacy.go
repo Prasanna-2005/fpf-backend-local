@@ -343,11 +343,49 @@ type TagInfo struct {
 }
 
 type SimpleResponse struct {
-	FundInfo []FundInfo  `json:"fund_info"`
-	TagsInfo [][]TagInfo `json:"tags_info"`
+	FundInfo      []FundInfo  `json:"fund_info"`
+	TagsInfoSec1b [][]TagInfo `json:"tags_info_sec1b"`
+	TagInfoSec1c  [][]TagInfo `json:"tag_info_sec1c"`
 }
 
+func sectionFor(fieldNo string) string {
+	if q, _ := strconv.Atoi(fieldNo); q > 17 {
+		return "1c"
+	}
+	return "1b"
+}
+
+func ValueFor(value, qtype, qno, qsubno, xmlTag string) string {
+	if xmlTag == "StrategyType_StrategyChecked" {
+		vals := qsubno[strings.Index(qsubno, "(")+1] - 'a' + 1
+		val := int(vals)
+		fmt.Println(qsubno)
+		fmt.Printf("Value:%v\n", vals)
+		return strconv.Itoa(val)
+	}
+	xmlOpt := map[string]string{
+		"Single primary strategy": "S",
+		"Multi-strategy":          "M",
+		"0%":                      "0",
+		"less than 10%":           "less than 10",
+		"10-25%":                  "10-25",
+		"26-50%":                  "26-50",
+		"51-75%":                  "51-75",
+		"76-99%":                  "76-99",
+		"100% or more":            "100 or more",
+	}
+	if qtype == "mcq" {
+		xmlVal, ok := xmlOpt[value]
+		if !ok {
+			logger.Log("WARNING", fmt.Sprintf("Invalid options present for %v option:%v", qno, value))
+			xmlVal = "NULL"
+		}
+		return xmlVal
+	}
+	return value
+}
 func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
+
 	rows, err := db.FetchFormDataByFiling(filingID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch form data: %w", err)
@@ -367,9 +405,11 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 	})
 
 	fundMap := make(map[string]FundInfo)
-	tagMap := make(map[string][]TagInfo)
+	tagMap1b := make(map[string][]TagInfo)
+	tagMap1c := make(map[string][]TagInfo)
 
 	for _, r := range rows {
+		qno, _ := strconv.Atoi(r.FieldNo)
 		if r.Value == nil || *r.Value == "" {
 			continue
 		}
@@ -380,27 +420,56 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 				FundType: r.FundType,
 			}
 		}
-
-		tagMap[r.FundID] = append(tagMap[r.FundID], TagInfo{
-			FundID:  r.FundID,
-			XMLTags: string(r.XmlTags),
-			Value:   r.Value,
-		})
+		if qno > 17 {
+			if r.FormLineNo == "18_a" {
+				continue
+			}
+			if qno == 20 && *r.Value == "true" {
+				tagMap1c[r.FundID] = append(tagMap1c[r.FundID], TagInfo{
+					FundID:  r.FundID,
+					XMLTags: "StrategyType",
+					Value:   ValueFor(*r.Value, r.LineItemType, r.FieldNo, r.FormLineNo, r.XmlTags),
+				}, TagInfo{
+					FundID:  r.FundID,
+					XMLTags: "StrategyChecked",
+					Value:   "true",
+				})
+			} else {
+				tagMap1c[r.FundID] = append(tagMap1c[r.FundID], TagInfo{
+					FundID:  r.FundID,
+					XMLTags: string(r.XmlTags),
+					Value:   ValueFor(*r.Value, r.LineItemType, r.FieldNo, r.FormLineNo, r.XmlTags),
+				})
+			}
+		} else {
+			tagMap1b[r.FundID] = append(tagMap1b[r.FundID], TagInfo{
+				FundID:  r.FundID,
+				XMLTags: string(r.XmlTags),
+				Value:   r.Value,
+			})
+		}
 	}
 
 	fundSlc := make([]FundInfo, 0, len(fundMap))
-	tagSlc := make([][]TagInfo, 0, len(tagMap))
+	tagSlc1b := make([][]TagInfo, 0, len(tagMap1b))
+	tagSlc1c := make([][]TagInfo, 0, len(tagMap1c))
 
 	for _, r := range rows {
 		if fi, ok := fundMap[r.FundID]; ok {
 			fundSlc = append(fundSlc, fi)
-			tagSlc = append(tagSlc, tagMap[r.FundID])
+			if _, ok := tagMap1b[r.FundID]; ok {
+				tagSlc1b = append(tagSlc1b, tagMap1b[r.FundID])
+			}
+			if _, ok := tagMap1c[r.FundID]; ok {
+				tagSlc1c = append(tagSlc1c, tagMap1c[r.FundID])
+			}
 			delete(fundMap, r.FundID)
 		}
 	}
 
 	return &SimpleResponse{
-		FundInfo: fundSlc,
-		TagsInfo: tagSlc,
+		FundInfo:      fundSlc,
+		TagsInfoSec1b: tagSlc1b,
+		TagInfoSec1c:  tagSlc1c,
 	}, nil
 }
