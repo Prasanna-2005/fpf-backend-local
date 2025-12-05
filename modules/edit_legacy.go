@@ -337,9 +337,10 @@ type FundInfo struct {
 }
 
 type TagInfo struct {
-	FundID  string      `json:"fund_id"`
-	XMLTags string      `json:"xmltags"`
-	Value   interface{} `json:"value"`
+	FundID     string      `json:"fund_id"`
+	XMLTags    string      `json:"xmltags"`
+	Value      interface{} `json:"value"`
+	QuestionNo string      `json:"qno,omitempty"`
 }
 
 type SimpleResponse struct {
@@ -359,8 +360,6 @@ func ValueFor(value, qtype, qno, qsubno, xmlTag string) string {
 	if xmlTag == "StrategyType_StrategyChecked" {
 		vals := qsubno[strings.Index(qsubno, "(")+1] - 'a' + 1
 		val := int(vals)
-		fmt.Println(qsubno)
-		fmt.Printf("Value:%v\n", vals)
 		return strconv.Itoa(val)
 	}
 	xmlOpt := map[string]string{
@@ -433,6 +432,13 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 					FundID:  r.FundID,
 					XMLTags: "StrategyChecked",
 					Value:   "true",
+				})
+			} else if qno == 22 || qno == 23 {
+				tagMap1c[r.FundID] = append(tagMap1c[r.FundID], TagInfo{
+					FundID:     r.FundID,
+					XMLTags:    string(r.XmlTags),
+					Value:      ValueFor(*r.Value, r.LineItemType, r.FieldNo, r.FormLineNo, r.XmlTags),
+					QuestionNo: r.FieldNo,
 				})
 			} else {
 				tagMap1c[r.FundID] = append(tagMap1c[r.FundID], TagInfo{
