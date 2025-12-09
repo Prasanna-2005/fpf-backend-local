@@ -40,6 +40,7 @@ func ExtractAndValidateZip(zipPath, targetDir string) error {
 		if f.FileInfo().IsDir() {
 			if err := createDirectory(f, targetDir); err != nil {
 				cleanup(extractedFiles)
+				logger.Log("ERROR", fmt.Sprintf("creat dir err:%v", err.Error()))
 				return err
 			}
 			continue
@@ -141,7 +142,7 @@ func createDirectory(f *zip.File, targetDir string) error {
 
 	dirPath := filepath.Join(targetDir, f.Name)
 	logger.Log("INFO", fmt.Sprintf("[createDirectory] Creating directory: %s", dirPath))
-	return os.MkdirAll(dirPath, f.FileInfo().Mode())
+	return os.MkdirAll(dirPath, 0755)
 }
 
 // extractFile extracts a single file from the ZIP archive
@@ -167,7 +168,7 @@ func extractFile(f *zip.File, targetDir string) (string, error) {
 	defer rc.Close()
 
 	// Create destination file
-	outFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.FileInfo().Mode())
+	outFile, err := os.OpenFile(targetPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return "", fmt.Errorf("failed to create file %s: %w", targetPath, err)
 	}

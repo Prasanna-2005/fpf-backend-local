@@ -71,7 +71,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	}
 
 	for _, pdfPath := range pdf {
-		convExcelPath := filepath.Join(excelDir, filepath.Base(pdfPath)+".xlsx")
+		convExcelPath := filepath.Join(excelDir, strings.TrimSuffix(filepath.Base(pdfPath), ".pdf")+".xlsx")
 		excels = append(excels, convExcelPath)
 	}
 	if err != nil {
