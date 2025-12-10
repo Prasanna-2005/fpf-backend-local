@@ -17,25 +17,27 @@ func GetFundMap(fundSeriesIDs []string) (map[string]models.Fund, error) {
 		FundSeriesid string `gorm:"column:fundSeriesid"` // ← PK from join
 		FundID       string `gorm:"column:fegFundId"`
 		FundName     string `gorm:"column:fundName"`
+		FundType     string `gorm:"column:fundType"`
 	}
 
 	var rows []result
 	err := GetDB().
 		Table("feg_funds").
-		Select("DISTINCT form_data_legacy.fundSeriesid, feg_funds.fegFundId, feg_funds.fundName").
+		Select("DISTINCT form_data_legacy.fundSeriesid, feg_funds.fegFundId, feg_funds.fundName,feg_funds.fundType").
 		Joins("JOIN form_data_legacy ON form_data_legacy.fundSeriesid = feg_funds.fegFundId").
 		Where("form_data_legacy.fundSeriesid IN ?", fundSeriesIDs).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-
 	out := make(map[string]models.Fund, len(rows))
 	for _, r := range rows {
 		out[r.FundSeriesid] = models.Fund{
 			FundID:   r.FundID,
 			FundName: r.FundName,
+			FundType: r.FundType,
 		}
 	}
+
 	return out, nil
 }
