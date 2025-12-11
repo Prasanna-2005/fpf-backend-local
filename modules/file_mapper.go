@@ -53,40 +53,43 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 
 	baseDir := filepath.Join(cfg.UploadVolumePath, cid, sanitize(req.FilingName))
 	excels, pdf, err := findFiles(baseDir)
-	excelDir := filepath.Join(baseDir, "convPdf")
-	pl := Payload{PDFPaths: pdf, ExcelDir: excelDir}
-	payload, _ := json.Marshal(pl)
-
-	scriptPath := "modules/pymupdf_table_extraction.py"
-	cmd := exec.Command("python", scriptPath)
-	cmd.Stdin = bytes.NewReader(payload)
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil { // blocks until completion
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			fmt.Errorf("table extractor failed with exit code %d", exitErr.ExitCode())
-		}
-		fmt.Errorf("table extractor failed: %w", err)
-	}
-
-	for _, pdfPath := range pdf {
-		convExcelPath := filepath.Join(excelDir, strings.TrimSuffix(filepath.Base(pdfPath), ".pdf")+".xlsx")
-		excels = append(excels, convExcelPath)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot walk dir: %w", err)
 	}
+	if len(pdf) != 0 {
+		excelDir := filepath.Join(baseDir, "convPdf")
+		pl := Payload{PDFPaths: pdf, ExcelDir: excelDir}
+		payload, _ := json.Marshal(pl)
+
+		scriptPath := "modules/pymupdf_table_extraction.py"
+		cmd := exec.Command("python", scriptPath)
+		cmd.Stdin = bytes.NewReader(payload)
+
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil { // blocks until completion
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				fmt.Errorf("table extractor failed with exit code %d", exitErr.ExitCode())
+			}
+			fmt.Errorf("table extractor failed: %w", err)
+		}
+
+		for _, pdfPath := range pdf {
+			convExcelPath := filepath.Join(excelDir, strings.TrimSuffix(filepath.Base(pdfPath), ".pdf")+".xlsx")
+			excels = append(excels, convExcelPath)
+		}
+	}
+
 	if len(excels) == 0 {
 		return nil, errors.New("no Excel files found")
 	}
 	candidates, unmapped := shortCodesFromFiles(excels, funds)
-	// fmt.Println(unmapped)
-	// for key, files := range candidates {
-	// 	for _, file := range files {
-	// 		logger.Log("DEBUG", fmt.Sprintf("\n key:%v files:%vhi\n", key, file))
-	// 	}
-	// }
+	fmt.Println(unmapped)
+	for key, files := range candidates {
+		for _, file := range files {
+			logger.Log("DEBUG", fmt.Sprintf("\n key:%v files:%vhi\n", key, file))
+		}
+	}
 	if len(candidates) == 0 {
 		return nil, errors.New("no recognisable short-codes in file names")
 	}
@@ -104,6 +107,11 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	if series == "" {
 		return nil, errors.New("upload contains funds from multiple series – please upload single series at a time")
 	}
+	// fmt.Println("shortcide identification")
+	// for k, v := range candidates {
+	// 	fmt.Printf("fund:%vhi,files:%v\n", k, v)
+	// }
+
 	mapped := FindFileType(candidates, funds, series)
 
 	msg := "File mappings updated successfully"
@@ -165,13 +173,14 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 				quarter, loc := matchQuarterByFilename(resp.FileName)
 				resp.FileType = "Q" + strconv.Itoa(quarter)
 				if loc != -1 && resp.FileType == fund.FileType {
-					// fmt.Printf("fndname:%vhi\n,filename:%vhi\n", fund.FundName, resp.FileName)
+					fmt.Printf("fndname:%vhi\n,filename:%vhi\n", fund.FundName, resp.FileName)
 
 					out = append(out, resp)
 				}
 
 			} else {
 				if matchByidentifier(strings.ToLower(resp.FileName), strings.ToLower(fund.FileType)) {
+					fmt.Printf("\nfname:%vhi,fileType:%vhi,conv:%vhi\n", resp.FileName, resp.FileType, FileTypeConv[fund.FileType])
 					resp.FileType = FileTypeConv[fund.FileType]
 					out = append(out, resp)
 				}
