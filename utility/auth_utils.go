@@ -140,7 +140,7 @@ func SendApprovalEmail(approvalemail, clientId string) error {
 
 	for name, to := range approvers {
 		template := string(approvalemail)
-		approvalemail = strings.ReplaceAll(template, "{{.ApproverName}}", name)
+		template = strings.ReplaceAll(template, "{{.ApproverName}}", name)
 		logger.Log("INFO", "attempting to send approver email to "+to)
 		auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPHost)
 		headers := map[string]string{
@@ -155,7 +155,7 @@ func SendApprovalEmail(approvalemail, clientId string) error {
 		for k, v := range headers {
 			msg.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
 		}
-		msg.WriteString("\r\n" + approvalemail)
+		msg.WriteString("\r\n" + template)
 		logger.Log("INFO", fmt.Sprintf("MAIL FROM <%s>, RCPT TO <%s>", cfg.FromEmail, to))
 		err := smtp.SendMail(
 			fmt.Sprintf("%s:%s", cfg.SMTPHost, cfg.SMTPPort),
