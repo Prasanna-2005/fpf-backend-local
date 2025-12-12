@@ -11,6 +11,7 @@ import (
 	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"log"
 	"net/smtp"
 	"os"
 	"strings"
@@ -107,8 +108,98 @@ func CreateQuantriumEmail(otp, name, expiry string) (string, error) {
 	template = strings.ReplaceAll(template, "{{.Name}}", name)
 	template = strings.ReplaceAll(template, "{{.OTP}}", otp)
 	template = strings.ReplaceAll(template, "{{.Expiry}}", expiry)
+	template = strings.ReplaceAll(template, "{{.Expiry}}", expiry)
 
 	logger.Log("INFO", "CreateQuantriumEmail: successfully created email template for user "+name)
+	return template, nil
+}
+
+func SendApprovalEmail(approvalemail, clientId string) error {
+	/*
+		SendOTPEmail sends an OTP email to the specified recipient using SMTP.
+
+		This function validates SMTP configuration, constructs an HTML email with headers,
+		and sends the OTP email to the recipient.
+
+		:param to: Email address of the recipient
+		:type to: string
+		:param emailOTP: HTML content of the OTP email
+		:type emailOTP: string
+
+		:returns: Error if email sending fails, nil on success
+		:rtype: error
+	*/
+	cfg := config.SMTP()
+
+	// Validate SMTP configuration
+	if cfg.SMTPHost == "" || cfg.SMTPPort == "" || cfg.SMTPUser == "" || cfg.SMTPPassword == "" {
+		logger.Log("CRITICAL", "SendOTPEmail: incomplete SMTP configuration")
+		return nil
+	}
+	approvers := GetApprovers(clientId)
+
+	for name, to := range approvers {
+		template := string(approvalemail)
+		template = strings.ReplaceAll(template, "{{.ApproverName}}", name)
+		logger.Log("INFO", "attempting to send approver email to "+to)
+		auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPHost)
+		headers := map[string]string{
+			"From":         fmt.Sprintf("%s <%s>", cfg.FromName, cfg.FromEmail),
+			"To":           to,
+			"Subject":      "Form PF filing Approval",
+			"MIME-Version": "1.0",
+			"Content-Type": "text/html; charset=UTF-8",
+		}
+
+		var msg bytes.Buffer
+		for k, v := range headers {
+			msg.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
+		}
+		msg.WriteString("\r\n" + template)
+		logger.Log("INFO", fmt.Sprintf("MAIL FROM <%s>, RCPT TO <%s>", cfg.FromEmail, to))
+		err := smtp.SendMail(
+			fmt.Sprintf("%s:%s", cfg.SMTPHost, cfg.SMTPPort),
+			auth,
+			cfg.FromEmail,
+			[]string{to},
+			msg.Bytes(),
+		)
+
+		if err != nil {
+			logger.Log("ERROR", " failed to send email to "+to+" - "+err.Error())
+			// return err
+		}
+
+		logger.Log("INFO", "SendOTPEmail: successfully sent approval email to "+to)
+
+	}
+	return nil
+}
+
+func CreateEmailForApproval(user, email, date string, tracker *models.FilingTracker) (string, error) {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+	baseurl := cfg.CORSOrigins[0]
+	logger.Log("INFO", "reading approval email template file")
+	templateFile, err := os.ReadFile("static/approval.html")
+	if err != nil {
+		logger.Log("ERROR", "failed to read email template - "+err.Error())
+		return "", err
+	}
+	email = "mailto:" + email
+	url := baseurl + "/preview?filing_id=" + tracker.Id
+	fmt.Printf("\nhiurl:%vhi\n", url)
+	template := string(templateFile)
+	template = strings.ReplaceAll(template, "{{.RequesterName}}", user)
+	template = strings.ReplaceAll(template, "{{.RequesterMail}}", email)
+	// template = strings.ReplaceAll(template, "{{.RequestType}}", "Filing Approval")
+	template = strings.ReplaceAll(template, " {{.SubmittedDate}}", date)
+	template = strings.ReplaceAll(template, "{{.FilingName}}", tracker.FilingName)
+	template = strings.ReplaceAll(template, "{{.RequestURL}}", url)
+
+	logger.Log("INFO", "CreateQuantriumEmail: successfully created email template for user "+user)
 	return template, nil
 }
 
@@ -507,4 +598,21 @@ func VerifyAccessToken(token string) (models.User, error) {
 	logger.Log("INFO", "VerifyAccessToken: successfully verified access token for user "+userId)
 
 	return user, nil
+}
+
+func GetApprovers(clientId string) map[string]string {
+	fmt.Println(clientId)
+	approvers := make(map[string]string)
+	users, err := db.GetAllUser()
+	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("Getusers err:%v", err.Error()))
+		return approvers
+	}
+	for _, usr := range *users {
+		if usr.AccessType == "approver" && usr.ClientID == clientId {
+			approvers[usr.UserName] = usr.Email
+		}
+	}
+	fmt.Println(approvers)
+	return approvers
 }

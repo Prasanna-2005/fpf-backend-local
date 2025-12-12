@@ -3,14 +3,15 @@ package ctrl
 
 import (
 	"fmt"
-	"net/http"
-	"sort"
-	"time"
 	"form_pf_backend/db"
 	"form_pf_backend/ipc"
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
 	"form_pf_backend/utility"
+	"net/http"
+	"sort"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -181,18 +182,15 @@ func SubmitFiles(c *gin.Context) {
 // 	}
 // }
 
-
-
 type statusUpdateRequest struct {
-	Timestamp string `json:"timestamp"`
+	Timestamp    string `json:"timestamp"`
 	FilingStatus string `json:"filingStatus"`
 }
+
 func UpdateRequestTrackerStatus(c *gin.Context) {
-	
 
 	// userId,err := strconv.ParseUint(c.GetHeader("X-User-Id"), 10, 64)
-	userId:=c.GetHeader("X-User-Id")
-	
+	userId := c.GetHeader("X-User-Id")
 
 	var req statusUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -202,12 +200,12 @@ func UpdateRequestTrackerStatus(c *gin.Context) {
 	var err error
 	var ts time.Time
 	ts, err = time.Parse(time.RFC3339, req.Timestamp)
+
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid timestamp format"})
 		return
 	}
-	status:=req.FilingStatus
-
+	status := req.FilingStatus
 
 	tracker, err := db.GetFilingTracker(c.Param("filing_id"))
 	if err != nil {
@@ -215,14 +213,29 @@ func UpdateRequestTrackerStatus(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": "filing not found"})
 		return
 	}
+	if strings.ToLower(status) == "review" {
+		submitTimePretty := ts.Format("2 Jan 2006 15.04.05")
+		user, err := db.GetUser(userId)
+		if err != nil {
+			logger.Log("ERROR", ServerError)
+		}
+		emailContent, err := utility.CreateEmailForApproval(user.UserName, user.Email, submitTimePretty, tracker)
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("Template error:%v", err.Error()))
+		}
+		err = utility.SendApprovalEmail(emailContent, user.ClientID)
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("Sending email error:%v", err.Error()))
+		}
+
+	}
+
 	//update tracker
-	
-	db.UpdateTrackerStatus(tracker,userId,status,ts)
+	db.UpdateTrackerStatus(tracker, userId, status, ts)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
 		return
 	}
-
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":   "Tracker status updated successfully",
@@ -230,9 +243,6 @@ func UpdateRequestTrackerStatus(c *gin.Context) {
 		"status":    status,
 	})
 }
-
-
-
 
 func DownloadFiles(volumeRoot string) gin.HandlerFunc {
 	return func(c *gin.Context) {
