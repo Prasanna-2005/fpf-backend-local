@@ -2,7 +2,6 @@
 package server
 
 import (
-	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/ctrl"
 	"form_pf_backend/middleware"
@@ -28,8 +27,6 @@ func SetupRoutes(cfg *config.RouteConfig) *gin.Engine {
 			MaxAge:           12 * time.Hour,
 		}
 		r.Use(cors.New(corsConfig))
-		msg := fmt.Sprintf("cors headers: %v", cfg.CORSHeaders)
-		fmt.Println(msg)
 	}
 
 	setupAPIRoutes(r, cfg.APIVersion)
@@ -69,9 +66,10 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 	gen.GET("/fund_details", ctrl.GetFunds)
 	gen.GET("/status", ctrl.FilingStatus)
 	gen.GET("/verify_user", func(c *gin.Context) {
-    c.JSON(200, gin.H{
-        "status": "ok",
-    })})
+		c.JSON(200, gin.H{
+			"status": "ok",
+		})
+	})
 }
 
 func setUpSubmission(api *gin.RouterGroup) {
@@ -119,8 +117,8 @@ func setUpEdit(api *gin.RouterGroup) {
 	edit.Use(middleware.Authenticate("contributor", "approver", "admin"))
 	edit.GET("/response/:filing_id", ctrl.GetFilingResponse)
 	edit.GET("/approved/:filing_id", ctrl.GetApprovedFilingResponse)
-	edit.POST("/update_status/:filing_id",ctrl.UpdateRequestTrackerStatus)
-	
+	edit.POST("/update_status/:filing_id", ctrl.UpdateRequestTrackerStatus)
+
 }
 
 // SetupRoutesWithDefaults loads config from file and sets up routes with default configuration
