@@ -305,6 +305,7 @@ func VerifyOTP(c *gin.Context) {
 			"user_id":     user.ID,
 			"role":        user.AccessType,
 			"expiry_time": strconv.Itoa(int(tokenCfg.TokenExpiry.Hours())) + " Hours",
+			"client_id":   user.ClientID,
 		},
 	})
 }
