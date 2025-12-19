@@ -210,6 +210,17 @@ func matchByidentifier(filename string, filetype string) bool {
 		return true
 	}
 	identifiers := strings.Split(filetype, "_")
+	if filetype == "nav_tb" {
+		for _, id := range strings.Split(FileTypeConv[filetype], " ") {
+			if !strings.Contains(filename, strings.ToLower(id)) {
+				flg = false
+			}
+		}
+		if flg {
+			return flg
+		}
+	}
+	flg = true
 	for _, id := range identifiers {
 		if !strings.Contains(filename, id) {
 			fmt.Printf("filename:%vhi,id:%vhi\n", filename, id)
