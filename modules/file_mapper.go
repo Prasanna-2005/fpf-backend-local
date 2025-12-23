@@ -182,13 +182,14 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 				if loc != -1 && resp.FileType == fund.FileType {
 					fmt.Printf("fndname:%vhi\n,filename:%vhi\n", fund.FundName, resp.FileName)
 					out = append(out, resp)
+					mappedFilePath = append(mappedFilePath, file)
 				}
 
 			} else if matchByidentifier(strings.ToLower(resp.FileName), strings.ToLower(fund.FileType)) {
 				fmt.Printf("\nfname:%vhi,fileType:%vhi,conv:%vhi\n", resp.FileName, resp.FileType, FileTypeConv[fund.FileType])
 				resp.FileType = FileTypeConv[fund.FileType]
 				out = append(out, resp)
-				mappedFilePath = append(mappedFilePath, resp.Path)
+				mappedFilePath = append(mappedFilePath, file)
 			}
 		}
 	}
