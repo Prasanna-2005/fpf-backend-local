@@ -11,7 +11,12 @@ import (
 )
 
 func GetFilings(c *gin.Context) {
-	filingsPtr, err := db.GetAllFilings()
+	clientCode := c.Query("clientCode")
+	if clientCode == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "clientCode is required"})
+		return
+	}
+	filingsPtr, err := db.GetFilingsByClientCode(clientCode)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
