@@ -398,7 +398,6 @@ func CancelDraftFiling(uploadRoot, clientID, filingName string) error {
 	//  If draft directory does NOT exist → treat as already cancelled
 	if _, err := os.Stat(targetDir); err != nil {
 		if os.IsNotExist(err) {
-			// ✅ Idempotent cancel
 			return nil
 		}
 		return fmt.Errorf("failed to stat draft directory: %w", err)
