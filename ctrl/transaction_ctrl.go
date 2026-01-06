@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -95,14 +96,12 @@ func GetFilingResponse(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-
-
 func GetApprovedFilingResponse(c *gin.Context) {
 	id := c.Param("filing_id")
 	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
 		return
-	}	
+	}
 	//response
 	resp, err := modules.TransformToSimpleResponse(id)
 	if err != nil {
@@ -172,5 +171,55 @@ func RevertLatest(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
 	default:
 		c.JSON(http.StatusOK, gin.H{"message": "line item updated successfully"})
+	}
+}
+
+func CancelFiling(uploadRoot string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		clientIDVal, ok := c.Get("clientId")
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
+			return
+		}
+		clientID := clientIDVal.(string)
+
+		var req struct {
+			FilingName string `json:"filing_name" binding:"required"`
+		}
+
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"message": "filing_name is required"})
+			return
+		}
+
+		err := modules.CancelDraftFiling(
+			uploadRoot,
+			clientID,
+			req.FilingName,
+		)
+
+		switch {
+		case err == nil:
+			c.JSON(http.StatusOK, gin.H{
+				"message":     "filing cancelled successfully",
+				"filing_name": req.FilingName,
+			})
+
+		case errors.Is(err, errors.New("filing already submitted")):
+			c.JSON(http.StatusConflict, gin.H{
+				"message": "filing already submitted and cannot be cancelled",
+			})
+
+		case errors.Is(err, errors.New("draft filing not found")):
+			c.JSON(http.StatusNotFound, gin.H{
+				"message": "draft filing not found",
+			})
+
+		default:
+			logger.Log("ERROR", "CancelFiling: "+err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"message": "failed to cancel filing",
+			})
+		}
 	}
 }
