@@ -222,13 +222,19 @@ func matchByidentifier(filename string, filetype string) bool {
 		}
 	}
 	flg = true
-	for _, id := range identifiers {
-		if !strings.Contains(filename, id) {
-			fmt.Printf("filename:%vhi,id:%vhi\n", filename, id)
-			return false
-		}
+	// Build a single regex:  token1 .* token2 .* … .* tokenN
+	parts := make([]string, len(identifiers))
+	for i, tok := range identifiers {
+		parts[i] = regexp.QuoteMeta(strings.ToLower(tok))
 	}
-	return flg
+	pattern := strings.Join(parts, ".*")
+
+	re, err := regexp.Compile("(?i)" + pattern) // (?i) = case-insensitive
+	if err != nil {
+		return false
+	}
+
+	return re.MatchString(strings.ToLower(filename))
 }
 
 func decideSeries(funds []models.FegFileIdentification) string {
