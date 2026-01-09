@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -85,11 +86,11 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	}
 	candidates, unmapped := shortCodesFromFiles(excels, funds)
 	fmt.Println(unmapped)
-	for key, files := range candidates {
-		for _, file := range files {
-			logger.Log("DEBUG", fmt.Sprintf("\n key:%v files:%vhi\n", key, file))
-		}
-	}
+	// for key, files := range candidates {
+	// 	for _, file := range files {
+	// 		logger.Log("DEBUG", fmt.Sprintf("\n key:%v files:%vhi\n", key, file))
+	// 	}
+	// }
 	if len(candidates) == 0 {
 		return nil, errors.New("no recognisable short-codes in file names")
 	}
@@ -112,7 +113,8 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	// 	fmt.Printf("fund:%vhi,files:%v\n", k, v)
 	// }
 
-	mapped := FindFileType(candidates, funds, series)
+	mapped, failedFiles := FindFileType(candidates, funds, series)
+	unmapped = append(unmapped, failedFiles...)
 
 	msg := "File mappings updated successfully"
 	if len(mapped) == 0 {
@@ -148,9 +150,11 @@ func findFiles(root string) ([]string, []string, error) {
 	return out, pdf, err
 }
 
-func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentification, series string) []models.MappedResp {
+func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentification, series string) ([]models.MappedResp, []models.MappedResp) {
 	var out []models.MappedResp
-
+	var unmapped []models.MappedResp
+	var mappedFilePath []string
+	var allFiles []string
 	// longest code first to avoid FSAE vs FSAE2 overlap
 	sort.Slice(funds, func(i, j int) bool {
 		return len(funds[i].ShortCode) > len(funds[j].ShortCode)
@@ -162,6 +166,9 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 			continue
 		}
 		for _, file := range files {
+			if !slices.Contains(allFiles, file) {
+				allFiles = append(allFiles, file)
+			}
 
 			var resp models.MappedResp
 			resp.FundName = fund.FundName
@@ -174,22 +181,27 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 				resp.FileType = "Q" + strconv.Itoa(quarter)
 				if loc != -1 && resp.FileType == fund.FileType {
 					fmt.Printf("fndname:%vhi\n,filename:%vhi\n", fund.FundName, resp.FileName)
-
 					out = append(out, resp)
+					mappedFilePath = append(mappedFilePath, file)
 				}
 
-			} else {
-				if matchByidentifier(strings.ToLower(resp.FileName), strings.ToLower(fund.FileType)) {
-					fmt.Printf("\nfname:%vhi,fileType:%vhi,conv:%vhi\n", resp.FileName, resp.FileType, FileTypeConv[fund.FileType])
-					resp.FileType = FileTypeConv[fund.FileType]
-					out = append(out, resp)
-				}
+			} else if matchByidentifier(strings.ToLower(resp.FileName), strings.ToLower(fund.FileType)) {
+				fmt.Printf("\nfname:%vhi,fileType:%vhi,conv:%vhi\n", resp.FileName, resp.FileType, FileTypeConv[fund.FileType])
+				resp.FileType = FileTypeConv[fund.FileType]
+				out = append(out, resp)
+				mappedFilePath = append(mappedFilePath, file)
 			}
-
 		}
-
 	}
-	return out
+	for _, file := range allFiles {
+		if !slices.Contains(mappedFilePath, file) {
+			var unmap models.MappedResp
+			unmap.FileName = filepath.Base(file)
+			unmap.Path = strings.TrimPrefix(file, os.Getenv("STORAGE_PATH"))
+			unmapped = append(unmapped, unmap)
+		}
+	}
+	return out, unmapped
 }
 
 func matchByidentifier(filename string, filetype string) bool {
@@ -199,13 +211,30 @@ func matchByidentifier(filename string, filetype string) bool {
 		return true
 	}
 	identifiers := strings.Split(filetype, "_")
-	for _, id := range identifiers {
-		if !strings.Contains(filename, id) {
-			fmt.Printf("filename:%vhi,id:%vhi\n", filename, id)
-			flg = false
+	if filetype == "nav_tb" {
+		for _, id := range strings.Split(FileTypeConv[filetype], " ") {
+			if !strings.Contains(filename, strings.ToLower(id)) {
+				flg = false
+			}
+		}
+		if flg {
+			return flg
 		}
 	}
-	return flg
+	flg = true
+	// Build a single regex:  token1 .* token2 .* … .* tokenN
+	parts := make([]string, len(identifiers))
+	for i, tok := range identifiers {
+		parts[i] = regexp.QuoteMeta(strings.ToLower(tok))
+	}
+	pattern := strings.Join(parts, ".*")
+
+	re, err := regexp.Compile("(?i)" + pattern) // (?i) = case-insensitive
+	if err != nil {
+		return false
+	}
+
+	return re.MatchString(strings.ToLower(filename))
 }
 
 func decideSeries(funds []models.FegFileIdentification) string {

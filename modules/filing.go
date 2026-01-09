@@ -64,40 +64,79 @@ func ValidateAndBind(c *gin.Context) (*UploadRequest, bool) {
 	return &req, true
 }
 
-// ProcessUpload handles the main upload business logic
+func filingExistsInDB(filingName string) (bool, error) {
+	allfilings, err := db.GetAllFilings()
+	if err != nil {
+		logger.Log("ERROR", "DB error: "+err.Error())
+		return false, err
+	}
+
+	for _, filing := range *allfilings {
+		if filing.FilingName == filingName {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func draftExists(clientDir, filingName string) bool {
+	targetDir := filepath.Join(clientDir, sanitize(filingName))
+	info, err := os.Stat(targetDir)
+	return err == nil && info.IsDir()
+}
+
 func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 	clientID, _ := c.Get("clientId")
+
 	clientDir := filepath.Join(root, fmt.Sprintf("%v", clientID))
+	filingName := sanitize(req.FilingName)
+	targetDir := filepath.Join(clientDir, filingName)
 
-	logger.Log("INFO", fmt.Sprintf("[ProcessUpload] Processing upload - client=%v, filing=%s, new=%t, files=%d",
-		clientID, req.FilingName, req.NewFiling, len(req.Files)))
+	logger.Log(
+		"INFO",
+		fmt.Sprintf(
+			"[ProcessUpload] client=%v filing=%s new=%t files=%d",
+			clientID, filingName, req.NewFiling, len(req.Files),
+		),
+	)
 
+	//  Ensure client directory exists
 	if err := EnsureVolumeDir(clientDir); err != nil {
-		logger.Log("ERROR", fmt.Sprintf("[ProcessUpload] Failed to create client directory %s: %v", clientDir, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "cannot create client directory"})
 		return err
 	}
 
-	exists := filingExists(clientDir, sanitize(req.FilingName))
-	if err := validateFilingConstraints(req.NewFiling, exists, req.FilingName); err != nil {
-		handleFilingValidationError(c, err, req.NewFiling)
+	//  DB-only validation
+	existsInDB, err := filingExistsInDB(filingName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "database error"})
 		return err
 	}
 
-	targetDir := filepath.Join(clientDir, sanitize(req.FilingName))
-	if err := EnsureVolumeDir(targetDir); err != nil {
-		logger.Log("ERROR", fmt.Sprintf("[ProcessUpload] Failed to create target directory %s: %v", targetDir, err))
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "cannot create directory"})
+	if req.NewFiling && existsInDB {
+		c.JSON(http.StatusConflict, gin.H{"message": "filing already exists"})
+		return fmt.Errorf("duplicate filing")
+	}
+
+	//  ALWAYS create (or recreate) filing directory
+	if err := os.MkdirAll(targetDir, 0755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "cannot create filing directory"})
 		return err
 	}
 
+	//  Save & extract files
 	if err := saveAndExtract(req.Files, targetDir); err != nil {
+		// Cleanup on failure
+		_ = os.RemoveAll(targetDir)
 		handleSaveError(c, targetDir, err)
 		return err
 	}
 
-	logger.Log("INFO", fmt.Sprintf("[ProcessUpload] Successfully processed upload for filing: %s", req.FilingName))
-	c.JSON(http.StatusOK, gin.H{"message": "Successfully uploaded", "filing_name": sanitize(req.FilingName)})
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "Successfully uploaded",
+		"filing_name": filingName,
+	})
+
 	return nil
 }
 
@@ -327,5 +366,47 @@ func EnsureVolumeDir(path string) error {
 	if e, ok := dirErrors.Load(key); ok {
 		return e.(error)
 	}
+	return nil
+}
+
+// deletes dir
+func CancelDraftFiling(uploadRoot, clientID, filingName string) error {
+	if strings.TrimSpace(filingName) == "" {
+		return errors.New("empty filing name")
+	}
+
+	// Check if filing is already submitted (DB)
+	allfilings, err := db.GetAllFilings()
+	if err != nil {
+		return fmt.Errorf("db error: %w", err)
+	}
+
+	for _, filing := range *allfilings {
+		if filing.FilingName == filingName {
+			//  Submitted filings cannot be cancelled
+			return errors.New("filing already submitted")
+		}
+	}
+
+	// Draft directory path (only this folder)
+	targetDir := filepath.Join(
+		uploadRoot,
+		clientID,
+		sanitize(filingName),
+	)
+
+	//  If draft directory does NOT exist → treat as already cancelled
+	if _, err := os.Stat(targetDir); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to stat draft directory: %w", err)
+	}
+
+	//  Safe delete of ONLY this filing folder
+	if err := RemoveDir(targetDir); err != nil {
+		return fmt.Errorf("failed to delete draft filing: %w", err)
+	}
+
 	return nil
 }
