@@ -74,7 +74,7 @@ func GetComputationlogs(series, clientCode string) (map[string]map[string][2]str
 		case "InfixExpression":
 			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, r.InfixExpression}
 		case "GroupOperation":
-			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, r.GroupOperation}
+			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, grpFormat(r.GroupOperation)}
 		default:
 			out[r.FundID][r.FormLineNo] = [2]string{"null", "null"}
 			continue
@@ -83,4 +83,8 @@ func GetComputationlogs(series, clientCode string) (map[string]map[string][2]str
 	}
 
 	return out, nil
+}
+
+func grpFormat(grpOp string) string {
+	return grpOp
 }
