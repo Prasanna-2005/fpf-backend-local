@@ -49,3 +49,38 @@ func FetchFundSeriesForFiling(filingID string) ([]string, error) {
 		Scan(&rows).Error
 	return rows, err
 }
+
+func GetComputationlogs(series, clientCode string) (map[string]map[string][2]string, error) {
+
+	var rows []models.CompLogs
+
+	if err := sqlDb.Where("series = ? AND clientCode = ?", series, clientCode).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	out := make(map[string]map[string][2]string)
+	for _, r := range rows {
+		if out[r.FundID] == nil {
+			out[r.FundID] = make(map[string][2]string)
+		}
+		if r.ComputationType == nil {
+			out[r.FundID][r.FormLineNo] = [2]string{"null", "null"}
+			continue
+		}
+
+		switch *r.ComputationType {
+		case "StaticData":
+			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, r.StaticData}
+		case "InfixExpression":
+			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, r.InfixExpression}
+		case "GroupOperation":
+			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, r.GroupOperation}
+		default:
+			out[r.FundID][r.FormLineNo] = [2]string{"null", "null"}
+			continue
+		}
+
+	}
+
+	return out, nil
+}
