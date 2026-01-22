@@ -55,6 +55,7 @@ func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
 	row := models.FilingTracker{
 		Id:           uuid.New().String(),
 		ClientCode:   cid,
+		Series:       req.Series,
 		FilingName:   req.FilingName,
 		UploadCount:  1,
 		IsSubmitted:  true,
