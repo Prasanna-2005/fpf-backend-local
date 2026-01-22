@@ -79,3 +79,39 @@ type LineDetail struct {
 	DateValue       string      `json:"date_value,omitempty"`
 	DisclaimerText  string      `json:"disclaimer_text,omitempty"`
 }
+
+// FilingResponse is the top-level envelope sent back to the UI.
+type ComputationLogsLegacy struct {
+	Funds []FundlegacyComputation `json:"funds"`
+}
+
+// Fund represents one fund-series block inside the funds array.
+type FundlegacyComputation struct {
+	FundID   string             `json:"fund_id"`
+	FundName string             `json:"fund_name"`
+	FundComp []FieldComputation `json:"fund_computation"`
+}
+
+// FieldItem mirrors the JSON block the frontend expects for every field_no.
+type FieldComputation struct {
+	FieldNo              string            `json:"field_no"`
+	FieldItemType        string            `json:"field_item_type"`
+	HasTableData         bool              `json:"has_table_data"`
+	TableMetadata        map[string]string `json:"table_metadata,omitempty"`
+	TableData            interface{}       `json:"table_data,omitempty"`
+	TableComputationType map[string]string `json:"table_computation_type,omitempty"`
+	Type                 string            `json:"computation_type"`
+	Formula              string            `json:"computation_formula"`
+	FieldData            []LineComputation `json:"field_data"`
+}
+
+// LineDetail is used inside FieldData when the field is broken into sub-lines.
+type LineComputation struct {
+	LineItemNo   string `json:"line_item_no,omitempty"`
+	LineItemType string `json:"line_item_type,omitempty"`
+	// HasLineItemText bool        `json:"has_line_item_text"`
+	Type         string      `json:"computation_type"`
+	Formula      string      `json:"computation_formula"`
+	HasTableData bool        `json:"has_table_computation"`
+	TableData    interface{} `json:"table_computation,omitempty"`
+}
