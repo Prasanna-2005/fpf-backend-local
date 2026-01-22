@@ -50,18 +50,18 @@ func BatchSaveFileMappings(rows []models.FileMapper) error {
 func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
-	defaultStatus:="In progress"
+	defaultStatus := "In progress"
 
 	row := models.FilingTracker{
-		Id:          uuid.New().String(),
-		ClientCode:  cid,
-		FilingName:  req.FilingName,
-		UploadCount: 1,
-		IsSubmitted: true,
-		IsDeleted:   false,
-		CreatedAt:   ts,
-		CreatedBy:   req.UserID,
-		FilingStatus:  defaultStatus,
+		Id:           uuid.New().String(),
+		ClientCode:   cid,
+		FilingName:   req.FilingName,
+		UploadCount:  1,
+		IsSubmitted:  true,
+		IsDeleted:    false,
+		CreatedAt:    ts,
+		CreatedBy:    req.UserID,
+		FilingStatus: defaultStatus,
 	}
 	if err := sqlDb.Create(&row).Error; err != nil { // normal call
 		return "", err
@@ -127,8 +127,8 @@ func UpdateTracker(tracker *models.FilingTracker, req *models.SubmitReq) error {
 	return sqlDb.Save(tracker).Error
 }
 
-//tracker status update
-func UpdateTrackerStatus(tracker *models.FilingTracker,userId string, status string,ts time.Time) error {
+// tracker status update
+func UpdateTrackerStatus(tracker *models.FilingTracker, userId string, status string, ts time.Time) error {
 	// ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 	// uid, err := strconv.Atoi(userID)
 	// if err != nil {
@@ -138,12 +138,11 @@ func UpdateTrackerStatus(tracker *models.FilingTracker,userId string, status str
 	tracker.UpdatedAt = ts
 	tracker.UpdatedBy = userId
 
-	if status=="Archived"{
-		tracker.IsDeleted=true
+	if status == "Archived" {
+		tracker.IsDeleted = true
 	}
 	return sqlDb.Save(tracker).Error
 }
-
 
 // UpdateMapper updates every mapper row that belongs to the given filingId:
 func UpdateMapper(filingId string, req *models.SubmitReq) error {
