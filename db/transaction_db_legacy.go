@@ -72,7 +72,7 @@ func GetComputationlogs(series, clientCode string) (map[string]map[string][2]str
 		case "staticData":
 			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, r.StaticData}
 		case "InfixExpression":
-			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, r.InfixExpression}
+			out[r.FundID][r.FormLineNo] = [2]string{"formula", r.InfixExpression}
 		case "filters":
 			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, grpFormat(r.GroupOperation)}
 		default:
