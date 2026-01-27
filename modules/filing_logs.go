@@ -130,8 +130,9 @@ func buildTablelogs(fieldNo string, g *compGroup, vm map[string][2]string) model
 
 	// Group children by row-key
 	rowMap := make(map[string]map[string]string)
+	computationTypeMap := make(map[string]map[string]string)
 	rowMap["metadata"] = make(map[string]string)
-	rowMap["compType"] = make(map[string]string)
+	// rowMap["compType"] = make(map[string]string)
 	for _, v := range g.children {
 
 		if v.FormLineItemNo == fieldNo {
@@ -144,10 +145,11 @@ func buildTablelogs(fieldNo string, g *compGroup, vm map[string][2]string) model
 		rowKey, colKey := tokens[1], tokens[2]
 		if rowMap[rowKey] == nil {
 			rowMap[rowKey] = make(map[string]string)
+			computationTypeMap[rowKey] = make(map[string]string)
 		}
 		rowMap[rowKey][colKey] = vm[v.FormLineItemNo][1]
 		rowMap["metadata"][colKey] = v.DataType
-		rowMap["compType"][colKey] = vm[v.FormLineItemNo][0]
+		computationTypeMap[rowKey][colKey] = vm[v.FormLineItemNo][0]
 
 	}
 
@@ -161,21 +163,21 @@ func buildTablelogs(fieldNo string, g *compGroup, vm map[string][2]string) model
 	// Convert to ordered maps
 	tableData := make([]*OrderedMap, 0, len(rowMap))
 	for _, rk := range rowKeys {
-		if rk == "metadata" || rk == "compType" {
+		if rk == "metadata" {
 			continue
 		}
-		var label string
-		for _, v := range g.children {
-			if strings.HasPrefix(v.FormLineItemNo, fieldNo+"_"+rk+"_") {
-				label = v.LineText
-				break
-			}
-		}
+		// var label string
+		// for _, v := range g.children {
+		// 	if strings.HasPrefix(v.FormLineItemNo, fieldNo+"_"+rk+"_") {
+		// 		label = v.LineText
+		// 		break
+		// 	}
+		// }
 
 		// Create ordered map with s.name and s.text first
 		obj := NewOrderedMap()
 		obj.Set("s.name", rk)
-		obj.Set("s.text", rk+" "+label)
+		obj.Set("s.computationType", computationTypeMap[rk])
 
 		// Add remaining columns in sorted order
 		colKeys := make([]string, 0, len(rowMap[rk]))
