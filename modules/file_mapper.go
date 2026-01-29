@@ -339,7 +339,7 @@ func shortCodesFromFiles(paths []string, funds []models.FegFileIdentification) (
 		}
 		if !flg {
 			file.FileName = filepath.Base(p)
-			file.Path = p
+			file.Path = strings.TrimPrefix(p, os.Getenv("STORAGE_PATH"))
 			unmapped = append(unmapped, file)
 		}
 	}
