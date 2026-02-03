@@ -93,11 +93,11 @@ func grpFormat(expression string) string {
 	firstOpen := strings.Index(expression, "(")
 	firstClose := strings.Index(expression[firstOpen:], ")") + firstOpen
 	remaining := expression[firstClose+1:]
-	filterOperation := expression[:firstOpen]
+	filterOperation := strings.ToLower(expression[:firstOpen])
 	filterCondition := expression[firstOpen+1 : firstClose]
 	target := remaining
 
-	if filterOperation == "DESC" {
+	if filterOperation == "desc" {
 		statement = fmt.Sprintf("Top %v percent of column %v ", filterCondition, target)
 	} else {
 		filterConditionSplit := strings.Split(filterCondition, ":")
