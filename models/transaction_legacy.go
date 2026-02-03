@@ -107,11 +107,12 @@ type FieldComputation struct {
 
 // LineDetail is used inside FieldData when the field is broken into sub-lines.
 type LineComputation struct {
-	LineItemNo   string `json:"line_item_no,omitempty"`
-	LineItemType string `json:"line_item_type,omitempty"`
-	// HasLineItemText bool        `json:"has_line_item_text"`
-	Type         string      `json:"computation_type"`
-	Formula      string      `json:"computation_formula"`
-	HasTableData bool        `json:"has_table_computation"`
-	TableData    interface{} `json:"table_computation,omitempty"`
+	LineItemNo      string      `json:"line_item_no,omitempty"`
+	LineItemType    string      `json:"line_item_type,omitempty"`
+	HasLineItemText bool        `json:"has_line_item_text"`
+	LineText        string      `json:"line_text,omitempty"`
+	Type            string      `json:"computation_type"`
+	Formula         string      `json:"computation_formula"`
+	HasTableData    bool        `json:"has_table_computation"`
+	TableData       interface{} `json:"table_computation,omitempty"`
 }
