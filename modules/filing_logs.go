@@ -209,11 +209,13 @@ func buildTablelogs(fieldNo string, g *compGroup, vm map[string][2]string) model
 func buildTextLogs(g *compGroup, vm map[string][2]string) models.FieldComputation {
 	par := g.parent
 	fItem := models.FieldComputation{
-		FieldNo:       par.FieldNo,
-		FieldItemType: par.DataType,
-		HasTableData:  par.IsTableData,
-		Type:          vm[par.FormLineItemNo][0],
-		Formula:       vm[par.FormLineItemNo][1],
+		FieldNo:          par.FieldNo,
+		FieldItemType:    par.DataType,
+		HasFieldItemText: par.LineText != "",
+		FieldText:        par.LineText,
+		HasTableData:     par.IsTableData,
+		Type:             vm[par.FormLineItemNo][0],
+		Formula:          vm[par.FormLineItemNo][1],
 	}
 
 	fItem.FieldData = make([]models.LineComputation, 0, len(g.children))
