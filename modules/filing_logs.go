@@ -221,6 +221,7 @@ func buildTextLogs(g *compGroup, vm map[string][2]string) models.FieldComputatio
 		fItem.FieldData = append(fItem.FieldData, models.LineComputation{
 			LineItemNo:   l.FormLineItemNo,
 			LineItemType: l.DataType,
+			LineText:     l.LineText,
 			Type:         vm[l.FormLineItemNo][0],
 			Formula:      vm[l.FormLineItemNo][1],
 			TableData:    nil,
