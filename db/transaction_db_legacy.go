@@ -88,16 +88,17 @@ func GetComputationlogs(series, clientCode string) (map[string]map[string][2]str
 }
 
 func grpFormat(expression string) string {
+	fmt.Println(expression)
 	var statement string
 	firstOpen := strings.Index(expression, "(")
-	firstClose := strings.Index(expression[firstOpen:], ")")
+	firstClose := strings.Index(expression[firstOpen:], ")") + firstOpen
 	remaining := expression[firstClose+1:]
 	filterOperation := expression[:firstOpen]
 	filterCondition := expression[firstOpen+1 : firstClose]
 	target := remaining
 
 	if filterOperation == "DESC" {
-		statement = fmt.Sprintf("Top %v of column %v", filterCondition, target)
+		statement = fmt.Sprintf("Top %v percent of column %v ", filterCondition, target)
 	} else {
 		filterConditionSplit := strings.Split(filterCondition, ":")
 		statement = fmt.Sprintf("Filter column %v based on %v column with values %v", target, filterConditionSplit[0], filterConditionSplit[1])
