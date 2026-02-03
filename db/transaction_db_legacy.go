@@ -1,7 +1,9 @@
 package db
 
 import (
+	"fmt"
 	"form_pf_backend/models"
+	"strings"
 )
 
 /* ---------- meta ---------- */
@@ -85,6 +87,20 @@ func GetComputationlogs(series, clientCode string) (map[string]map[string][2]str
 	return out, nil
 }
 
-func grpFormat(grpOp string) string {
-	return grpOp
+func grpFormat(expression string) string {
+	var statement string
+	firstOpen := strings.Index(expression, "(")
+	firstClose := strings.Index(expression[firstOpen:], ")")
+	remaining := expression[firstClose+1:]
+	filterOperation := expression[:firstOpen]
+	filterCondition := expression[firstOpen+1 : firstClose]
+	target := remaining
+
+	if filterOperation == "DESC" {
+		statement = fmt.Sprintf("Top %v of column %v", filterCondition, target)
+	} else {
+		filterConditionSplit := strings.Split(filterCondition, ":")
+		statement = fmt.Sprintf("Filter column %v based on %v column with values %v", target, filterConditionSplit[0], filterConditionSplit[1])
+	}
+	return statement
 }
