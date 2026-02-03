@@ -25,7 +25,7 @@ type CompLogs struct {
 	FundID          string  `gorm:"column:fundId;type:varchar(255)"`
 	ComputationType *string `gorm:"column:computationType;type:varchar(255)"`
 	StaticData      string  `gorm:"column:staticData;type:varchar(255)"`
-	GroupOperation  string  `gorm:"column:groupOperation;type:varchar(255)"`
+	GroupOperation  string  `gorm:"column:filters;type:varchar(255)"`
 	InfixExpression string  `gorm:"column:InfixExpression;type:text"`
 }
 
