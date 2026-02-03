@@ -96,6 +96,8 @@ type FundlegacyComputation struct {
 type FieldComputation struct {
 	FieldNo              string            `json:"field_no"`
 	FieldItemType        string            `json:"field_item_type"`
+	HasFieldItemText     bool              `json:"has_field_item_text"`
+	FieldText            string            `json:"field_text"`
 	HasTableData         bool              `json:"has_table_data"`
 	TableMetadata        map[string]string `json:"table_metadata,omitempty"`
 	TableData            interface{}       `json:"table_data,omitempty"`
