@@ -23,6 +23,16 @@ type OrderedMap struct {
 	values map[string]interface{}
 }
 
+var formFieldMapping = map[string][]string{
+	"1": {
+		"Legal name",
+		"SEC 801-Number",
+		"NFA ID Number, if any",
+		"Large trader ID, if any",
+		"Large trader ID suffix, if any",
+	},
+}
+
 func NewOrderedMap() *OrderedMap {
 	return &OrderedMap{
 		keys:   make([]string, 0),
@@ -134,9 +144,13 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 		for _, m := range meta {
 			/* skip if we already emitted this fieldNo */
 			fieldNoInt, _ := strconv.Atoi(m.FieldNo)
-			if fieldNoInt > 17 && fundRec.FundType != "HEDGE" {
+			if (fieldNoInt > 17 && fundRec.FundType != "HEDGE") || (fieldNoInt < 5 && fundRec.FundType != "ALL") {
 				continue
 			}
+			if fieldNoInt > 4 && fundRec.FundType == "ALL" {
+				continue
+			}
+
 			if seen[m.FieldNo] {
 				continue
 			}
@@ -153,6 +167,9 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 				fund.FundData = append(fund.FundData, buildMCQ(m.FieldNo, g, vm))
 				continue
 			}
+			// if g.parent.DataType == "exp_table" {
+			// 	fund.FundData = append(fund.FundData, buildExpandableTable(m.FieldNo, g, vm))
+			// }
 
 			// 2. normal text / bool (options) block
 			fund.FundData = append(fund.FundData,
@@ -171,6 +188,27 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 
 	return resp, nil
 }
+
+// func buildExpandableTable(fieldNo string, g *group, vm map[string]string) models.FieldItem {
+// 	par := g.parent
+// 	tableData := formFieldMapping[fieldNo]
+// 	return models.FieldItem{
+// 		FieldNo:          fieldNo,
+// 		HasFieldItemText: par.LineText != "",
+// 		FieldItemType:    par.DataType,
+// 		HasTableData:     true,
+// 		TableMetadata:    rowMap["metadata"],
+// 		FieldText:        par.LineText,
+// 		FieldHeading:     headingFor(fieldNo),
+// 		Value:            vm[fieldNo],
+// 		FieldData:        []models.LineDetail{},
+// 		TableData:        tableData,
+// 		Confirmed:        false,
+// 		Editing:          true,
+// 		IsMultipleAdd:    par.IsMultipleAdd,
+// 		DisclaimerText:   par.DisclaimerText,
+// 	}
+// }
 
 // table builder
 func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) models.FieldItem {
