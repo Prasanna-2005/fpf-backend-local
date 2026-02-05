@@ -37,6 +37,17 @@ var expTableColumnHeaders = map[string][]string{
 	},
 }
 
+var xmlTagAUM = map[string]string{
+	"3_a": "HEDGE",
+	"3_b": "LIQUIDITY",
+	"3_c": "PRIVATEEQUITY",
+	"3_d": "REALESTATE",
+	"3_e": "SECURITIZED",
+	"3_f": "VENTURECAPITAL",
+	"3_g": "OTHERPRIVATE",
+	"3_h": "NONPRIVATE",
+}
+
 var expTableMetaData = map[string]map[string]string{
 	"1_b": {
 		"Legal name":                     "text",
@@ -428,14 +439,16 @@ type FundInfo struct {
 }
 
 type TagInfo struct {
-	FundID     string      `json:"fund_id"`
-	XMLTags    string      `json:"xmltags"`
-	Value      interface{} `json:"value"`
-	QuestionNo string      `json:"qno,omitempty"`
+	FundID        string      `json:"fund_id"`
+	XMLTags       string      `json:"xmltags"`
+	Value         interface{} `json:"value"`
+	QuestionNo    string      `json:"qno,omitempty"`
+	QuestionSubNo string      `json:"qSubno,omitempty"`
 }
 
 type SimpleResponse struct {
 	FundInfo      []FundInfo  `json:"fund_info"`
+	TagInfoSec1a  [][]TagInfo `json:"tags_info_sec1a"`
 	TagsInfoSec1b [][]TagInfo `json:"tags_info_sec1b"`
 	TagInfoSec1c  [][]TagInfo `json:"tag_info_sec1c"`
 }
@@ -497,6 +510,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 	fundMap := make(map[string]FundInfo)
 	tagMap1b := make(map[string][]TagInfo)
 	tagMap1c := make(map[string][]TagInfo)
+	tagMap1a := make(map[string][]TagInfo)
 
 	for _, r := range rows {
 		qno, _ := strconv.Atoi(r.FieldNo)
@@ -538,6 +552,48 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 					Value:   ValueFor(*r.Value, r.LineItemType, r.FieldNo, r.FormLineNo, r.XmlTags),
 				})
 			}
+		} else if qno < 5 {
+			if r.LineItemType == "exp_table" {
+				xmlTags := strings.Split(r.XmlTags, ",")
+				rawRows := strings.Trim(*r.Value, "()")
+				rows := strings.Split(rawRows, "),(")
+				for _, row := range rows {
+					row = strings.Trim(row, "()")
+					rowVal := strings.Split(row, ",")
+					for i, val := range rowVal {
+						tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+							FundID:        r.FundID,
+							XMLTags:       string(xmlTags[i]),
+							Value:         val,
+							QuestionNo:    r.FieldNo,
+							QuestionSubNo: r.FormLineNo,
+						})
+					}
+				}
+			}
+			if qno == 3 {
+				var aumtype string
+				for _, key := range xmlTagAUM {
+					if strings.Contains(r.FormLineNo, key) {
+						aumtype = xmlTagAUM[key]
+					}
+				}
+				tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+					FundID:        r.FundID,
+					XMLTags:       string(r.XmlTags),
+					Value:         r.Value,
+					QuestionNo:    r.FieldNo,
+					QuestionSubNo: r.FormLineNo,
+				})
+				tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+					FundID:        r.FundID,
+					XMLTags:       aumtype,
+					Value:         r.Value,
+					QuestionNo:    r.FieldNo,
+					QuestionSubNo: r.FormLineNo,
+				})
+			}
+
 		} else {
 			tagMap1b[r.FundID] = append(tagMap1b[r.FundID], TagInfo{
 				FundID:  r.FundID,
@@ -548,6 +604,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 	}
 
 	fundSlc := make([]FundInfo, 0, len(fundMap))
+	tagSlc1a := make([][]TagInfo, 0, len(tagMap1a))
 	tagSlc1b := make([][]TagInfo, 0, len(tagMap1b))
 	tagSlc1c := make([][]TagInfo, 0, len(tagMap1c))
 
@@ -560,12 +617,16 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 			if _, ok := tagMap1c[r.FundID]; ok {
 				tagSlc1c = append(tagSlc1c, tagMap1c[r.FundID])
 			}
+			if _, ok := tagMap1a[r.FundID]; ok {
+				tagSlc1a = append(tagSlc1a, tagMap1c[r.FundID])
+			}
 			delete(fundMap, r.FundID)
 		}
 	}
 
 	return &SimpleResponse{
 		FundInfo:      fundSlc,
+		TagInfoSec1a:  tagSlc1a,
 		TagsInfoSec1b: tagSlc1b,
 		TagInfoSec1c:  tagSlc1c,
 	}, nil
