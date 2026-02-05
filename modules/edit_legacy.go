@@ -23,13 +23,31 @@ type OrderedMap struct {
 	values map[string]interface{}
 }
 
-var formFieldMapping = map[string][]string{
-	"1": {
+var expTableColumnHeaders = map[string][]string{
+	"1_b": {
 		"Legal name",
 		"SEC 801-Number",
 		"NFA ID Number, if any",
 		"Large trader ID, if any",
 		"Large trader ID suffix, if any",
+	},
+	"4": {
+		"Question number",
+		"Description",
+	},
+}
+
+var expTableMetaData = map[string]map[string]string{
+	"1_b": {
+		"Legal name":                     "text",
+		"SEC 801-Number":                 "text",
+		"NFA ID Number, if any":          "text",
+		"Large trader ID, if any":        "text",
+		"Large trader ID suffix, if any": "text",
+	},
+	"4": {
+		"Question number": "text",
+		"Description":     "text",
 	},
 }
 
@@ -70,6 +88,12 @@ func optionSlice(dataType string) []string {
 
 func headingFor(fieldNo string) string {
 	switch fieldNo {
+	case "1", "2":
+		return "Item A. Information about you "
+	case "3":
+		return "Item B. Information about assets of private funds that you advise"
+	case "4":
+		return "Item C. Miscellaneous"
 	case "5", "6", "7", "18", "19":
 		return "Item A. Reporting fund identifying information"
 	case "8", "9", "10", "11", "12", "13", "14", "15", "16", "17":
@@ -167,9 +191,11 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 				fund.FundData = append(fund.FundData, buildMCQ(m.FieldNo, g, vm))
 				continue
 			}
-			// if g.parent.DataType == "exp_table" {
-			// 	fund.FundData = append(fund.FundData, buildExpandableTable(m.FieldNo, g, vm))
-			// }
+			if g.parent.DataType == "exp_table" {
+				fmt.Printf("fieldNo:%v", m.FieldNo)
+				fund.FundData = append(fund.FundData, buildExpandableTable(m.FieldNo, g, vm))
+				continue
+			}
 
 			// 2. normal text / bool (options) block
 			fund.FundData = append(fund.FundData,
@@ -189,26 +215,43 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 	return resp, nil
 }
 
-// func buildExpandableTable(fieldNo string, g *group, vm map[string]string) models.FieldItem {
-// 	par := g.parent
-// 	tableData := formFieldMapping[fieldNo]
-// 	return models.FieldItem{
-// 		FieldNo:          fieldNo,
-// 		HasFieldItemText: par.LineText != "",
-// 		FieldItemType:    par.DataType,
-// 		HasTableData:     true,
-// 		TableMetadata:    rowMap["metadata"],
-// 		FieldText:        par.LineText,
-// 		FieldHeading:     headingFor(fieldNo),
-// 		Value:            vm[fieldNo],
-// 		FieldData:        []models.LineDetail{},
-// 		TableData:        tableData,
-// 		Confirmed:        false,
-// 		Editing:          true,
-// 		IsMultipleAdd:    par.IsMultipleAdd,
-// 		DisclaimerText:   par.DisclaimerText,
-// 	}
-// }
+func buildExpandableTableLine(l models.FormFieldMSLegacy, vm map[string]string) models.LineDetail {
+	return models.LineDetail{
+		LineItemNo:      l.FormLineItemNo,
+		HasLineItemText: l.LineText != "",
+		LineItemType:    l.DataType,
+		LineText:        l.LineText,
+		TableMetadata:   expTableMetaData[l.FormLineItemNo],
+		TableHeaders:    expTableColumnHeaders[l.FormLineItemNo],
+		Value:           vm[l.FormLineItemNo],
+		Options:         optionSlice(l.DataType),
+		TableData:       nil,
+		RequireDate:     l.RequiresDate,
+		DateValue:       "",
+		DisclaimerText:  l.DisclaimerText,
+	}
+}
+func buildExpandableTable(fieldNo string, g *group, vm map[string]string) models.FieldItem {
+	par := g.parent
+	fmt.Printf("metadata:%v\n", expTableMetaData[fieldNo])
+	fmt.Printf("headers:%v\n", expTableColumnHeaders[fieldNo])
+	return models.FieldItem{
+		FieldNo:          fieldNo,
+		HasFieldItemText: par.LineText != "",
+		FieldItemType:    par.DataType,
+		HasTableData:     true,
+		TableMetadata:    expTableMetaData[fieldNo],
+		FieldText:        par.LineText,
+		FieldHeading:     headingFor(fieldNo),
+		Value:            vm[fieldNo],
+		TableHeaders:     expTableColumnHeaders[fieldNo],
+		FieldData:        []models.LineDetail{},
+		Confirmed:        false,
+		Editing:          true,
+		IsMultipleAdd:    par.IsMultipleAdd,
+		DisclaimerText:   par.DisclaimerText,
+	}
+}
 
 // table builder
 func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) models.FieldItem {
@@ -302,6 +345,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 // builder for text / bool
 func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 	par := g.parent
+
 	fItem := models.FieldItem{
 		FieldNo:          par.FieldNo,
 		HasFieldItemText: par.LineText != "",
@@ -319,19 +363,28 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 
 	fItem.FieldData = make([]models.LineDetail, 0, len(g.children))
 	for _, l := range g.children {
-		fItem.FieldData = append(fItem.FieldData, models.LineDetail{
-			LineItemNo:      l.FormLineItemNo,
-			HasLineItemText: l.LineText != "",
-			LineItemType:    l.DataType,
-			LineText:        l.LineText,
-			Value:           vm[l.FormLineItemNo],
-			Options:         optionSlice(l.DataType),
-			TableData:       nil,
-			RequireDate:     l.RequiresDate,
-			DateValue:       "",
-			DisclaimerText:  l.DisclaimerText,
-		})
+		switch l.DataType {
+		case "exp_table":
+			fItem.FieldData = append(fItem.FieldData, buildExpandableTableLine(l, vm))
+
+		default:
+			fItem.FieldData = append(fItem.FieldData, models.LineDetail{
+				LineItemNo:      l.FormLineItemNo,
+				HasLineItemText: l.LineText != "",
+				LineItemType:    l.DataType,
+				LineText:        l.LineText,
+				Value:           vm[l.FormLineItemNo],
+				Options:         optionSlice(l.DataType),
+				TableData:       nil,
+				RequireDate:     l.RequiresDate,
+				DateValue:       "",
+				DisclaimerText:  l.DisclaimerText,
+			})
+
+		}
+
 	}
+
 	return fItem
 }
 
