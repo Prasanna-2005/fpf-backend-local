@@ -90,11 +90,23 @@ func (om *OrderedMap) MarshalJSON() ([]byte, error) {
 	return []byte(result), nil
 }
 
-func optionSlice(dataType string) []string {
+func optionSlice(dataType, formLineNo string) []string {
 	if dataType == "bool" {
 		return []string{"YES", "NO"}
 	}
+	if dataType == "mcq" {
+		var opt []string
+		for options, _ := range mcqlist[formLineNo] {
+			opt = append(opt, options)
+		}
+		return opt
+	}
 	return nil
+}
+
+var mcqlist = map[string]map[string]string{
+	"0_A": {"Submit your first filing on Form PF": " PF-INIT", "Submit an annual update": " PF-UPDATING", "Amend a previously submitted filing": " PF-AMEND", "Submit a final filing": " PF-FINAL", "Request a temporary hardship exemption": " EXEMPTION"},
+	"0_B": {"Submit your first filing on Form PF for the [1st, 2nd, 3rd, 4th] quarter": " PF-INIT", "Submit a quarterly update (including fourth quarter updates)for the [1st, 2nd, 3rd, 4th] quarter, ": " PF-UPDATING", "Amend a previously submitted filing for the [1st, 2nd, 3rd, 4th] quarter": " PF-AMEND", "Transition to annual reporting": " PF-TRANS", "Submit a final filing": " PF-FINAL", "Request a temporary hardship exemption": " EXEMPTION"},
 }
 
 func headingFor(fieldNo string) string {
@@ -235,7 +247,6 @@ func buildExpandableTableLine(l models.FormFieldMSLegacy, vm map[string]string) 
 		TableMetadata:   expTableMetaData[l.FormLineItemNo],
 		TableHeaders:    expTableColumnHeaders[l.FormLineItemNo],
 		Value:           vm[l.FormLineItemNo],
-		Options:         optionSlice(l.DataType),
 		TableData:       nil,
 		RequireDate:     l.RequiresDate,
 		DateValue:       "",
@@ -369,7 +380,7 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 		Editing:          true,
 		IsMultipleAdd:    par.IsMultipleAdd,
 		DisclaimerText:   par.DisclaimerText,
-		Options:          optionSlice(par.DataType),
+		Options:          optionSlice(par.DataType, par.FieldNo),
 	}
 
 	fItem.FieldData = make([]models.LineDetail, 0, len(g.children))
@@ -385,7 +396,7 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 				LineItemType:    l.DataType,
 				LineText:        l.LineText,
 				Value:           vm[l.FormLineItemNo],
-				Options:         optionSlice(l.DataType),
+				Options:         optionSlice(l.DataType, l.FormLineItemNo),
 				TableData:       nil,
 				RequireDate:     l.RequiresDate,
 				DateValue:       "",
@@ -451,6 +462,11 @@ type SimpleResponse struct {
 	TagInfoSec1a  [][]TagInfo `json:"tags_info_sec1a"`
 	TagsInfoSec1b [][]TagInfo `json:"tags_info_sec1b"`
 	TagInfoSec1c  [][]TagInfo `json:"tag_info_sec1c"`
+}
+
+var reportingPeriod = map[string]string{
+	"A": "A",
+	"B": "Q",
 }
 
 func sectionFor(fieldNo string) string {
@@ -570,8 +586,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 						})
 					}
 				}
-			}
-			if qno == 3 {
+			} else if qno == 3 {
 				var aumtype string
 				for _, key := range xmlTagAUM {
 					if strings.Contains(r.FormLineNo, key) {
@@ -588,6 +603,42 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 				tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
 					FundID:        r.FundID,
 					XMLTags:       aumtype,
+					Value:         r.Value,
+					QuestionNo:    r.FieldNo,
+					QuestionSubNo: r.FormLineNo,
+				})
+			} else if qno == 0 {
+				if r.FormLineNo == "0_C" {
+					tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+						FundID:        r.FundID,
+						XMLTags:       string(r.XmlTags),
+						Value:         r.Value,
+						QuestionNo:    r.FieldNo,
+						QuestionSubNo: r.FormLineNo,
+					})
+				} else {
+					tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+						FundID:        r.FundID,
+						XMLTags:       "ReportingPeriodType",
+						Value:         reportingPeriod[strings.Split(r.FormLineNo, "_")[1]],
+						QuestionNo:    r.FieldNo,
+						QuestionSubNo: r.FormLineNo,
+					})
+					if r.Value != nil {
+						tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+							FundID:        r.FundID,
+							XMLTags:       "FilingType",
+							Value:         mcqlist[r.FormLineNo][*r.Value],
+							QuestionNo:    r.FieldNo,
+							QuestionSubNo: r.FormLineNo,
+						})
+					}
+				}
+
+			} else {
+				tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+					FundID:        r.FundID,
+					XMLTags:       string(r.XmlTags),
 					Value:         r.Value,
 					QuestionNo:    r.FieldNo,
 					QuestionSubNo: r.FormLineNo,
@@ -618,7 +669,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 				tagSlc1c = append(tagSlc1c, tagMap1c[r.FundID])
 			}
 			if _, ok := tagMap1a[r.FundID]; ok {
-				tagSlc1a = append(tagSlc1a, tagMap1c[r.FundID])
+				tagSlc1a = append(tagSlc1a, tagMap1a[r.FundID])
 			}
 			delete(fundMap, r.FundID)
 		}
