@@ -571,10 +571,10 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 		} else if qno < 5 {
 			if r.LineItemType == "exp_table" {
 				xmlTags := strings.Split(r.XmlTags, ",")
-				rawRows := strings.Trim(*r.Value, "()")
-				rows := strings.Split(rawRows, "),(")
+				rawRows := strings.Trim(*r.Value, "[]")
+				rows := strings.Split(rawRows, "],[")
 				for _, row := range rows {
-					row = strings.Trim(row, "()")
+					row = strings.Trim(row, "[]")
 					rowVal := strings.Split(row, ",")
 					for i, val := range rowVal {
 						tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
