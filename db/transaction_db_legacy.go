@@ -50,23 +50,23 @@ func FetchFundSeriesForFiling(filingID string) ([]string, error) {
 	return rows, err
 }
 
-func GetFieldHistoryDB(db *gorm.DB, filingID, fundSeriesID, fieldNo, formLineNo string) ([]models.FormDataLegacy, error) {
+func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo, formLineNo string) ([]models.FormDataLegacy, error) {
 	var rows []models.FormDataLegacy
 
-	err := db.Raw(`
+	err := GetDB().Raw(`
 		SELECT 
-			f.fundSeriesid, f.fieldNo, f.formLineNo,
+			f.fundSeriesId, f.fieldNo, f.formLineNo,
 			f.value, f.isCurrentValue,
 			f.createdAt, u.userName as createdBy, 
 			f.updatedAt, u2.userName as updatedBy
 		FROM form_data_legacy f
 		left join users u on u.id = f.createdBy 
 		left join users u2 on u2.id = f.updatedBy 
-		WHERE filingid = ? 
-		  AND fundSeriesid = ? 
-		  AND fieldNo = ? 
-		  AND formLineNo = ?
-		ORDER BY createdAt DESC`, 
+		WHERE f.filingid = ? 
+		  AND f.fundSeriesId = ? 
+		  AND f.fieldNo = ? 
+		  AND f.formLineNo = ?
+		ORDER BY createdAt DESC`,
 		filingID, fundSeriesID, fieldNo, formLineNo).
 		Scan(&rows).Error
 

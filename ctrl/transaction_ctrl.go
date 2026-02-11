@@ -1,14 +1,15 @@
 package ctrl
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
 	"net/http"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -226,15 +227,15 @@ func CancelFiling(uploadRoot string) gin.HandlerFunc {
 }
 
 type HistoryResponse struct {
-	FundSeriesID   string     `json:"fund_series_id"`
-	FieldNo        string     `json:"field_no"`
-	FormLineNo     string     `json:"form_line_no"`
-	Value          string     `json:"value"`
-	IsCurrentValue bool       `json:"is_current_value"`
-	CreatedAt      time.Time  `json:"created_at"`
-	CreatedBy      string     `json:"created_by"`
-	UpdatedAt      *time.Time `json:"updated_at"`
-	UpdatedBy      *string    `json:"updated_by"`
+	FundSeriesid   string    `json:"fund_series_id"`
+	FieldNo        string    `json:"field_no"`
+	FormLineNo     string    `json:"form_line_no"`
+	Value          string    `json:"value"`
+	IsCurrentValue bool      `json:"is_current_value"`
+	CreatedAt      time.Time `json:"created_at"`
+	CreatedBy      string    `json:"created_by"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	UpdatedBy      string    `json:"updated_by"`
 }
 
 func GetFieldHistory(c *gin.Context) {
@@ -251,11 +252,12 @@ func GetFieldHistory(c *gin.Context) {
 	}
 	logger.Log(
 		"DEBUG",
-		fmt.Sprintf("Fetching history for FilingID: %s, FundSeriesID: %s, FieldNo: %s, FormLineNo: %s", 
-        filingID, fundSeriesID, fieldNo, formLineNo)
+		fmt.Sprintf("Fetching history for FilingID: %s, FundSeriesID: %s, FieldNo: %s, FormLineNo: %s",
+			filingID, fundSeriesID, fieldNo, formLineNo,
+		),
 	)
 
-	rows, err := repository.GetFieldHistoryDB(GetDB(), filingID, fundSeriesID, fieldNo, formLineNo)
+	rows, err := db.GetFieldHistoryDB(filingID, fundSeriesID, fieldNo, formLineNo)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
@@ -264,7 +266,7 @@ func GetFieldHistory(c *gin.Context) {
 	responseList := make([]HistoryResponse, 0, len(rows))
 	for _, r := range rows {
 		responseList = append(responseList, HistoryResponse{
-			FundSeriesID:   r.FundSeriesID,
+			FundSeriesid:   r.FundSeriesid,
 			FieldNo:        r.FieldNo,
 			FormLineNo:     r.FormLineNo,
 			Value:          r.Value,
