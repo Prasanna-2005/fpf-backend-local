@@ -292,6 +292,7 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 			RequireDate:     l.RequiresDate,
 			DateValue:       "",
 			DisclaimerText:  l.DisclaimerText,
+			DisplayAffix:    l.DisplayAffix,
 		})
 	}
 	return fItem

@@ -30,6 +30,7 @@ type FormFieldMSLegacy struct {
 	RequiresDate   bool   `gorm:"column:requiresDate"`
 	IsTableData    bool   `gorm:"column:isTableData"`
 	DisclaimerText string `gorm:"column:disclaimerText"`
+	DisplayAffix   string `gorm:"column:displayAffix"`
 }
 
 func (FormFieldMSLegacy) TableName() string { return "form_fields_ms_legacy" }
@@ -78,4 +79,5 @@ type LineDetail struct {
 	RequireDate     bool        `json:"require_date,omitempty"`
 	DateValue       string      `json:"date_value,omitempty"`
 	DisclaimerText  string      `json:"disclaimer_text,omitempty"`
+	DisplayAffix    string      `json:"display_affix,omitempty"`
 }
