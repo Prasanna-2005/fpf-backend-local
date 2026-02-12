@@ -261,7 +261,7 @@ func buildExpandableTable(fieldNo string, g *group, vm map[string]string) models
 		FieldNo:          fieldNo,
 		HasFieldItemText: par.LineText != "",
 		FieldItemType:    par.DataType,
-		HasTableData:     true,
+		HasTableData:     false,
 		TableMetadata:    expTableMetaData[fieldNo],
 		FieldText:        par.LineText,
 		FieldHeading:     headingFor(fieldNo),
