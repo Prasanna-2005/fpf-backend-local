@@ -229,7 +229,6 @@ func CancelFiling(uploadRoot string) gin.HandlerFunc {
 type HistoryResponse struct {
 	FundSeriesid   string    `json:"fund_series_id"`
 	FieldNo        string    `json:"field_no"`
-	FormLineNo     string    `json:"form_line_no"`
 	Value          string    `json:"value"`
 	IsCurrentValue bool      `json:"is_current_value"`
 	CreatedAt      time.Time `json:"created_at"`
@@ -242,41 +241,40 @@ func GetFieldHistory(c *gin.Context) {
 	filingID := c.Query("filingid")
 	fundSeriesID := c.Query("fundSeriesid")
 	fieldNo := c.Query("fieldNo")
-	formLineNo := c.Query("formLineNo")
 
-	if filingID == "" || fundSeriesID == "" || fieldNo == "" || formLineNo == "" {
+	if filingID == "" || fundSeriesID == "" || fieldNo == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "All parameters are mandatory: filingid, fundSeriesid, fieldNo, formLineNo",
+			"error": "All parameters are mandatory: filingid, fundSeriesid, fieldNo",
 		})
 		return
 	}
 	logger.Log(
 		"DEBUG",
-		fmt.Sprintf("Fetching history for FilingID: %s, FundSeriesID: %s, FieldNo: %s, FormLineNo: %s",
-			filingID, fundSeriesID, fieldNo, formLineNo,
+		fmt.Sprintf("Fetching history for FilingID: %s, FundSeriesID: %s, FieldNo: %s",
+			filingID, fundSeriesID, fieldNo,
 		),
 	)
 
-	rows, err := db.GetFieldHistoryDB(filingID, fundSeriesID, fieldNo, formLineNo)
+	rows, err := db.GetFieldHistoryDB(filingID, fundSeriesID, fieldNo)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		return
 	}
 
-	responseList := make([]HistoryResponse, 0, len(rows))
+	groupedResponse := make(map[string][]HistoryResponse)
 	for _, r := range rows {
-		responseList = append(responseList, HistoryResponse{
+		item := HistoryResponse{
 			FundSeriesid:   r.FundSeriesid,
 			FieldNo:        r.FieldNo,
-			FormLineNo:     r.FormLineNo,
 			Value:          r.Value,
 			IsCurrentValue: r.IsCurrentValue,
 			CreatedAt:      r.CreatedAt,
 			CreatedBy:      r.CreatedBy,
 			UpdatedAt:      r.UpdatedAt,
 			UpdatedBy:      r.UpdatedBy,
-		})
+		}
+		groupedResponse[r.FormLineNo] = append(groupedResponse[r.FormLineNo], item)
 	}
 
-	c.JSON(http.StatusOK, responseList)
+	c.JSON(http.StatusOK, groupedResponse)
 }

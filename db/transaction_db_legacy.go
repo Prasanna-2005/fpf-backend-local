@@ -50,7 +50,7 @@ func FetchFundSeriesForFiling(filingID string) ([]string, error) {
 	return rows, err
 }
 
-func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo, formLineNo string) ([]models.FormDataLegacy, error) {
+func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo string) ([]models.FormDataLegacy, error) {
 	var rows []models.FormDataLegacy
 
 	err := GetDB().Raw(`
@@ -65,9 +65,8 @@ func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo, formLineNo string) ([]mo
 		WHERE f.filingid = ? 
 		  AND f.fundSeriesId = ? 
 		  AND f.fieldNo = ? 
-		  AND f.formLineNo = ?
 		ORDER BY createdAt DESC`,
-		filingID, fundSeriesID, fieldNo, formLineNo).
+		filingID, fundSeriesID, fieldNo).
 		Scan(&rows).Error
 
 	if err != nil {
