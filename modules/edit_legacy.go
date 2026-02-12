@@ -255,8 +255,6 @@ func buildExpandableTableLine(l models.FormFieldMSLegacy, vm map[string]string) 
 }
 func buildExpandableTable(fieldNo string, g *group, vm map[string]string) models.FieldItem {
 	par := g.parent
-	fmt.Printf("metadata:%v\n", expTableMetaData[fieldNo])
-	fmt.Printf("headers:%v\n", expTableColumnHeaders[fieldNo])
 	return models.FieldItem{
 		FieldNo:          fieldNo,
 		HasFieldItemText: par.LineText != "",
