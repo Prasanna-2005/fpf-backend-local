@@ -38,14 +38,14 @@ var expTableColumnHeaders = map[string][]string{
 }
 
 var xmlTagAUM = map[string]string{
-	"3_a": "HEDGE",
-	"3_b": "LIQUIDITY",
-	"3_c": "PRIVATEEQUITY",
-	"3_d": "REALESTATE",
-	"3_e": "SECURITIZED",
-	"3_f": "VENTURECAPITAL",
-	"3_g": "OTHERPRIVATE",
-	"3_h": "NONPRIVATE",
+	"3_(a)": "HEDGE",
+	"3_(b)": "LIQUIDITY",
+	"3_(c)": "PRIVATEEQUITY",
+	"3_(d)": "REALESTATE",
+	"3_(e)": "SECURITIZED",
+	"3_(f)": "VENTURECAPITAL",
+	"3_(g)": "OTHERPRIVATE",
+	"3_(h)": "NONPRIVATE",
 }
 
 var expTableMetaData = map[string]map[string]string{
@@ -586,9 +586,9 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 				}
 			} else if qno == 3 {
 				var aumtype string
-				for _, key := range xmlTagAUM {
+				for key, val := range xmlTagAUM {
 					if strings.Contains(r.FormLineNo, key) {
-						aumtype = xmlTagAUM[key]
+						aumtype = val
 					}
 				}
 				tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
@@ -600,8 +600,8 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 				})
 				tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
 					FundID:        r.FundID,
-					XMLTags:       aumtype,
-					Value:         r.Value,
+					XMLTags:       "FundType",
+					Value:         aumtype,
 					QuestionNo:    r.FieldNo,
 					QuestionSubNo: r.FormLineNo,
 				})
