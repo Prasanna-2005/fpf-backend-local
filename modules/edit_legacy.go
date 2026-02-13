@@ -614,7 +614,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 						QuestionNo:    r.FieldNo,
 						QuestionSubNo: r.FormLineNo,
 					})
-				} else {
+				} else if r.FormLineNo != "0" {
 					tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
 						FundID:        r.FundID,
 						XMLTags:       "ReportingPeriodType",
@@ -632,7 +632,6 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 						})
 					}
 				}
-
 			} else {
 				tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
 					FundID:        r.FundID,
