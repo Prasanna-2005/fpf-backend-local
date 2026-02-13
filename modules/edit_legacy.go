@@ -276,6 +276,7 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 		Editing:          true,
 		IsMultipleAdd:    par.IsMultipleAdd,
 		DisclaimerText:   par.DisclaimerText,
+		DisplayAffix:     par.DisplayAffix,
 		Options:          optionSlice(par.DataType),
 	}
 

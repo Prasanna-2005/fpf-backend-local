@@ -63,6 +63,7 @@ type FieldItem struct {
 	Editing          bool              `json:"editing"`
 	IsMultipleAdd    bool              `json:"is_multiple_add"`
 	DisclaimerText   string            `json:"disclaimer_text"`
+	DisplayAffix     string            `json:"display_affix,omitempty"`
 	Options          []string          `json:"options,omitempty"` // filled only when datatype = options
 }
 
