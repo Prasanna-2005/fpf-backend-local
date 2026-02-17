@@ -47,13 +47,19 @@ type Fundlegacy struct {
 	FundData []FieldItem `json:"fund_data"`
 }
 
+// TableColumnMetadata holds per-column metadata for table fields.
+type TableColumnMetadata struct {
+	DataType     string `json:"data_type"`
+	DisplayAffix string `json:"display_affix"`
+}
+
 // FieldItem mirrors the JSON block the frontend expects for every field_no.
 type FieldItem struct {
-	FieldNo          string            `json:"field_no"`
-	HasFieldItemText bool              `json:"has_field_item_text"`
-	FieldItemType    string            `json:"field_item_type"`
-	HasTableData     bool              `json:"has_table_data"`
-	TableMetadata    map[string]string `json:"table_metadata,omitempty"`
+	FieldNo          string                         `json:"field_no"`
+	HasFieldItemText bool                           `json:"has_field_item_text"`
+	FieldItemType    string                         `json:"field_item_type"`
+	HasTableData     bool                           `json:"has_table_data"`
+	TableMetadata    map[string]TableColumnMetadata `json:"table_metadata,omitempty"`
 	TableData        interface{}       `json:"table_data,omitempty"`
 	FieldText        string            `json:"field_text"`
 	FieldHeading     string            `json:"field_heading"`
@@ -63,7 +69,7 @@ type FieldItem struct {
 	Editing          bool              `json:"editing"`
 	IsMultipleAdd    bool              `json:"is_multiple_add"`
 	DisclaimerText   string            `json:"disclaimer_text"`
-	DisplayAffix     string            `json:"display_affix,omitempty"`
+	DisplayAffix     string            `json:"display_affix"`
 	Options          []string          `json:"options,omitempty"` // filled only when datatype = options
 }
 
@@ -80,5 +86,5 @@ type LineDetail struct {
 	RequireDate     bool        `json:"require_date,omitempty"`
 	DateValue       string      `json:"date_value,omitempty"`
 	DisclaimerText  string      `json:"disclaimer_text,omitempty"`
-	DisplayAffix    string      `json:"display_affix,omitempty"`
+	DisplayAffix    string      `json:"display_affix"`
 }
