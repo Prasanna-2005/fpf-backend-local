@@ -569,21 +569,41 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 		} else if qno < 5 {
 			if r.LineItemType == "exp_table" {
 				xmlTags := strings.Split(r.XmlTags, ",")
-				rawRows := strings.Trim(*r.Value, "[]")
-				rows := strings.Split(rawRows, "],[")
+				var rows [][]string
+				if err := json.Unmarshal([]byte(*r.Value), &rows); err != nil {
+					logger.Log("ERROR", err.Error())
+				}
+				// for _, row := range rows {
+				// 	row = strings.Trim(row, "[]")
+				// 	rowVal := strings.Split(row, ",")
+				// 	fmt.Println("ROw and XMl exp tables")
+				// 	fmt.Println(row)
+				// 	fmt.Println(rowVal)
+				// 	fmt.Println(xmlTags)
+
+				// 	for i, val := range rowVal {
+				// 		tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+				// 			FundID:        r.FundID,
+				// 			XMLTags:       string(xmlTags[i]),
+				// 			Value:         val,
+				// 			QuestionNo:    r.FieldNo,
+				// 			QuestionSubNo: r.FormLineNo,
+				// 		})
+				// 	}
+				// }
 				for _, row := range rows {
-					row = strings.Trim(row, "[]")
-					rowVal := strings.Split(row, ",")
-					for i, val := range rowVal {
+					for j, val := range row {
 						tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
 							FundID:        r.FundID,
-							XMLTags:       string(xmlTags[i]),
+							XMLTags:       string(xmlTags[j]),
 							Value:         val,
 							QuestionNo:    r.FieldNo,
 							QuestionSubNo: r.FormLineNo,
 						})
+
 					}
 				}
+
 			} else if qno == 3 {
 				var aumtype string
 				for key, val := range xmlTagAUM {
