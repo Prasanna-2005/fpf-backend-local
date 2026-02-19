@@ -22,7 +22,6 @@ func BuildComp(filingID, series, clientCode string) (*models.ComputationLogsLega
 	}
 
 	fsIDs, err := db.FetchFundSeriesForFiling(filingID)
-	fmt.Printf("FilindID:%vHI\n", filingID)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +131,7 @@ func buildTablelogs(fieldNo string, g *compGroup, vm map[string][2]string) model
 	rowMap := make(map[string]map[string]string)
 	computationTypeMap := make(map[string]map[string]string)
 	rowMap["metadata"] = make(map[string]string)
-	// rowMap["compType"] = make(map[string]string)
+
 	for _, v := range g.children {
 
 		if v.FormLineItemNo == fieldNo {
@@ -166,13 +165,6 @@ func buildTablelogs(fieldNo string, g *compGroup, vm map[string][2]string) model
 		if rk == "metadata" {
 			continue
 		}
-		// var label string
-		// for _, v := range g.children {
-		// 	if strings.HasPrefix(v.FormLineItemNo, fieldNo+"_"+rk+"_") {
-		// 		label = v.LineText
-		// 		break
-		// 	}
-		// }
 
 		// Create ordered map with s.name and s.text first
 		obj := NewOrderedMap()
@@ -193,15 +185,14 @@ func buildTablelogs(fieldNo string, g *compGroup, vm map[string][2]string) model
 		tableData = append(tableData, obj)
 	}
 	return models.FieldComputation{
-		FieldNo:              fieldNo,
-		FieldItemType:        par.DataType,
-		HasTableData:         true,
-		TableMetadata:        rowMap["metadata"],
-		TableComputationType: rowMap["compType"],
-		Type:                 vm[fieldNo][0],
-		Formula:              vm[fieldNo][1],
-		FieldData:            []models.LineComputation{},
-		TableData:            tableData,
+		FieldNo:       fieldNo,
+		FieldItemType: par.DataType,
+		HasTableData:  true,
+		TableMetadata: rowMap["metadata"],
+		Type:          vm[fieldNo][0],
+		Formula:       vm[fieldNo][1],
+		FieldData:     []models.LineComputation{},
+		TableData:     tableData,
 	}
 }
 
