@@ -242,9 +242,19 @@ func GetFieldHistory(c *gin.Context) {
 	fundSeriesID := c.Query("fundSeriesid")
 	fieldNo := c.Query("fieldNo")
 
-	if filingID == "" || fundSeriesID == "" || fieldNo == "" {
+	var missing []string
+	if filingID == "" {
+		missing = append(missing, "filingid")
+	}
+	if fundSeriesID == "" {
+		missing = append(missing, "fundSeriesid")
+	}
+	if fieldNo == "" {
+		missing = append(missing, "fieldNo")
+	}
+	if len(missing) > 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "All parameters are mandatory: filingid, fundSeriesid, fieldNo",
+			"error": "Missing required parameter(s): " + strings.Join(missing, ", "),
 		})
 		return
 	}
@@ -257,7 +267,8 @@ func GetFieldHistory(c *gin.Context) {
 
 	rows, err := db.GetFieldHistoryDB(filingID, fundSeriesID, fieldNo)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		logger.Log("ERROR", "GetFieldHistory: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": ServerError})
 		return
 	}
 
