@@ -94,17 +94,16 @@ type FundlegacyComputation struct {
 
 // FieldItem mirrors the JSON block the frontend expects for every field_no.
 type FieldComputation struct {
-	FieldNo              string            `json:"field_no"`
-	FieldItemType        string            `json:"field_item_type"`
-	HasFieldItemText     bool              `json:"has_field_item_text"`
-	FieldText            string            `json:"field_text"`
-	HasTableData         bool              `json:"has_table_data"`
-	TableMetadata        map[string]string `json:"table_metadata,omitempty"`
-	TableData            interface{}       `json:"table_data,omitempty"`
-	TableComputationType map[string]string `json:"table_computation_type,omitempty"`
-	Type                 string            `json:"computation_type"`
-	Formula              string            `json:"computation_formula"`
-	FieldData            []LineComputation `json:"field_data"`
+	FieldNo          string            `json:"field_no"`
+	FieldItemType    string            `json:"field_item_type"`
+	HasFieldItemText bool              `json:"has_field_item_text"`
+	FieldText        string            `json:"field_text"`
+	HasTableData     bool              `json:"has_table_data"`
+	TableMetadata    map[string]string `json:"table_metadata,omitempty"`
+	TableData        interface{}       `json:"table_data,omitempty"`
+	Type             string            `json:"computation_type"`
+	Formula          string            `json:"computation_formula"`
+	FieldData        []LineComputation `json:"field_data"`
 }
 
 // LineDetail is used inside FieldData when the field is broken into sub-lines.
