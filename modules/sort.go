@@ -25,21 +25,13 @@ type byFieldComp []models.FieldComputation
 func (s byFieldNo) Len() int      { return len(s) }
 func (s byFieldNo) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s byFieldNo) Less(i, j int) bool {
-	// extract leading digits only
-	var ni, nj int
-	fmt.Sscanf(s[i].FieldNo, "%d", &ni)
-	fmt.Sscanf(s[j].FieldNo, "%d", &nj)
-	return ni < nj
+	return numericPrefix(s[i].FieldNo) < numericPrefix(s[j].FieldNo)
 }
 
 func (s byFieldComp) Len() int      { return len(s) }
 func (s byFieldComp) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s byFieldComp) Less(i, j int) bool {
-	// extract leading digits only
-	var ni, nj int
-	fmt.Sscanf(s[i].FieldNo, "%d", &ni)
-	fmt.Sscanf(s[j].FieldNo, "%d", &nj)
-	return ni < nj
+	return numericPrefix(s[i].FieldNo) < numericPrefix(s[j].FieldNo)
 }
 
 // numericPrefix extracts the leading digits from a line_item_no like "7_a"
