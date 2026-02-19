@@ -88,7 +88,6 @@ func GetComputationlogs(series, clientCode string) (map[string]map[string][2]str
 }
 
 func grpFormat(expression string) string {
-	fmt.Println(expression)
 	var statement string
 	firstOpen := strings.Index(expression, "(")
 	firstClose := strings.Index(expression[firstOpen:], ")") + firstOpen
