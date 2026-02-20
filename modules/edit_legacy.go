@@ -155,7 +155,7 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 		return nil, err
 	}
 
-	// / 1. group meta rows by fieldNo
+	// 1. group meta rows by fieldNo
 	fieldMap := make(map[string]*group)
 	for _, m := range meta {
 		if m.FormLineItemNo == m.FieldNo {
@@ -189,7 +189,7 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 		}
 		seen := make(map[string]bool)
 		for _, m := range meta {
-			/* skip if we already emitted this fieldNo */
+			// skip if we already emitted this fieldNo
 			fieldNoInt, _ := strconv.Atoi(m.FieldNo)
 			if (fieldNoInt > 17 && fundRec.FundType != "HEDGE") || (fieldNoInt < 5 && fundRec.FundType != "ALL") {
 				continue
@@ -215,7 +215,6 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 				continue
 			}
 			if g.parent.DataType == "exp_table" {
-				fmt.Printf("fieldNo:%v", m.FieldNo)
 				fund.FundData = append(fund.FundData, buildExpandableTable(m.FieldNo, g, vm))
 				continue
 			}
@@ -573,24 +572,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 				if err := json.Unmarshal([]byte(*r.Value), &rows); err != nil {
 					logger.Log("ERROR", err.Error())
 				}
-				// for _, row := range rows {
-				// 	row = strings.Trim(row, "[]")
-				// 	rowVal := strings.Split(row, ",")
-				// 	fmt.Println("ROw and XMl exp tables")
-				// 	fmt.Println(row)
-				// 	fmt.Println(rowVal)
-				// 	fmt.Println(xmlTags)
 
-				// 	for i, val := range rowVal {
-				// 		tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
-				// 			FundID:        r.FundID,
-				// 			XMLTags:       string(xmlTags[i]),
-				// 			Value:         val,
-				// 			QuestionNo:    r.FieldNo,
-				// 			QuestionSubNo: r.FormLineNo,
-				// 		})
-				// 	}
-				// }
 				for _, row := range rows {
 					for j, val := range row {
 						tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
