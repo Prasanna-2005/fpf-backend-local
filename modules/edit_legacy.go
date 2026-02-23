@@ -186,7 +186,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 
 	// Group children by row-key
 	rowMap := make(map[string]map[string]string)
-	rowMap["metadata"] = make(map[string]string)
+	tableMetadata := make(map[string]models.TableColumnMetadata)
 	for _, v := range g.children {
 
 		if v.FormLineItemNo == fieldNo {
@@ -201,7 +201,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 			rowMap[rowKey] = make(map[string]string)
 		}
 		rowMap[rowKey][colKey] = vm[v.FormLineItemNo]
-		rowMap["metadata"][colKey] = v.DataType
+		tableMetadata[colKey] = models.TableColumnMetadata{DataType: v.DataType, DisplayAffix: v.DisplayAffix}
 	}
 
 	// Stable row order
@@ -214,9 +214,6 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 	// Convert to ordered maps
 	tableData := make([]*OrderedMap, 0, len(rowMap))
 	for _, rk := range rowKeys {
-		if rk == "metadata" {
-			continue
-		}
 		var label string
 		for _, v := range g.children {
 			if strings.HasPrefix(v.FormLineItemNo, fieldNo+"_"+rk+"_") {
@@ -248,7 +245,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		HasFieldItemText: par.LineText != "",
 		FieldItemType:    par.DataType,
 		HasTableData:     true,
-		TableMetadata:    rowMap["metadata"],
+		TableMetadata:    tableMetadata,
 		FieldText:        par.LineText,
 		FieldHeading:     headingFor(fieldNo),
 		Value:            vm[fieldNo],
@@ -276,6 +273,7 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 		Editing:          true,
 		IsMultipleAdd:    par.IsMultipleAdd,
 		DisclaimerText:   par.DisclaimerText,
+		DisplayAffix:     par.DisplayAffix,
 		Options:          optionSlice(par.DataType),
 	}
 
@@ -292,6 +290,7 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 			RequireDate:     l.RequiresDate,
 			DateValue:       "",
 			DisclaimerText:  l.DisclaimerText,
+			DisplayAffix:    l.DisplayAffix,
 		})
 	}
 	return fItem

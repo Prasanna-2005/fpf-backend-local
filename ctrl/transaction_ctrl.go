@@ -226,6 +226,28 @@ func CancelFiling(uploadRoot string) gin.HandlerFunc {
 	}
 }
 
+func GetCompLogs(c *gin.Context) {
+	fid := c.Param("filing_id")
+	if fid == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
+		return
+	}
+	id, _ := c.Get("clientId")
+	cid, _ := id.(string)
+	series, err := db.GetSeries(fid, cid)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"message": ServerError})
+		return
+	}
+	resp, err := modules.BuildComp(fid, series, cid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 type HistoryResponse struct {
 	FundSeriesid   string    `json:"fund_series_id"`
 	FieldNo        string    `json:"field_no"`

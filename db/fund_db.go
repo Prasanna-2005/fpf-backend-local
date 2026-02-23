@@ -41,3 +41,11 @@ func GetFundMap(fundSeriesIDs []string) (map[string]models.Fund, error) {
 
 	return out, nil
 }
+
+func GetCompLogs(series, clientCode string) ([]models.CompLogs, error) {
+	var compLogs []models.CompLogs
+	if err := sqlDb.Where("series = ? AND clientCode = ?", series, clientCode).Find(&compLogs).Error; err != nil {
+		return nil, err
+	}
+	return compLogs, nil
+}
