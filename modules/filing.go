@@ -16,9 +16,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"gorm.io/gorm"
 )
 
-const maxUploadBytes = 60_000_000
+const (
+	maxUploadBytes = 60_000_000
+	copyBufferSize = 1024 * 1024 // 1MB buffer
+)
 
 // UploadRequest represents the structure of an upload request
 type UploadRequest struct {
@@ -65,18 +69,15 @@ func ValidateAndBind(c *gin.Context) (*UploadRequest, bool) {
 }
 
 func filingExistsInDB(filingName string) (bool, error) {
-	allfilings, err := db.GetAllFilings()
+	_, err := db.GetFilingTrackerByName(filingName)
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
 		logger.Log("ERROR", "DB error: "+err.Error())
 		return false, err
 	}
-
-	for _, filing := range *allfilings {
-		if filing.FilingName == filingName {
-			return true, nil
-		}
-	}
-	return false, nil
+	return true, nil
 }
 
 func draftExists(clientDir, filingName string) bool {
@@ -307,7 +308,8 @@ func saveUploadedFile(src *multipart.FileHeader, dst string) error {
 	}
 	defer out.Close()
 
-	bytesWritten, err := io.Copy(out, in)
+	buf := make([]byte, copyBufferSize)
+	bytesWritten, err := io.CopyBuffer(out, in, buf)
 	if err != nil {
 		return fmt.Errorf("failed to copy file content: %w", err)
 	}
