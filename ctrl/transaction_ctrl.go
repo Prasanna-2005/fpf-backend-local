@@ -252,6 +252,7 @@ type HistoryResponse struct {
 	FundSeriesid   string    `json:"fund_series_id"`
 	FieldNo        string    `json:"field_no"`
 	Value          string    `json:"value"`
+	LineText       string    `json:"line_text"`
 	IsCurrentValue bool      `json:"is_current_value"`
 	CreatedAt      time.Time `json:"created_at"`
 	CreatedBy      string    `json:"created_by"`
@@ -300,6 +301,7 @@ func GetFieldHistory(c *gin.Context) {
 			FundSeriesid:   r.FundSeriesid,
 			FieldNo:        r.FieldNo,
 			Value:          r.Value,
+			LineText:       r.LineText,
 			IsCurrentValue: r.IsCurrentValue,
 			CreatedAt:      r.CreatedAt,
 			CreatedBy:      r.CreatedBy,
