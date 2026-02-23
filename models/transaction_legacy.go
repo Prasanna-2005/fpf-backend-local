@@ -10,6 +10,7 @@ type FormDataLegacy struct {
 	FieldNo        string    `gorm:"column:fieldNo"`
 	FundSeriesid   string    `gorm:"column:fundSeriesId"`
 	FormLineNo     string    `gorm:"column:formLineNo"`
+	LineText       string    `gorm:"column:lineText"`
 	Value          string    `gorm:"column:value"`
 	CreatedBy      string    `gorm:"column:createdBy"`
 	IsCurrentValue bool      `gorm:"column:isCurrentValue"`
