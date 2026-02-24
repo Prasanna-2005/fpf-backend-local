@@ -105,8 +105,8 @@ func grpFormat(expression string) string {
 	return statement
 }
 
-func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo string) ([]models.FormDataLegacy, error) {
-	var rows []models.FormDataLegacy
+func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo string) ([]models.FieldHistoryRow, error) {
+	var rows []models.FieldHistoryRow
 
 	err := GetDB().Raw(`
 		SELECT 
