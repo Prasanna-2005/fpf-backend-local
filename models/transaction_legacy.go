@@ -10,7 +10,6 @@ type FormDataLegacy struct {
 	FieldNo        string    `gorm:"column:fieldNo"`
 	FundSeriesid   string    `gorm:"column:fundSeriesId"`
 	FormLineNo     string    `gorm:"column:formLineNo"`
-	LineText       string    `gorm:"column:lineText"`
 	Value          string    `gorm:"column:value"`
 	CreatedBy      string    `gorm:"column:createdBy"`
 	IsCurrentValue bool      `gorm:"column:isCurrentValue"`
@@ -20,6 +19,19 @@ type FormDataLegacy struct {
 }
 
 func (FormDataLegacy) TableName() string { return "form_data_legacy" }
+
+type FieldHistoryRow struct {
+	FundSeriesid   string    `gorm:"column:fundSeriesId"`
+	FieldNo        string    `gorm:"column:fieldNo"`
+	FormLineNo     string    `gorm:"column:formLineNo"`
+	LineText       string    `gorm:"column:lineText"`
+	Value          string    `gorm:"column:value"`
+	IsCurrentValue bool      `gorm:"column:isCurrentValue"`
+	CreatedAt      time.Time `gorm:"column:createdAt"`
+	CreatedBy      string    `gorm:"column:createdBy"`
+	UpdatedAt      time.Time `gorm:"column:updatedAt"`
+	UpdatedBy      string    `gorm:"column:updatedBy"`
+}
 
 type FormFieldMSLegacy struct {
 	FieldNo        string `gorm:"column:fieldNo"`
@@ -61,17 +73,17 @@ type FieldItem struct {
 	FieldItemType    string                         `json:"field_item_type"`
 	HasTableData     bool                           `json:"has_table_data"`
 	TableMetadata    map[string]TableColumnMetadata `json:"table_metadata,omitempty"`
-	TableData        interface{}       `json:"table_data,omitempty"`
-	FieldText        string            `json:"field_text"`
-	FieldHeading     string            `json:"field_heading"`
-	Value            string            `json:"value"`
-	FieldData        []LineDetail      `json:"field_data"`
-	Confirmed        bool              `json:"confirmed"`
-	Editing          bool              `json:"editing"`
-	IsMultipleAdd    bool              `json:"is_multiple_add"`
-	DisclaimerText   string            `json:"disclaimer_text"`
-	DisplayAffix     string            `json:"display_affix"`
-	Options          []string          `json:"options,omitempty"` // filled only when datatype = options
+	TableData        interface{}                    `json:"table_data,omitempty"`
+	FieldText        string                         `json:"field_text"`
+	FieldHeading     string                         `json:"field_heading"`
+	Value            string                         `json:"value"`
+	FieldData        []LineDetail                   `json:"field_data"`
+	Confirmed        bool                           `json:"confirmed"`
+	Editing          bool                           `json:"editing"`
+	IsMultipleAdd    bool                           `json:"is_multiple_add"`
+	DisclaimerText   string                         `json:"disclaimer_text"`
+	DisplayAffix     string                         `json:"display_affix"`
+	Options          []string                       `json:"options,omitempty"` // filled only when datatype = options
 }
 
 // LineDetail is used inside FieldData when the field is broken into sub-lines.
