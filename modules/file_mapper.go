@@ -89,7 +89,6 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 		return nil, errors.New("no Excel files found")
 	}
 	candidates, unmapped := shortCodesFromFiles(excels, funds)
-	fmt.Println(unmapped)
 	// for key, files := range candidates {
 	// 	for _, file := range files {
 	// 		logger.Log("DEBUG", fmt.Sprintf("\n key:%v files:%vhi\n", key, file))
