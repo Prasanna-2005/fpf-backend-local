@@ -273,7 +273,6 @@ func saveAndExtract(files []*multipart.FileHeader, dir string) error {
 
 		dst := filepath.Join(dir, fh.Filename)
 		if _, err := os.Stat(dst); err == nil {
-			return fmt.Errorf("file already exists: %s", filepath.Base(dst))
 			skipped = append(skipped, fh.Filename)
 			continue
 		} else if !os.IsNotExist(err) {
