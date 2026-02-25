@@ -243,7 +243,7 @@ func buildExpandableTableLine(l models.FormFieldMSLegacy, vm map[string]string) 
 		HasLineItemText: l.LineText != "",
 		LineItemType:    l.DataType,
 		LineText:        l.LineText,
-		TableMetadata:   expTableMetaData[l.FormLineItemNo],
+		TableMetadata:   tableMetaDataFromStringMap(expTableMetaData[l.FormLineItemNo]),
 		TableHeaders:    expTableColumnHeaders[l.FormLineItemNo],
 		Value:           vm[l.FormLineItemNo],
 		TableData:       nil,
