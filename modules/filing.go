@@ -141,7 +141,7 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 		c.JSON(http.StatusOK, gin.H{
 			"message":       "Duplicate filename in same directory level ignored",
 			"filing_name":   filingName,
-			"skipped files": skippedFileRelPath,
+			"skipped_files": skippedFileRelPath,
 		})
 		return DuplicateFileUpload
 	}
