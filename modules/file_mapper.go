@@ -42,6 +42,10 @@ type Payload struct {
 	ExcelDir string   `json:"excel_dir"`
 }
 
+var (
+	MultiSeriesErr = errors.New("Upload contains funds from multiple series. Please upload single series at a time")
+)
+
 func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.FileIdentificationResponse, error) {
 	funds, err := db.GetAllFegFileIdentifications()
 	if err != nil {
@@ -106,7 +110,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	}
 	series := decideSeries(scoped)
 	if series == "" {
-		return nil, errors.New("upload contains funds from multiple series – please upload single series at a time")
+		return nil, MultiSeriesErr
 	}
 	// fmt.Println("shortcide identification")
 	// for k, v := range candidates {
@@ -180,13 +184,11 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 				quarter, loc := matchQuarterByFilename(resp.FileName)
 				resp.FileType = "Q" + strconv.Itoa(quarter)
 				if loc != -1 && resp.FileType == fund.FileType {
-					fmt.Printf("fndname:%vhi\n,filename:%vhi\n", fund.FundName, resp.FileName)
 					out = append(out, resp)
 					mappedFilePath = append(mappedFilePath, file)
 				}
 
 			} else if matchByidentifier(strings.ToLower(resp.FileName), strings.ToLower(fund.FileType)) {
-				fmt.Printf("\nfname:%vhi,fileType:%vhi,conv:%vhi\n", resp.FileName, resp.FileType, FileTypeConv[fund.FileType])
 				resp.FileType = FileTypeConv[fund.FileType]
 				out = append(out, resp)
 				mappedFilePath = append(mappedFilePath, file)
