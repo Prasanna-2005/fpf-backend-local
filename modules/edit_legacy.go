@@ -252,6 +252,18 @@ func buildExpandableTableLine(l models.FormFieldMSLegacy, vm map[string]string) 
 		DisclaimerText:  l.DisclaimerText,
 	}
 }
+
+func tableMetaDataFromStringMap(m map[string]string) map[string]models.TableColumnMetadata {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]models.TableColumnMetadata, len(m))
+	for k, v := range m {
+		out[k] = models.TableColumnMetadata{DataType: v, DisplayAffix: ""}
+	}
+	return out
+}
+
 func buildExpandableTable(fieldNo string, g *group, vm map[string]string) models.FieldItem {
 	par := g.parent
 	return models.FieldItem{
@@ -259,7 +271,7 @@ func buildExpandableTable(fieldNo string, g *group, vm map[string]string) models
 		HasFieldItemText: par.LineText != "",
 		FieldItemType:    par.DataType,
 		HasTableData:     false,
-		TableMetadata:    expTableMetaData[fieldNo],
+		TableMetadata:    tableMetaDataFromStringMap(expTableMetaData[fieldNo]),
 		FieldText:        par.LineText,
 		FieldHeading:     headingFor(fieldNo),
 		Value:            vm[fieldNo],
