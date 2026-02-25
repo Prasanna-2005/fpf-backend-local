@@ -109,6 +109,10 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	}
 	series := decideSeries(scoped)
 	if series == "" {
+		if err := RemoveDir(baseDir); err != nil {
+			logger.Log("ERROR", fmt.Sprintf("Failed to delete dir:%v", err.Error()))
+			return nil, MultiSeriesErr
+		}
 		return nil, MultiSeriesErr
 	}
 	// fmt.Println("shortcide identification")
