@@ -96,7 +96,7 @@ func MapFiles(c *gin.Context) {
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("mapper err: %v", err.Error()))
 		if err == modules.MultiSeriesErr {
-			c.JSON(http.StatusConflict, gin.H{"message": modules.MultiSeriesErr.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"message": modules.MultiSeriesErr.Error()})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
