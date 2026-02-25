@@ -261,7 +261,7 @@ func sanitize(name string) string {
 
 func saveAndExtract(files []*multipart.FileHeader, dir string) error {
 	logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Processing %d files for directory: %s", len(files), dir))
-
+	var skipped []string
 	for i, fh := range files {
 		logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Processing file %d/%d: %s (size: %d bytes)",
 			i+1, len(files), fh.Filename, fh.Size))
@@ -272,6 +272,13 @@ func saveAndExtract(files []*multipart.FileHeader, dir string) error {
 		}
 
 		dst := filepath.Join(dir, fh.Filename)
+		if _, err := os.Stat(dst); err == nil {
+			return fmt.Errorf("file already exists: %s", filepath.Base(dst))
+			skipped = append(skipped, fh.Filename)
+			continue
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to check file existence: %w", err)
+		}
 		if err := saveUploadedFile(fh, dst); err != nil {
 			logger.Log("ERROR", fmt.Sprintf("[saveAndExtract] Failed to save file %s: %v", fh.Filename, err))
 			return err
