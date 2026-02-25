@@ -76,20 +76,20 @@ type FieldItem struct {
 
 // LineDetail is used inside FieldData when the field is broken into sub-lines.
 type LineDetail struct {
-	LineItemNo      string            `json:"line_item_no,omitempty"`
-	LineItemType    string            `json:"line_item_type,omitempty"`
-	HasLineItemText bool              `json:"has_line_item_text"`
-	LineText        string            `json:"line_text,omitempty"`
-	Value           string            `json:"value"`
-	Options         []string          `json:"options,omitempty"`
-	HasTableData    bool              `json:"has_table_data"`
-	TableData       interface{}       `json:"table_data,omitempty"`
-	TableMetadata   map[string]string `json:"table_metadata,omitempty"`
-	TableHeaders    []string          `json:"table_headers,omitempty"`
-	RequireDate     bool              `json:"require_date,omitempty"`
-	DateValue       string            `json:"date_value,omitempty"`
-	DisclaimerText  string            `json:"disclaimer_text,omitempty"`
-	DisplayAffix    string            `json:"display_affix"`
+	LineItemNo      string                         `json:"line_item_no,omitempty"`
+	LineItemType    string                         `json:"line_item_type,omitempty"`
+	HasLineItemText bool                           `json:"has_line_item_text"`
+	LineText        string                         `json:"line_text,omitempty"`
+	Value           string                         `json:"value"`
+	Options         []string                       `json:"options,omitempty"`
+	HasTableData    bool                           `json:"has_table_data"`
+	TableData       interface{}                    `json:"table_data,omitempty"`
+	TableMetadata   map[string]TableColumnMetadata `json:"table_metadata,omitempty"`
+	TableHeaders    []string                       `json:"table_headers,omitempty"`
+	RequireDate     bool                           `json:"require_date,omitempty"`
+	DateValue       string                         `json:"date_value,omitempty"`
+	DisclaimerText  string                         `json:"disclaimer_text,omitempty"`
+	DisplayAffix    string                         `json:"display_affix"`
 }
 
 // FilingResponse is the top-level envelope sent back to the UI.
