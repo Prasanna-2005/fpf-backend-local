@@ -104,3 +104,31 @@ func grpFormat(expression string) string {
 	}
 	return statement
 }
+
+func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo string) ([]models.FieldHistoryRow, error) {
+	var rows []models.FieldHistoryRow
+
+	err := GetDB().Raw(`
+		SELECT 
+			f.fundSeriesId, f.fieldNo, f.formLineNo,
+			ffml.lineText,
+			f.value, f.isCurrentValue,
+			f.createdAt, u.userName as createdBy, 
+			f.updatedAt, u2.userName as updatedBy
+		FROM form_data_legacy f
+		left join users u on u.id = f.createdBy 
+		left join users u2 on u2.id = f.updatedBy
+		left join form_fields_ms_legacy ffml  on f.formLineNo = ffml.formLineNo 
+		WHERE f.filingid = ? 
+		  AND f.fundSeriesId = ? 
+		  AND f.fieldNo = ? 
+		ORDER BY createdAt DESC`,
+		filingID, fundSeriesID, fieldNo).
+		Scan(&rows).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return rows, nil
+}

@@ -20,6 +20,19 @@ type FormDataLegacy struct {
 
 func (FormDataLegacy) TableName() string { return "form_data_legacy" }
 
+type FieldHistoryRow struct {
+	FundSeriesid   string    `gorm:"column:fundSeriesId"`
+	FieldNo        string    `gorm:"column:fieldNo"`
+	FormLineNo     string    `gorm:"column:formLineNo"`
+	LineText       string    `gorm:"column:lineText"`
+	Value          string    `gorm:"column:value"`
+	IsCurrentValue bool      `gorm:"column:isCurrentValue"`
+	CreatedAt      time.Time `gorm:"column:createdAt"`
+	CreatedBy      string    `gorm:"column:createdBy"`
+	UpdatedAt      time.Time `gorm:"column:updatedAt"`
+	UpdatedBy      string    `gorm:"column:updatedBy"`
+}
+
 type FormFieldMSLegacy struct {
 	FieldNo        string `gorm:"column:fieldNo"`
 	FormLineItemNo string `gorm:"column:formLineNo"`
@@ -84,9 +97,9 @@ type LineDetail struct {
 	Options         []string          `json:"options,omitempty"`
 	HasTableData    bool              `json:"has_table_data"`
 	TableData       interface{}       `json:"table_data,omitempty"`
-	TableMetadata   map[string]string `json:"table_metadata,omitempty"`
-	TableHeaders    []string          `json:"table_headers,omitempty"`
-	RequireDate     bool              `json:"require_date,omitempty"`
+	TableMetadata   map[string]TableColumnMetadata `json:"table_metadata,omitempty"`
+	TableHeaders    []string                        `json:"table_headers,omitempty"`
+	RequireDate     bool                            `json:"require_date,omitempty"`
 	DateValue       string            `json:"date_value,omitempty"`
 	DisclaimerText  string            `json:"disclaimer_text,omitempty"`
 	DisplayAffix    string            `json:"display_affix"`
