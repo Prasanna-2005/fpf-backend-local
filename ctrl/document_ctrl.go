@@ -40,7 +40,7 @@ func UploadDoc(volumeRoot string) gin.HandlerFunc {
 			req.UserID, req.NewFiling, req.FilingName))
 
 		if err := modules.ProcessUpload(c, volumeRoot, req); err != nil {
-			logger.Log("ERROR", fmt.Sprintf("ProcessUpload failed: %v", err))
+			logger.Log("ERROR", fmt.Sprintf("ProcessUpload Err: %v", err.Error()))
 			return // ProcessUpload already handled the response
 		}
 
@@ -95,6 +95,10 @@ func MapFiles(c *gin.Context) {
 	}
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("mapper err: %v", err.Error()))
+		if err == modules.MultiSeriesErr {
+			c.JSON(http.StatusBadRequest, gin.H{"message": modules.MultiSeriesErr.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
