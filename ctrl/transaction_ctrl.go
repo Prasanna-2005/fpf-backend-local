@@ -2,12 +2,14 @@ package ctrl
 
 import (
 	"errors"
+	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
 	"net/http"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -222,4 +224,92 @@ func CancelFiling(uploadRoot string) gin.HandlerFunc {
 			})
 		}
 	}
+}
+
+func GetCompLogs(c *gin.Context) {
+	fid := c.Param("filing_id")
+	if fid == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
+		return
+	}
+	id, _ := c.Get("clientId")
+	cid, _ := id.(string)
+	series, err := db.GetSeries(fid, cid)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+		c.JSON(http.StatusNotFound, gin.H{"message": ServerError})
+		return
+	}
+	resp, err := modules.BuildComp(fid, series, cid)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+type HistoryResponse struct {
+	FundSeriesid   string    `json:"fund_series_id"`
+	FieldNo        string    `json:"field_no"`
+	Value          string    `json:"value"`
+	LineText       string    `json:"line_text"`
+	IsCurrentValue bool      `json:"is_current_value"`
+	CreatedAt      time.Time `json:"created_at"`
+	CreatedBy      string    `json:"created_by"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	UpdatedBy      string    `json:"updated_by"`
+}
+
+func GetFieldHistory(c *gin.Context) {
+	filingID := c.Query("filingid")
+	fundSeriesID := c.Query("fundSeriesid")
+	fieldNo := c.Query("fieldNo")
+
+	var missing []string
+	if filingID == "" {
+		missing = append(missing, "filingid")
+	}
+	if fundSeriesID == "" {
+		missing = append(missing, "fundSeriesid")
+	}
+	if fieldNo == "" {
+		missing = append(missing, "fieldNo")
+	}
+	if len(missing) > 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Missing required parameter(s): " + strings.Join(missing, ", "),
+		})
+		return
+	}
+	logger.Log(
+		"DEBUG",
+		fmt.Sprintf("Fetching history for FilingID: %s, FundSeriesID: %s, FieldNo: %s",
+			filingID, fundSeriesID, fieldNo,
+		),
+	)
+
+	rows, err := db.GetFieldHistoryDB(filingID, fundSeriesID, fieldNo)
+	if err != nil {
+		logger.Log("ERROR", "GetFieldHistory: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": ServerError})
+		return
+	}
+
+	groupedResponse := make(map[string][]HistoryResponse)
+	for _, r := range rows {
+		item := HistoryResponse{
+			FundSeriesid:   r.FundSeriesid,
+			FieldNo:        r.FieldNo,
+			Value:          r.Value,
+			LineText:       r.LineText,
+			IsCurrentValue: r.IsCurrentValue,
+			CreatedAt:      r.CreatedAt,
+			CreatedBy:      r.CreatedBy,
+			UpdatedAt:      r.UpdatedAt,
+			UpdatedBy:      r.UpdatedBy,
+		}
+		groupedResponse[r.FormLineNo] = append(groupedResponse[r.FormLineNo], item)
+	}
+
+	c.JSON(http.StatusOK, groupedResponse)
 }

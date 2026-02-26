@@ -74,9 +74,10 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 
 func setUpSubmission(api *gin.RouterGroup) {
 	sub := api.Group("/submissions")
-	sub.Use(middleware.Authenticate())
+	sub.Use(middleware.Authenticate(), middleware.RequireFilingAccess())
 	sub.PUT("/:filing_id/:fund_id", ctrl.AcceptItemValue)
 	sub.PUT("revert/:filing_id/:fund_id", ctrl.RevertLatest)
+	sub.GET("/history", ctrl.GetFieldHistory)
 	// sub.PUT("/:filing_id/approval", ctrl.SendForApproval)
 	// sub.PUT("/:filing_id/approved", ctrl.MarkApproved)
 }
@@ -115,11 +116,11 @@ func setupFileRoutes(api *gin.RouterGroup) {
 
 func setUpEdit(api *gin.RouterGroup) {
 	edit := api.Group("/edit")
-	edit.Use(middleware.Authenticate("contributor", "approver", "admin"))
+	edit.Use(middleware.Authenticate("contributor", "approver", "admin"), middleware.RequireFilingAccess())
 	edit.GET("/response/:filing_id", ctrl.GetFilingResponse)
 	edit.GET("/approved/:filing_id", ctrl.GetApprovedFilingResponse)
 	edit.POST("/update_status/:filing_id", ctrl.UpdateRequestTrackerStatus)
-
+	edit.GET("/computation_logs/:filing_id", ctrl.GetCompLogs)
 }
 
 // SetupRoutesWithDefaults loads config from file and sets up routes with default configuration

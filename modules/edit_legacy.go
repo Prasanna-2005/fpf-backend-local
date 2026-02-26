@@ -23,6 +23,45 @@ type OrderedMap struct {
 	values map[string]interface{}
 }
 
+var expTableColumnHeaders = map[string][]string{
+	"1_b": {
+		"Legal name",
+		"SEC 801-Number",
+		"NFA ID Number, if any",
+		"Large trader ID, if any",
+		"Large trader ID suffix, if any",
+	},
+	"4": {
+		"Question number",
+		"Description",
+	},
+}
+
+var xmlTagAUM = map[string]string{
+	"3_(a)": "HEDGE",
+	"3_(b)": "LIQUIDITY",
+	"3_(c)": "PRIVATEEQUITY",
+	"3_(d)": "REALESTATE",
+	"3_(e)": "SECURITIZED",
+	"3_(f)": "VENTURECAPITAL",
+	"3_(g)": "OTHERPRIVATE",
+	"3_(h)": "NONPRIVATE",
+}
+
+var expTableMetaData = map[string]map[string]string{
+	"1_b": {
+		"Legal name":                     "text",
+		"SEC 801-Number":                 "text",
+		"NFA ID Number, if any":          "text",
+		"Large trader ID, if any":        "text",
+		"Large trader ID suffix, if any": "text",
+	},
+	"4": {
+		"Question number": "text",
+		"Description":     "text",
+	},
+}
+
 func NewOrderedMap() *OrderedMap {
 	return &OrderedMap{
 		keys:   make([]string, 0),
@@ -51,15 +90,33 @@ func (om *OrderedMap) MarshalJSON() ([]byte, error) {
 	return []byte(result), nil
 }
 
-func optionSlice(dataType string) []string {
+func optionSlice(dataType, formLineNo string) []string {
 	if dataType == "bool" {
 		return []string{"YES", "NO"}
+	}
+	if dataType == "mcq" {
+		var opt []string
+		for options, _ := range mcqlist[formLineNo] {
+			opt = append(opt, options)
+		}
+		return opt
 	}
 	return nil
 }
 
+var mcqlist = map[string]map[string]string{
+	"0_A": {"Submit your first filing on Form PF": " PF-INIT", "Submit an annual update": " PF-UPDATING", "Amend a previously submitted filing": " PF-AMEND", "Submit a final filing": " PF-FINAL", "Request a temporary hardship exemption": " EXEMPTION"},
+	"0_B": {"Submit your first filing on Form PF for the [1st, 2nd, 3rd, 4th] quarter": " PF-INIT", "Submit a quarterly update (including fourth quarter updates)for the [1st, 2nd, 3rd, 4th] quarter, ": " PF-UPDATING", "Amend a previously submitted filing for the [1st, 2nd, 3rd, 4th] quarter": " PF-AMEND", "Transition to annual reporting": " PF-TRANS", "Submit a final filing": " PF-FINAL", "Request a temporary hardship exemption": " EXEMPTION"},
+}
+
 func headingFor(fieldNo string) string {
 	switch fieldNo {
+	case "1", "2":
+		return "Item A. Information about you "
+	case "3":
+		return "Item B. Information about assets of private funds that you advise"
+	case "4":
+		return "Item C. Miscellaneous"
 	case "5", "6", "7", "18", "19":
 		return "Item A. Reporting fund identifying information"
 	case "8", "9", "10", "11", "12", "13", "14", "15", "16", "17":
@@ -98,7 +155,7 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 		return nil, err
 	}
 
-	// / 1. group meta rows by fieldNo
+	// 1. group meta rows by fieldNo
 	fieldMap := make(map[string]*group)
 	for _, m := range meta {
 		if m.FormLineItemNo == m.FieldNo {
@@ -132,11 +189,15 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 		}
 		seen := make(map[string]bool)
 		for _, m := range meta {
-			/* skip if we already emitted this fieldNo */
+			// skip if we already emitted this fieldNo
 			fieldNoInt, _ := strconv.Atoi(m.FieldNo)
-			if fieldNoInt > 17 && fundRec.FundType != "HEDGE" {
+			if (fieldNoInt > 17 && fundRec.FundType != "HEDGE") || (fieldNoInt < 5 && fundRec.FundType != "ALL") {
 				continue
 			}
+			if fieldNoInt > 4 && fundRec.FundType == "ALL" {
+				continue
+			}
+
 			if seen[m.FieldNo] {
 				continue
 			}
@@ -151,6 +212,10 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 			}
 			if g.parent.IsMCQ {
 				fund.FundData = append(fund.FundData, buildMCQ(m.FieldNo, g, vm))
+				continue
+			}
+			if g.parent.DataType == "exp_table" {
+				fund.FundData = append(fund.FundData, buildExpandableTable(m.FieldNo, g, vm))
 				continue
 			}
 
@@ -172,6 +237,53 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 	return resp, nil
 }
 
+func buildExpandableTableLine(l models.FormFieldMSLegacy, vm map[string]string) models.LineDetail {
+	return models.LineDetail{
+		LineItemNo:      l.FormLineItemNo,
+		HasLineItemText: l.LineText != "",
+		LineItemType:    l.DataType,
+		LineText:        l.LineText,
+		TableMetadata:   tableMetaDataFromStringMap(expTableMetaData[l.FormLineItemNo]),
+		TableHeaders:    expTableColumnHeaders[l.FormLineItemNo],
+		Value:           vm[l.FormLineItemNo],
+		TableData:       nil,
+		RequireDate:     l.RequiresDate,
+		DateValue:       "",
+		DisclaimerText:  l.DisclaimerText,
+	}
+}
+
+func tableMetaDataFromStringMap(m map[string]string) map[string]models.TableColumnMetadata {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]models.TableColumnMetadata, len(m))
+	for k, v := range m {
+		out[k] = models.TableColumnMetadata{DataType: v, DisplayAffix: ""}
+	}
+	return out
+}
+
+func buildExpandableTable(fieldNo string, g *group, vm map[string]string) models.FieldItem {
+	par := g.parent
+	return models.FieldItem{
+		FieldNo:          fieldNo,
+		HasFieldItemText: par.LineText != "",
+		FieldItemType:    par.DataType,
+		HasTableData:     false,
+		TableMetadata:    tableMetaDataFromStringMap(expTableMetaData[fieldNo]),
+		FieldText:        par.LineText,
+		FieldHeading:     headingFor(fieldNo),
+		Value:            vm[fieldNo],
+		TableHeaders:     expTableColumnHeaders[fieldNo],
+		FieldData:        []models.LineDetail{},
+		Confirmed:        false,
+		Editing:          true,
+		IsMultipleAdd:    par.IsMultipleAdd,
+		DisclaimerText:   par.DisclaimerText,
+	}
+}
+
 // table builder
 func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) models.FieldItem {
 	par := g.parent
@@ -186,7 +298,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 
 	// Group children by row-key
 	rowMap := make(map[string]map[string]string)
-	rowMap["metadata"] = make(map[string]string)
+	tableMetadata := make(map[string]models.TableColumnMetadata)
 	for _, v := range g.children {
 
 		if v.FormLineItemNo == fieldNo {
@@ -201,7 +313,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 			rowMap[rowKey] = make(map[string]string)
 		}
 		rowMap[rowKey][colKey] = vm[v.FormLineItemNo]
-		rowMap["metadata"][colKey] = v.DataType
+		tableMetadata[colKey] = models.TableColumnMetadata{DataType: v.DataType, DisplayAffix: v.DisplayAffix}
 	}
 
 	// Stable row order
@@ -214,9 +326,6 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 	// Convert to ordered maps
 	tableData := make([]*OrderedMap, 0, len(rowMap))
 	for _, rk := range rowKeys {
-		if rk == "metadata" {
-			continue
-		}
 		var label string
 		for _, v := range g.children {
 			if strings.HasPrefix(v.FormLineItemNo, fieldNo+"_"+rk+"_") {
@@ -248,7 +357,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 		HasFieldItemText: par.LineText != "",
 		FieldItemType:    par.DataType,
 		HasTableData:     true,
-		TableMetadata:    rowMap["metadata"],
+		TableMetadata:    tableMetadata,
 		FieldText:        par.LineText,
 		FieldHeading:     headingFor(fieldNo),
 		Value:            vm[fieldNo],
@@ -264,6 +373,7 @@ func buildTableFieldItemGroup(fieldNo string, g *group, vm map[string]string) mo
 // builder for text / bool
 func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 	par := g.parent
+
 	fItem := models.FieldItem{
 		FieldNo:          par.FieldNo,
 		HasFieldItemText: par.LineText != "",
@@ -276,24 +386,35 @@ func buildFieldItemGroup(g *group, vm map[string]string) models.FieldItem {
 		Editing:          true,
 		IsMultipleAdd:    par.IsMultipleAdd,
 		DisclaimerText:   par.DisclaimerText,
-		Options:          optionSlice(par.DataType),
+		DisplayAffix:     par.DisplayAffix,
+		Options:          optionSlice(par.DataType, par.FieldNo),
 	}
 
 	fItem.FieldData = make([]models.LineDetail, 0, len(g.children))
 	for _, l := range g.children {
-		fItem.FieldData = append(fItem.FieldData, models.LineDetail{
-			LineItemNo:      l.FormLineItemNo,
-			HasLineItemText: l.LineText != "",
-			LineItemType:    l.DataType,
-			LineText:        l.LineText,
-			Value:           vm[l.FormLineItemNo],
-			Options:         optionSlice(l.DataType),
-			TableData:       nil,
-			RequireDate:     l.RequiresDate,
-			DateValue:       "",
-			DisclaimerText:  l.DisclaimerText,
-		})
+		switch l.DataType {
+		case "exp_table":
+			fItem.FieldData = append(fItem.FieldData, buildExpandableTableLine(l, vm))
+
+		default:
+			fItem.FieldData = append(fItem.FieldData, models.LineDetail{
+				LineItemNo:      l.FormLineItemNo,
+				HasLineItemText: l.LineText != "",
+				LineItemType:    l.DataType,
+				LineText:        l.LineText,
+				Value:           vm[l.FormLineItemNo],
+				Options:         optionSlice(l.DataType, l.FormLineItemNo),
+				TableData:       nil,
+				RequireDate:     l.RequiresDate,
+				DateValue:       "",
+				DisclaimerText:  l.DisclaimerText,
+				DisplayAffix:    l.DisplayAffix,
+			})
+
+		}
+
 	}
+
 	return fItem
 }
 
@@ -337,16 +458,23 @@ type FundInfo struct {
 }
 
 type TagInfo struct {
-	FundID     string      `json:"fund_id"`
-	XMLTags    string      `json:"xmltags"`
-	Value      interface{} `json:"value"`
-	QuestionNo string      `json:"qno,omitempty"`
+	FundID        string      `json:"fund_id"`
+	XMLTags       string      `json:"xmltags"`
+	Value         interface{} `json:"value"`
+	QuestionNo    string      `json:"qno,omitempty"`
+	QuestionSubNo string      `json:"qSubno,omitempty"`
 }
 
 type SimpleResponse struct {
 	FundInfo      []FundInfo  `json:"fund_info"`
+	TagInfoSec1a  [][]TagInfo `json:"tags_info_sec1a"`
 	TagsInfoSec1b [][]TagInfo `json:"tags_info_sec1b"`
 	TagInfoSec1c  [][]TagInfo `json:"tag_info_sec1c"`
+}
+
+var reportingPeriod = map[string]string{
+	"A": "A",
+	"B": "Q",
 }
 
 func sectionFor(fieldNo string) string {
@@ -406,6 +534,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 	fundMap := make(map[string]FundInfo)
 	tagMap1b := make(map[string][]TagInfo)
 	tagMap1c := make(map[string][]TagInfo)
+	tagMap1a := make(map[string][]TagInfo)
 
 	for _, r := range rows {
 		qno, _ := strconv.Atoi(r.FieldNo)
@@ -447,6 +576,85 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 					Value:   ValueFor(*r.Value, r.LineItemType, r.FieldNo, r.FormLineNo, r.XmlTags),
 				})
 			}
+		} else if qno < 5 {
+			if r.LineItemType == "exp_table" {
+				xmlTags := strings.Split(r.XmlTags, ",")
+				var rows [][]string
+				if err := json.Unmarshal([]byte(*r.Value), &rows); err != nil {
+					logger.Log("ERROR", err.Error())
+				}
+
+				for _, row := range rows {
+					for j, val := range row {
+						tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+							FundID:        r.FundID,
+							XMLTags:       string(xmlTags[j]),
+							Value:         val,
+							QuestionNo:    r.FieldNo,
+							QuestionSubNo: r.FormLineNo,
+						})
+
+					}
+				}
+
+			} else if qno == 3 {
+				var aumtype string
+				for key, val := range xmlTagAUM {
+					if strings.Contains(r.FormLineNo, key) {
+						aumtype = val
+					}
+				}
+				tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+					FundID:        r.FundID,
+					XMLTags:       string(r.XmlTags),
+					Value:         r.Value,
+					QuestionNo:    r.FieldNo,
+					QuestionSubNo: r.FormLineNo,
+				})
+				tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+					FundID:        r.FundID,
+					XMLTags:       "FundType",
+					Value:         aumtype,
+					QuestionNo:    r.FieldNo,
+					QuestionSubNo: r.FormLineNo,
+				})
+			} else if qno == 0 {
+				if r.FormLineNo == "0_C" {
+					tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+						FundID:        r.FundID,
+						XMLTags:       string(r.XmlTags),
+						Value:         r.Value,
+						QuestionNo:    r.FieldNo,
+						QuestionSubNo: r.FormLineNo,
+					})
+				} else if r.FormLineNo != "0" {
+					tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+						FundID:        r.FundID,
+						XMLTags:       "ReportingPeriodType",
+						Value:         reportingPeriod[strings.Split(r.FormLineNo, "_")[1]],
+						QuestionNo:    r.FieldNo,
+						QuestionSubNo: r.FormLineNo,
+					})
+					if r.Value != nil {
+						tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+							FundID:        r.FundID,
+							XMLTags:       "FilingType",
+							Value:         mcqlist[r.FormLineNo][*r.Value],
+							QuestionNo:    r.FieldNo,
+							QuestionSubNo: r.FormLineNo,
+						})
+					}
+				}
+			} else {
+				tagMap1a[r.FundID] = append(tagMap1a[r.FundID], TagInfo{
+					FundID:        r.FundID,
+					XMLTags:       string(r.XmlTags),
+					Value:         r.Value,
+					QuestionNo:    r.FieldNo,
+					QuestionSubNo: r.FormLineNo,
+				})
+			}
+
 		} else {
 			tagMap1b[r.FundID] = append(tagMap1b[r.FundID], TagInfo{
 				FundID:  r.FundID,
@@ -457,6 +665,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 	}
 
 	fundSlc := make([]FundInfo, 0, len(fundMap))
+	tagSlc1a := make([][]TagInfo, 0, len(tagMap1a))
 	tagSlc1b := make([][]TagInfo, 0, len(tagMap1b))
 	tagSlc1c := make([][]TagInfo, 0, len(tagMap1c))
 
@@ -469,12 +678,16 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 			if _, ok := tagMap1c[r.FundID]; ok {
 				tagSlc1c = append(tagSlc1c, tagMap1c[r.FundID])
 			}
+			if _, ok := tagMap1a[r.FundID]; ok {
+				tagSlc1a = append(tagSlc1a, tagMap1a[r.FundID])
+			}
 			delete(fundMap, r.FundID)
 		}
 	}
 
 	return &SimpleResponse{
 		FundInfo:      fundSlc,
+		TagInfoSec1a:  tagSlc1a,
 		TagsInfoSec1b: tagSlc1b,
 		TagInfoSec1c:  tagSlc1c,
 	}, nil

@@ -18,6 +18,23 @@ func GetAllFilings() (*[]models.FilingTracker, error) {
 	return &filings, err
 }
 
+func GetSeries(filingId, clientCode string) (string, error) {
+	var filing models.FilingTracker
+	// err := dbAlive(sqlDb)
+	// if !ok {
+	// 	return &filings, ServerError
+	// }
+
+	err := sqlDb.Model(&models.FilingTracker{}).
+		Where("id = ? AND clientCode=?", filingId, clientCode).
+		Find(&filing).Error
+	if err != nil {
+		return "", err
+	}
+
+	return filing.Series, err
+}
+
 func GetFilingsByClientCode(clientCode string) (*[]models.FilingTracker, error) {
 	var filings []models.FilingTracker
 
