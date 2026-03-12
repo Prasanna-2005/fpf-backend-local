@@ -100,10 +100,10 @@ func MapFiles(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"message": modules.MultiSeriesErr.Error()})
 			return
 		case modules.ShortCodeErr:
-			c.JSON(http.StatusBadRequest, gin.H{"Message": modules.ShortCodeErr.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"message": modules.ShortCodeErr.Error()})
 			return
 		case modules.SharedFilesUploadErr:
-			c.JSON(http.StatusBadRequest, gin.H{"Message": modules.SharedFilesUploadErr.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"message": modules.SharedFilesUploadErr.Error()})
 			return
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
