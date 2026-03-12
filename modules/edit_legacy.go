@@ -656,6 +656,9 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 			}
 
 		} else {
+			if *r.Value == "NA" && qno == 17 {
+				continue
+			}
 			tagMap1b[r.FundID] = append(tagMap1b[r.FundID], TagInfo{
 				FundID:  r.FundID,
 				XMLTags: string(r.XmlTags),
