@@ -43,7 +43,9 @@ type Payload struct {
 }
 
 var (
-	MultiSeriesErr = errors.New("Upload contains funds from multiple series. Please upload single series at a time")
+	MultiSeriesErr       = errors.New("Upload contains funds from multiple series. Please upload single series at a time")
+	ShortCodeErr         = errors.New("invalid file name: no recognizable short-code found; please include a valid short-code")
+	SharedFilesUploadErr = errors.New("Common files like investor liquidity/Unfunded commitments are insufficient to identify SPV.Please upload one fund")
 )
 
 func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.FileIdentificationResponse, error) {
@@ -95,7 +97,11 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	// 	}
 	// }
 	if len(candidates) == 0 {
-		return nil, errors.New("no recognisable short-codes in file names")
+		if err := RemoveDir(baseDir); err != nil {
+			logger.Log("ERROR", fmt.Sprintf("Failed to delete dir:%v", err.Error()))
+			return nil, ShortCodeErr
+		}
+		return nil, ShortCodeErr
 	}
 	var scoped []models.FegFileIdentification
 	for _, fund := range funds {
@@ -105,13 +111,16 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 		}
 	}
 	if len(scoped) == 0 {
-		return nil, errors.New("upload files do not match any known fund")
+		return nil, ShortCodeErr
 	}
 	series := decideSeries(scoped)
-	if series == "" {
+	if series == "" || series == "shared" {
 		if err := RemoveDir(baseDir); err != nil {
 			logger.Log("ERROR", fmt.Sprintf("Failed to delete dir:%v", err.Error()))
 			return nil, MultiSeriesErr
+		}
+		if series == "shared" {
+			return nil, SharedFilesUploadErr
 		}
 		return nil, MultiSeriesErr
 	}
@@ -250,7 +259,7 @@ func decideSeries(funds []models.FegFileIdentification) string {
 		}
 	}
 	if len(concrete) == 0 {
-		return "" // no anchor series
+		return "shared" // no anchor series
 	}
 	first := concrete[0]
 	for _, s := range concrete[1:] {

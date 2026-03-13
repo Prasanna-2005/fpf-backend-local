@@ -95,12 +95,20 @@ func MapFiles(c *gin.Context) {
 	}
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("mapper err: %v", err.Error()))
-		if err == modules.MultiSeriesErr {
+		switch err {
+		case modules.MultiSeriesErr:
 			c.JSON(http.StatusBadRequest, gin.H{"message": modules.MultiSeriesErr.Error()})
 			return
+		case modules.ShortCodeErr:
+			c.JSON(http.StatusBadRequest, gin.H{"message": modules.ShortCodeErr.Error()})
+			return
+		case modules.SharedFilesUploadErr:
+			c.JSON(http.StatusBadRequest, gin.H{"message": modules.SharedFilesUploadErr.Error()})
+			return
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
-		return
 	}
 	c.JSON(http.StatusOK, resp)
 }
