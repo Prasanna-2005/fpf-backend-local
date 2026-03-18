@@ -40,11 +40,11 @@ var expTableColumnHeaders = map[string][]string{
 var xmlTagAUM = map[string]string{
 	"3_(a)": "HEDGE",
 	"3_(b)": "LIQUIDITY",
-	"3_(c)": "PRIVATEEQUITY",
+	"3_(c)": "PRIVATE",
 	"3_(d)": "REALESTATE",
-	"3_(e)": "SECURITIZED",
-	"3_(f)": "VENTURECAPITAL",
-	"3_(g)": "OTHERPRIVATE",
+	"3_(e)": "SECUREASSET",
+	"3_(f)": "VC",
+	"3_(g)": "OTHER",
 	"3_(h)": "NONPRIVATE",
 }
 
