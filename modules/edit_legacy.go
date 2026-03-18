@@ -469,7 +469,7 @@ type SimpleResponse struct {
 	FundInfo      []FundInfo  `json:"fund_info"`
 	TagInfoSec1a  [][]TagInfo `json:"tags_info_sec1a"`
 	TagsInfoSec1b [][]TagInfo `json:"tags_info_sec1b"`
-	TagInfoSec1c  [][]TagInfo `json:"tag_info_sec1c"`
+	TagInfoSec1c  [][]TagInfo `json:"tags_info_sec1c"`
 }
 
 var reportingPeriod = map[string]string{
