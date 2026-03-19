@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -541,7 +542,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 		if r.Value == nil || *r.Value == "" {
 			continue
 		}
-		if _, ok := fundMap[r.FundID]; !ok && r.FundID != "SECTION-1A" {
+		if _, ok := fundMap[r.FundID]; !ok {
 			fundMap[r.FundID] = FundInfo{
 				FundID:   r.FundID,
 				FundName: r.FundName,
@@ -659,10 +660,18 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 			if *r.Value == "NA" && qno == 17 {
 				continue
 			}
+
+			value := r.Value
+			if string(r.XmlTags) == "CostBasedLiabilitiesAmount" && r.Value != nil {
+				if v, err := strconv.ParseFloat(*r.Value, 64); err == nil {
+					negated := strconv.FormatFloat(-math.Abs(v), 'f', -1, 64)
+					value = &negated
+				}
+			}
 			tagMap1b[r.FundID] = append(tagMap1b[r.FundID], TagInfo{
 				FundID:  r.FundID,
 				XMLTags: string(r.XmlTags),
-				Value:   r.Value,
+				Value:   value,
 			})
 		}
 	}
@@ -674,7 +683,9 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 
 	for _, r := range rows {
 		if fi, ok := fundMap[r.FundID]; ok {
-			fundSlc = append(fundSlc, fi)
+			if r.FundID != "SECTION-1A" {
+				fundSlc = append(fundSlc, fi)
+			}
 			if _, ok := tagMap1b[r.FundID]; ok {
 				tagSlc1b = append(tagSlc1b, tagMap1b[r.FundID])
 			}
