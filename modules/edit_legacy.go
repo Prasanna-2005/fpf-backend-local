@@ -541,7 +541,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 		if r.Value == nil || *r.Value == "" {
 			continue
 		}
-		if _, ok := fundMap[r.FundID]; !ok {
+		if _, ok := fundMap[r.FundID]; !ok && r.FundID != "SECTION-1A" {
 			fundMap[r.FundID] = FundInfo{
 				FundID:   r.FundID,
 				FundName: r.FundName,
