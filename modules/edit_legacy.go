@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"math"
 	"os"
 	"sort"
 	"strconv"
@@ -40,11 +41,11 @@ var expTableColumnHeaders = map[string][]string{
 var xmlTagAUM = map[string]string{
 	"3_(a)": "HEDGE",
 	"3_(b)": "LIQUIDITY",
-	"3_(c)": "PRIVATEEQUITY",
+	"3_(c)": "PRIVATE",
 	"3_(d)": "REALESTATE",
-	"3_(e)": "SECURITIZED",
-	"3_(f)": "VENTURECAPITAL",
-	"3_(g)": "OTHERPRIVATE",
+	"3_(e)": "SECUREASSET",
+	"3_(f)": "VC",
+	"3_(g)": "OTHER",
 	"3_(h)": "NONPRIVATE",
 }
 
@@ -105,8 +106,8 @@ func optionSlice(dataType, formLineNo string) []string {
 }
 
 var mcqlist = map[string]map[string]string{
-	"0_A": {"Submit your first filing on Form PF": " PF-INIT", "Submit an annual update": " PF-UPDATING", "Amend a previously submitted filing": " PF-AMEND", "Submit a final filing": " PF-FINAL", "Request a temporary hardship exemption": " EXEMPTION"},
-	"0_B": {"Submit your first filing on Form PF for the [1st, 2nd, 3rd, 4th] quarter": " PF-INIT", "Submit a quarterly update (including fourth quarter updates)for the [1st, 2nd, 3rd, 4th] quarter, ": " PF-UPDATING", "Amend a previously submitted filing for the [1st, 2nd, 3rd, 4th] quarter": " PF-AMEND", "Transition to annual reporting": " PF-TRANS", "Submit a final filing": " PF-FINAL", "Request a temporary hardship exemption": " EXEMPTION"},
+	"0_A": {"Submit your first filing on Form PF": "PF-INIT", "Submit an annual update": "PF-UPDATING", "Amend a previously submitted filing": "PF-AMEND", "Submit a final filing": "PF-FINAL", "Request a temporary hardship exemption": "EXEMPTION"},
+	"0_B": {"Submit your first filing on Form PF for the [1st, 2nd, 3rd, 4th] quarter": "PF-INIT", "Submit a quarterly update (including fourth quarter updates)for the [1st, 2nd, 3rd, 4th] quarter, ": "PF-UPDATING", "Amend a previously submitted filing for the [1st, 2nd, 3rd, 4th] quarter": "PF-AMEND", "Transition to annual reporting": "PF-TRANS", "Submit a final filing": "PF-FINAL", "Request a temporary hardship exemption": "EXEMPTION"},
 }
 
 func headingFor(fieldNo string) string {
@@ -469,7 +470,7 @@ type SimpleResponse struct {
 	FundInfo      []FundInfo  `json:"fund_info"`
 	TagInfoSec1a  [][]TagInfo `json:"tags_info_sec1a"`
 	TagsInfoSec1b [][]TagInfo `json:"tags_info_sec1b"`
-	TagInfoSec1c  [][]TagInfo `json:"tag_info_sec1c"`
+	TagInfoSec1c  [][]TagInfo `json:"tags_info_sec1c"`
 }
 
 var reportingPeriod = map[string]string{
@@ -659,10 +660,18 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 			if *r.Value == "NA" && qno == 17 {
 				continue
 			}
+
+			value := r.Value
+			if string(r.XmlTags) == "CostBasedLiabilitiesAmount" && r.Value != nil {
+				if v, err := strconv.ParseFloat(*r.Value, 64); err == nil {
+					negated := strconv.FormatFloat(-math.Abs(v), 'f', -1, 64)
+					value = &negated
+				}
+			}
 			tagMap1b[r.FundID] = append(tagMap1b[r.FundID], TagInfo{
 				FundID:  r.FundID,
 				XMLTags: string(r.XmlTags),
-				Value:   r.Value,
+				Value:   value,
 			})
 		}
 	}
@@ -674,7 +683,9 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 
 	for _, r := range rows {
 		if fi, ok := fundMap[r.FundID]; ok {
-			fundSlc = append(fundSlc, fi)
+			if r.FundID != "SECTION-1A" {
+				fundSlc = append(fundSlc, fi)
+			}
 			if _, ok := tagMap1b[r.FundID]; ok {
 				tagSlc1b = append(tagSlc1b, tagMap1b[r.FundID])
 			}
