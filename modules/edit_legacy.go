@@ -106,8 +106,8 @@ func optionSlice(dataType, formLineNo string) []string {
 }
 
 var mcqlist = map[string]map[string]string{
-	"0_A": {"Submit your first filing on Form PF": " PF-INIT", "Submit an annual update": " PF-UPDATING", "Amend a previously submitted filing": " PF-AMEND", "Submit a final filing": " PF-FINAL", "Request a temporary hardship exemption": " EXEMPTION"},
-	"0_B": {"Submit your first filing on Form PF for the [1st, 2nd, 3rd, 4th] quarter": " PF-INIT", "Submit a quarterly update (including fourth quarter updates)for the [1st, 2nd, 3rd, 4th] quarter, ": " PF-UPDATING", "Amend a previously submitted filing for the [1st, 2nd, 3rd, 4th] quarter": " PF-AMEND", "Transition to annual reporting": " PF-TRANS", "Submit a final filing": " PF-FINAL", "Request a temporary hardship exemption": " EXEMPTION"},
+	"0_A": {"Submit your first filing on Form PF": "PF-INIT", "Submit an annual update": "PF-UPDATING", "Amend a previously submitted filing": "PF-AMEND", "Submit a final filing": "PF-FINAL", "Request a temporary hardship exemption": "EXEMPTION"},
+	"0_B": {"Submit your first filing on Form PF for the [1st, 2nd, 3rd, 4th] quarter": "PF-INIT", "Submit a quarterly update (including fourth quarter updates)for the [1st, 2nd, 3rd, 4th] quarter, ": "PF-UPDATING", "Amend a previously submitted filing for the [1st, 2nd, 3rd, 4th] quarter": "PF-AMEND", "Transition to annual reporting": "PF-TRANS", "Submit a final filing": "PF-FINAL", "Request a temporary hardship exemption": "EXEMPTION"},
 }
 
 func headingFor(fieldNo string) string {
