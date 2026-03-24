@@ -118,13 +118,13 @@ func headingFor(fieldNo string) string {
 		return "Item B. Information about assets of private funds that you advise"
 	case "4":
 		return "Item C. Miscellaneous"
-	case "5", "6", "7", "18", "19":
+	case "5", "6", "7", "18":
 		return "Item A. Reporting fund identifying information"
 	case "8", "9", "10", "11", "12", "13", "14", "15", "16":
 		return "Item B. Assets, financing and investor concentration"
 	case "17":
 		return "Item C. Reporting fund performance"
-	case "20", "21", "22", "23", "24", "25":
+	case "19", "20", "21", "22", "23", "24", "25":
 		return "Item B. Certain information regarding the reporting fund"
 	default:
 		return ""
