@@ -113,17 +113,22 @@ var mcqlist = map[string]map[string]string{
 func headingFor(fieldNo string) string {
 	switch fieldNo {
 	case "1", "2":
-		return "Item A. Information about you "
+		return "sec1a:Item A. Information about you"
 	case "3":
-		return "Item B. Information about assets of private funds that you advise"
+		return "sec1a:Item B. Information about assets of private funds that you advise"
 	case "4":
-		return "Item C. Miscellaneous"
-	case "5", "6", "7", "18", "19":
-		return "Item A. Reporting fund identifying information"
-	case "8", "9", "10", "11", "12", "13", "14", "15", "16", "17":
-		return "Item B. Assets, financing and investor concentration"
-	case "20", "21", "22", "23", "24", "25":
-		return "Item B. Certain information regarding the reporting fund"
+		return "sec1a:Item C. Miscellaneous"
+	case "5", "6", "7":
+		return "sec1b:Item A. Reporting fund identifying information"
+	case "8", "9", "10", "11", "12", "13", "14", "15", "16":
+		return "sec1b:Item B. Assets, financing and investor concentration"
+	case "17":
+		return "sec1b:Item C. Reporting fund performance"
+	case "18":
+		return "sec1c:Item A. Reporting fund identifying information"
+	case "19", "20", "21", "22", "23", "24", "25":
+		return "sec1c:Item B. Certain information regarding the reporting fund"
+
 	default:
 		return ""
 	}
