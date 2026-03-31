@@ -132,7 +132,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	// }
 
 	if req.Filing != nil && !*req.Filing {
-		filingId, err := db.GetFilingId(req.FilingName)
+		filingId, err := db.GetFilingId(req.FilingName, cid)
 		if err != nil {
 			logger.Log("ERROR", fmt.Sprintf("Filing tracker error: %v", err.Error()))
 			return nil, FilingNotFound
