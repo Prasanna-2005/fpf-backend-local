@@ -1,7 +1,6 @@
 package db
 
 import (
-	"errors"
 	"fmt"
 	"form_pf_backend/models"
 	"strings"
@@ -206,7 +205,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	return nil
 }
 
-// GetFundNameMap returns a map of shortCode -> fundName for a given series
+// PullFundName returns a map of shortCode -> fundName for a given series
 func PullFundName(series string) (map[string]string, error) {
 	type FundMapping struct {
 		ShortCode string `gorm:"column:shortcode"`
@@ -233,10 +232,10 @@ func PullFundName(series string) (map[string]string, error) {
 	return fundMap, nil
 }
 
-// PullFilingMapper pulls file mapper and enriches with fund name
-func PullFilingMapper(filingId string, series string) (models.MappedResp, error) {
-	var row models.FileMapper
-	var resp models.MappedResp
+// PullFilingMapper pulls all file mappers for a filing and enriches with fund names
+func PullFilingMapper(filingId string, series string) ([]models.MappedResp, error) {
+	var rows []models.FileMapper
+	var resp []models.MappedResp
 
 	// Get fund name map for the series
 	fundMap, err := PullFundName(series)
@@ -244,25 +243,28 @@ func PullFilingMapper(filingId string, series string) (models.MappedResp, error)
 		return resp, fmt.Errorf("failed to get fund name map: %w", err)
 	}
 
-	// Select required columns from FileMapper
+	// Select all matching records
 	result := sqlDb.Select("file_name", "filing_path", "fund_short_code", "quarter_no").
 		Where("filing_id = ?", filingId).
-		First(&row)
+		Find(&rows) // Changed from First to Find
 
 	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return resp, fmt.Errorf("filing mapper not found for filing_id: %s", filingId)
-		}
 		return resp, result.Error
 	}
 
-	// Map fields and lookup fund name
-	resp = models.MappedResp{
-		FileName:  row.FileName,
-		Path:      row.FilingPath,
-		ShortCode: row.FundShortCode,
-		FileType:  row.Quarter,
-		FundName:  fundMap[row.FundShortCode], // Lookup from map
+	// Map each row to response
+	for _, row := range rows {
+		// Lookup fundname using  shortcode
+		fundName := fundMap[strings.ToLower(row.FundShortCode)]
+
+		mapped := models.MappedResp{
+			FileName:  row.FileName,
+			Path:      row.FilingPath,
+			ShortCode: row.FundShortCode,
+			FileType:  row.Quarter,
+			FundName:  fundName,
+		}
+		resp = append(resp, mapped)
 	}
 
 	return resp, nil
