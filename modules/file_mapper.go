@@ -46,6 +46,8 @@ var (
 	MultiSeriesErr       = errors.New("Upload contains funds from multiple series. Please upload single series at a time")
 	ShortCodeErr         = errors.New("invalid file name: no recognizable short-code found; please include a valid short-code")
 	SharedFilesUploadErr = errors.New("Common files like investor liquidity/Unfunded commitments are insufficient to identify SPV.Please upload one fund")
+	FilingNotFound       = errors.New("Filing not found for given filing Name")
+	MappingNotFound      = errors.New("Mapping not found for given filing name")
 )
 
 func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.FileIdentificationResponse, error) {
@@ -128,6 +130,27 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	// for k, v := range candidates {
 	// 	fmt.Printf("fund:%vhi,files:%v\n", k, v)
 	// }
+
+	if req.Filing != nil && !*req.Filing {
+		filingId, err := db.GetFilingId(req.FilingName)
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("Filing tracker error: %v", err.Error()))
+			return nil, FilingNotFound
+		}
+		mapped, err := db.PullFilingMapper(*filingId, series)
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("Mapper error: %v", err.Error()))
+			return nil, MappingNotFound
+		}
+		return &models.FileIdentificationResponse{
+			Message:       "File mappings retrived successfully",
+			Series:        series,
+			FilingName:    req.FilingName,
+			FileMappings:  mapped,
+			UnmappedFiles: nil,
+			FundDetails:   toFundResp(funds, series),
+		}, nil
+	}
 
 	mapped, failedFiles := FindFileType(candidates, funds, series)
 	unmapped = append(unmapped, failedFiles...)
