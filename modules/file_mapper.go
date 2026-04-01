@@ -60,6 +60,27 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 		return nil, fmt.Errorf("config error")
 	}
 
+	if req.Filing != nil && !*req.Filing {
+		filingId, mappedFileSeries, err := db.GetFilingId(req.FilingName, cid)
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("Filing tracker error: %v", err.Error()))
+			return nil, FilingNotFound
+		}
+		mapped, err := db.PullFilingMapper(*filingId, *mappedFileSeries)
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("Mapper error: %v", err.Error()))
+			return nil, MappingNotFound
+		}
+		return &models.FileIdentificationResponse{
+			Message:       "File mappings retrived successfully",
+			Series:        *mappedFileSeries,
+			FilingName:    req.FilingName,
+			FileMappings:  mapped,
+			UnmappedFiles: nil,
+			FundDetails:   toFundResp(funds, *mappedFileSeries),
+		}, nil
+	}
+
 	baseDir := filepath.Join(cfg.UploadVolumePath, cid, sanitize(req.FilingName))
 	excels, pdf, err := findFiles(baseDir)
 	if err != nil {
@@ -130,27 +151,6 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	// for k, v := range candidates {
 	// 	fmt.Printf("fund:%vhi,files:%v\n", k, v)
 	// }
-
-	if req.Filing != nil && !*req.Filing {
-		filingId, err := db.GetFilingId(req.FilingName, cid)
-		if err != nil {
-			logger.Log("ERROR", fmt.Sprintf("Filing tracker error: %v", err.Error()))
-			return nil, FilingNotFound
-		}
-		mapped, err := db.PullFilingMapper(*filingId, series)
-		if err != nil {
-			logger.Log("ERROR", fmt.Sprintf("Mapper error: %v", err.Error()))
-			return nil, MappingNotFound
-		}
-		return &models.FileIdentificationResponse{
-			Message:       "File mappings retrived successfully",
-			Series:        series,
-			FilingName:    req.FilingName,
-			FileMappings:  mapped,
-			UnmappedFiles: nil,
-			FundDetails:   toFundResp(funds, series),
-		}, nil
-	}
 
 	mapped, failedFiles := FindFileType(candidates, funds, series)
 	unmapped = append(unmapped, failedFiles...)
