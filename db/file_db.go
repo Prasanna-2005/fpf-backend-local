@@ -66,17 +66,20 @@ func GetFilingTracker(filingID string) (*models.FilingTracker, error) {
 	return &ft, nil
 }
 
-func GetFilingId(filingName, cid string) (*string, error) {
-	var id *string
+func GetFilingId(filingName, cid string) (*string, *string, error) {
+	var result struct {
+		Id     *string
+		Series *string
+	}
 	if filingName == "" {
-		return nil, fmt.Errorf("Empty filing name present")
+		return nil, nil, fmt.Errorf("Empty filing name present")
 	}
 	err := sqlDb.Model(&models.FilingTracker{}).
-		Select("id").
-		Where("filing_name = ? and clientCode=", filingName, cid).
-		Scan(&id).Error
+		Select("id,series").
+		Where("filingName = ? and clientCode=?", filingName, cid).
+		Scan(&result).Error
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return id, nil
+	return result.Id, result.Series, nil
 }

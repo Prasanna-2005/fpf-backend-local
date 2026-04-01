@@ -244,8 +244,9 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 	}
 
 	// Select all matching records
-	result := sqlDb.Select("file_name", "filing_path", "fund_short_code", "quarter_no").
-		Where("filing_id = ?", filingId).
+
+	result := sqlDb.Select("fileName", "filingPath", "fundShortCode", "quarterNo").
+		Where("filingId = ?", filingId).
 		Find(&rows) // Changed from First to Find
 
 	if result.Error != nil {
