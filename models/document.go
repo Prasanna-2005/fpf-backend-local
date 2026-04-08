@@ -6,6 +6,7 @@ import (
 
 type FileIdentificationRequest struct {
 	FilingName string `json:"filing_name" gorm:"-"` // incoming payload only
+	Filing     *bool  `json:"filing" gorm:"-"`
 }
 
 type FileIdentificationResponse struct {

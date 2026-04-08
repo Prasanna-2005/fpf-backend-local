@@ -67,6 +67,7 @@ func MapFiles(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
+
 	var cid string
 	cid = "system"
 	temp, ok := c.Get("clientId")
@@ -77,7 +78,6 @@ func MapFiles(c *gin.Context) {
 	}
 	cid = temp.(string)
 	resp, err := modules.IdentifyFiles(&req, cid)
-
 	if resp != nil && len(resp.FileMappings) > 0 {
 		sort.Slice(resp.FileMappings, func(i, j int) bool {
 			if resp.FileMappings[i].FundName == resp.FileMappings[j].FundName {
@@ -104,6 +104,12 @@ func MapFiles(c *gin.Context) {
 			return
 		case modules.SharedFilesUploadErr:
 			c.JSON(http.StatusBadRequest, gin.H{"message": modules.SharedFilesUploadErr.Error()})
+			return
+		case modules.FilingNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"message": modules.FilingNotFound.Error()})
+			return
+		case modules.MappingNotFound:
+			c.JSON(http.StatusNotFound, gin.H{"message": modules.MappingNotFound.Error()})
 			return
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})

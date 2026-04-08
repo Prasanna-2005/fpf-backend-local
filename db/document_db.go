@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"form_pf_backend/models"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -202,4 +203,70 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	}
 
 	return nil
+}
+
+// PullFundName returns a map of shortCode -> fundName for a given series
+func PullFundName(series string) (map[string]string, error) {
+	type FundMapping struct {
+		ShortCode string `gorm:"column:shortcode"`
+		FundName  string `gorm:"column:fundname"`
+	}
+
+	var mappings []FundMapping
+
+	result := sqlDb.Table("formpf_stage.feg_file_identification").
+		Select("DISTINCT shortcode", "fundname").
+		Where("series = ?", series).
+		Find(&mappings)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	// Build map: shortCode -> fundName
+	fundMap := make(map[string]string)
+	for _, m := range mappings {
+		fundMap[strings.ToLower(m.ShortCode)] = m.FundName
+	}
+
+	return fundMap, nil
+}
+
+// PullFilingMapper pulls all file mappers for a filing and enriches with fund names
+func PullFilingMapper(filingId string, series string) ([]models.MappedResp, error) {
+	var rows []models.FileMapper
+	var resp []models.MappedResp
+
+	// Get fund name map for the series
+	fundMap, err := PullFundName(series)
+	if err != nil {
+		return resp, fmt.Errorf("failed to get fund name map: %w", err)
+	}
+
+	// Select all matching records
+
+	result := sqlDb.Select("fileName", "filingPath", "fundShortCode", "quarterNo").
+		Where("filingId = ?", filingId).
+		Find(&rows) // Changed from First to Find
+
+	if result.Error != nil {
+		return resp, result.Error
+	}
+
+	// Map each row to response
+	for _, row := range rows {
+		// Lookup fundname using  shortcode
+		fundName := fundMap[strings.ToLower(row.FundShortCode)]
+
+		mapped := models.MappedResp{
+			FileName:  row.FileName,
+			Path:      row.FilingPath,
+			ShortCode: row.FundShortCode,
+			FileType:  row.Quarter,
+			FundName:  fundName,
+		}
+		resp = append(resp, mapped)
+	}
+
+	return resp, nil
 }
