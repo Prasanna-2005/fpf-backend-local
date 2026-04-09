@@ -673,6 +673,13 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 					value = &negated
 				}
 			}
+			if string(r.XmlTags) == "NFAFundCFTCComplianceFlag" {
+				if *value == "true" {
+					*value = "Y"
+				} else {
+					*value = "N"
+				}
+			}
 			tagMap1b[r.FundID] = append(tagMap1b[r.FundID], TagInfo{
 				FundID:  r.FundID,
 				XMLTags: string(r.XmlTags),
