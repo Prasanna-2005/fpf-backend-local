@@ -64,7 +64,7 @@ type FegFileIdentification struct {
 	FundName  string    `gorm:"column:fundName;not null"`
 	FileType  string    `gorm:"column:filetype;not null"`
 	Quarter   int       `gorm:"column:quarter;not null"`
-	Month     string    `gorm:"column:month"`
+	Period    *string   `gorm:"column:period"`
 	Series    string    `gorm:"column:series;not null"`
 	CreatedAt time.Time `gorm:"column:createdAt;not null"`
 	CreatedBy string    `gorm:"column:createdBy;not null"`
@@ -85,5 +85,6 @@ type MappedResp struct {
 	ShortCode string `json:"shortcode,omitempty"`
 	FundName  string `json:"fundname,omitempty"`
 	FileType  string `json:"quarter"`
+	Period    string `json:"period,omitempty"`
 	Path      string `json:"filepath,"`
 }
