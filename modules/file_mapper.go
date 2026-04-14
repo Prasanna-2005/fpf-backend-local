@@ -25,7 +25,7 @@ var (
 	romanRe     = regexp.MustCompile(`\b[MDCLXVI]+\b`)
 	fundRomanRe = regexp.MustCompile(`[MDCLXVI]+`)
 	q1to5       = regexp.MustCompile(`^Q[1-5]$`)
-	periodYMD   = regexp.MustCompile(``(19|20)(\d{2})(0[1-9]|1[0-2])([012]\d|3[01])``)
+	periodYMD   = regexp.MustCompile(`(19|20)(\d{2})(0[1-9]|1[0-2])([012]\d|3[01])`)
 	periodMDY   = regexp.MustCompile(`\b(0?[1-9]|1[0-2])[.\-/](0?[1-9]|[12]\d|3[01])[.\-/](19|20)\d{2}\b`)
 )
 var FileTypeConv = map[string]string{
@@ -228,7 +228,7 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 			} else if matchByidentifier(strings.ToLower(resp.FileName), strings.ToLower(fund.FileType)) {
 				resp.FileType = FileTypeConv[fund.FileType]
 				if fund.Period != nil {
-					resp.Period=periodIdentifier(resp.filename,fund.period)
+					resp.Period = periodIdentifier(resp.FileName, *fund.Period)
 				}
 				out = append(out, resp)
 				mappedFilePath = append(mappedFilePath, file)
@@ -328,19 +328,19 @@ func matchQuarterByFilename(name string) (int, int) {
 	return -1, -1
 }
 
-func periodIdentifier(filename, period string) int {
+func periodIdentifier(filename, period string) string {
 	var month int
-	filename:=strings.ToLower(filename)
+	filename = strings.ToLower(filename)
 	if m := periodYMD.FindStringSubmatch(filename); m != nil {
 		month, _ = strconv.Atoi(m[3])
 	}
 	if m := periodMDY.FindStringSubmatch(filename); m != nil {
 		month, _ = strconv.Atoi(m[1])
 	}
-	if period=="Q"{
-		month=month/4
+	if period == "Q" {
+		month = month / 4
 	}
-	return month
+	return strconv.Itoa(month)
 }
 
 func toFundResp(funds []models.FegFileIdentification, series string) []models.MappedResp {
