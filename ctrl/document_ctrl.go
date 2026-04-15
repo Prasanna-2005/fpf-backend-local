@@ -132,7 +132,7 @@ func SubmitFiles(c *gin.Context) {
 	}
 
 	cid, ok = temp.(string)
-
+	utility.CleanSubmitReq(&req)
 	if !ok {
 		logger.Log("WARNING", "clientid parsing error")
 	}
