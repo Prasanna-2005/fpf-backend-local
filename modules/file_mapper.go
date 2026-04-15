@@ -32,18 +32,18 @@ var (
 
 var periodConv = map[string][]string{
 	"M": {
-		time.January.String(),   // "January"
-		time.February.String(),  // "February"
-		time.March.String(),     // "March"
-		time.April.String(),     // "April"
-		time.May.String(),       // "May"
-		time.June.String(),      // "June"
-		time.July.String(),      // "July"
-		time.August.String(),    // "August"
-		time.September.String(), // "September"
-		time.October.String(),   // "October"
-		time.November.String(),  // "November"
-		time.December.String(),  // "December"
+		"january",
+		"february",
+		"march",
+		"april",
+		"may",
+		"june",
+		"july",
+		"august",
+		"september",
+		"october",
+		"november",
+		"december",
 	},
 	"Q": {
 		"Q1", // January, February, March
@@ -365,7 +365,7 @@ func periodIdentifier(filename, period string) string {
 	if period == "Q" {
 		return "Q" + strconv.Itoa(month/3)
 	}
-	return time.Month(month).String()
+	return strings.ToLower(time.Month(month).String())
 }
 
 func toFundResp(funds []models.FegFileIdentification, series string) []models.MappedResp {
