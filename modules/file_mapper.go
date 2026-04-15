@@ -363,9 +363,9 @@ func periodIdentifier(filename, period string) string {
 		month, _ = strconv.Atoi(m[1])
 	}
 	if period == "Q" {
-		month = month / 4
+		return "Q" + strconv.Itoa(month/3)
 	}
-	return strconv.Itoa(month)
+	return time.Month(month).String()
 }
 
 func toFundResp(funds []models.FegFileIdentification, series string) []models.MappedResp {
