@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/brandenc40/romannumeral"
 )
@@ -28,6 +29,30 @@ var (
 	periodYMD   = regexp.MustCompile(`(19|20)(\d{2})(0[1-9]|1[0-2])([012]\d|3[01])`)
 	periodMDY   = regexp.MustCompile(`\b(0?[1-9]|1[0-2])[.\-/](0?[1-9]|[12]\d|3[01])[.\-/](19|20)\d{2}\b`)
 )
+
+var periodConv = map[string][]string{
+	"M": {
+		time.January.String(),   // "January"
+		time.February.String(),  // "February"
+		time.March.String(),     // "March"
+		time.April.String(),     // "April"
+		time.May.String(),       // "May"
+		time.June.String(),      // "June"
+		time.July.String(),      // "July"
+		time.August.String(),    // "August"
+		time.September.String(), // "September"
+		time.October.String(),   // "October"
+		time.November.String(),  // "November"
+		time.December.String(),  // "December"
+	},
+	"Q": {
+		"Q1", // January, February, March
+		"Q2", // April, May, June
+		"Q3", // July, August, September
+		"Q4", // October, November, December
+	},
+}
+
 var FileTypeConv = map[string]string{
 	"capital_register":     "Capital Register",
 	"nav_tb":               "Trial Balance",
@@ -347,11 +372,22 @@ func toFundResp(funds []models.FegFileIdentification, series string) []models.Ma
 	var out []models.MappedResp
 	for _, f := range funds {
 		if strings.EqualFold(strings.TrimSpace(f.Series), strings.TrimSpace(series)) || f.Series == "ALL" {
-			out = append(out, models.MappedResp{
-				FundName:  f.FundName,
-				FileType:  FileTypeConv[f.FileType],
-				ShortCode: f.ShortCode,
-			})
+			if f.Period != nil {
+				for _, p := range periodConv[*f.Period] {
+					out = append(out, models.MappedResp{
+						FundName:  f.FundName,
+						FileType:  FileTypeConv[f.FileType],
+						ShortCode: f.ShortCode,
+						Period:    p,
+					})
+				}
+			} else {
+				out = append(out, models.MappedResp{
+					FundName:  f.FundName,
+					FileType:  FileTypeConv[f.FileType],
+					ShortCode: f.ShortCode,
+				})
+			}
 		}
 	}
 	return out
