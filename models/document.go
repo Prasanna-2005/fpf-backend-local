@@ -40,6 +40,7 @@ type FileMapper struct {
 	FilingID      string    `gorm:"column:filingId;not null"` // legacy DB column – keep
 	FileMapID     string    `gorm:"column:fileMapId"`
 	Quarter       string    `gorm:"column:quarterNo;default:NULL"`
+	Period        string    `gorm:"column:period;default:NULL"`
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`
 	CreatedAt     time.Time `gorm:"column:createdAt;not null"`
 	CreatedBy     string    `gorm:"column:createdBy;not null"`
