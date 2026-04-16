@@ -27,7 +27,7 @@ var (
 	fundRomanRe = regexp.MustCompile(`[MDCLXVI]+`)
 	q1to5       = regexp.MustCompile(`^Q[1-5]$`)
 	periodYMD   = regexp.MustCompile(`(19|20)(\d{2})(0[1-9]|1[0-2])([012]\d|3[01])`)
-	periodMDY   = regexp.MustCompile(`\b(0?[1-9]|1[0-2])[.\-/](0?[1-9]|[12]\d|3[01])[.\-/](19|20)\d{2}\b`)
+	periodMDY   = regexp.MustCompile(`\b(0?[1-9]|1[0-2])[.\-/](0?[1-9]|[12]\d|3[01])[.\-/](\d{2}|\d{4})\b`)
 )
 
 var periodConv = map[string][]string{
