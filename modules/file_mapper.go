@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/brandenc40/romannumeral"
 )
@@ -25,7 +26,33 @@ var (
 	romanRe     = regexp.MustCompile(`\b[MDCLXVI]+\b`)
 	fundRomanRe = regexp.MustCompile(`[MDCLXVI]+`)
 	q1to5       = regexp.MustCompile(`^Q[1-5]$`)
+	periodYMD   = regexp.MustCompile(`(19|20)(\d{2})(0[1-9]|1[0-2])([012]\d|3[01])`)
+	periodMDY   = regexp.MustCompile(`\b(0?[1-9]|1[0-2])[.\-/](0?[1-9]|[12]\d|3[01])[.\-/](19|20)\d{2}\b`)
 )
+
+var periodConv = map[string][]string{
+	"M": {
+		"january",
+		"february",
+		"march",
+		"april",
+		"may",
+		"june",
+		"july",
+		"august",
+		"september",
+		"october",
+		"november",
+		"december",
+	},
+	"Q": {
+		"Q1", // January, February, March
+		"Q2", // April, May, June
+		"Q3", // July, August, September
+		"Q4", // October, November, December
+	},
+}
+
 var FileTypeConv = map[string]string{
 	"capital_register":     "Capital Register",
 	"nav_tb":               "Trial Balance",
@@ -225,6 +252,9 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 
 			} else if matchByidentifier(strings.ToLower(resp.FileName), strings.ToLower(fund.FileType)) {
 				resp.FileType = FileTypeConv[fund.FileType]
+				if fund.Period != nil {
+					resp.Period = periodIdentifier(resp.FileName, *fund.Period)
+				}
 				out = append(out, resp)
 				mappedFilePath = append(mappedFilePath, file)
 			}
@@ -244,7 +274,6 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 func matchByidentifier(filename string, filetype string) bool {
 	flg := true
 	if filetype == "na" {
-		// fmt.Println("hi got into NA")
 		return true
 	}
 	identifiers := strings.Split(filetype, "_")
@@ -324,15 +353,41 @@ func matchQuarterByFilename(name string) (int, int) {
 	return -1, -1
 }
 
+func periodIdentifier(filename, period string) string {
+	var month int
+	filename = strings.ToLower(filename)
+	if m := periodYMD.FindStringSubmatch(filename); m != nil {
+		month, _ = strconv.Atoi(m[3])
+	}
+	if m := periodMDY.FindStringSubmatch(filename); m != nil {
+		month, _ = strconv.Atoi(m[1])
+	}
+	if period == "Q" {
+		return "Q" + strconv.Itoa(month/3)
+	}
+	return strings.ToLower(time.Month(month).String())
+}
+
 func toFundResp(funds []models.FegFileIdentification, series string) []models.MappedResp {
 	var out []models.MappedResp
 	for _, f := range funds {
 		if strings.EqualFold(strings.TrimSpace(f.Series), strings.TrimSpace(series)) || f.Series == "ALL" {
-			out = append(out, models.MappedResp{
-				FundName:  f.FundName,
-				FileType:  FileTypeConv[f.FileType],
-				ShortCode: f.ShortCode,
-			})
+			if f.Period != nil {
+				for _, p := range periodConv[*f.Period] {
+					out = append(out, models.MappedResp{
+						FundName:  f.FundName,
+						FileType:  FileTypeConv[f.FileType],
+						ShortCode: f.ShortCode,
+						Period:    p,
+					})
+				}
+			} else {
+				out = append(out, models.MappedResp{
+					FundName:  f.FundName,
+					FileType:  FileTypeConv[f.FileType],
+					ShortCode: f.ShortCode,
+				})
+			}
 		}
 	}
 	return out
