@@ -6,6 +6,7 @@ import (
 
 type FileIdentificationRequest struct {
 	FilingName string `json:"filing_name" gorm:"-"` // incoming payload only
+	Filing     *bool  `json:"filing" gorm:"-"`
 }
 
 type FileIdentificationResponse struct {
@@ -39,6 +40,7 @@ type FileMapper struct {
 	FilingID      string    `gorm:"column:filingId;not null"` // legacy DB column – keep
 	FileMapID     string    `gorm:"column:fileMapId"`
 	Quarter       string    `gorm:"column:quarterNo;default:NULL"`
+	Period        string    `gorm:"column:period;default:NULL"`
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`
 	CreatedAt     time.Time `gorm:"column:createdAt;not null"`
 	CreatedBy     string    `gorm:"column:createdBy;not null"`
@@ -63,7 +65,7 @@ type FegFileIdentification struct {
 	FundName  string    `gorm:"column:fundName;not null"`
 	FileType  string    `gorm:"column:filetype;not null"`
 	Quarter   int       `gorm:"column:quarter;not null"`
-	Month     string    `gorm:"column:month"`
+	Period    *string   `gorm:"column:period"`
 	Series    string    `gorm:"column:series;not null"`
 	CreatedAt time.Time `gorm:"column:createdAt;not null"`
 	CreatedBy string    `gorm:"column:createdBy;not null"`
@@ -84,5 +86,6 @@ type MappedResp struct {
 	ShortCode string `json:"shortcode,omitempty"`
 	FundName  string `json:"fundname,omitempty"`
 	FileType  string `json:"quarter"`
+	Period    string `json:"period,omitempty"`
 	Path      string `json:"filepath,"`
 }
