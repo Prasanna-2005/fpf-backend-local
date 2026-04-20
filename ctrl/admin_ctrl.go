@@ -1,6 +1,7 @@
 package ctrl
 
 import (
+	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
@@ -92,8 +93,17 @@ func NewUser(c *gin.Context) {
 }
 
 func GetUsers(c *gin.Context) {
-	usersPtr, err := db.GetAllUser()
+	clientCode, ok := c.Get("clientId")
+	if !ok {
+		logger.Log("ERROR", "ClientCode not present in token")
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": "Unauthorized - missing token claims",
+		})
+		return
+	}
+	usersPtr, err := db.GetClientUser(clientCode.(string))
 	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("DB error:%v", err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": ServerError,
 		})
