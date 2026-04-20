@@ -2,12 +2,19 @@ package utility
 
 import (
 	"errors"
+	"form_pf_backend/models"
 	"regexp"
 	"strings"
 	"unicode"
 )
 
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+var quarterConv = map[string]string{
+	"Q1": "first",
+	"Q2": "second",
+	"Q3": "third",
+	"Q4": "fourth",
+}
 
 // ValidateUser returns nil if both username and email are OK.
 func ValidateUser(username, email string) error {
@@ -28,4 +35,19 @@ func ValidateUser(username, email string) error {
 	}
 
 	return nil
+}
+
+func CleanSubmitReq(req *models.SubmitReq) {
+	for i := range req.FileMappings {
+		period := req.FileMappings[i].Period
+
+		// Normalize: convert Q1-Q4 to ordinal words, else lowercase
+		if converted, ok := quarterConv[period]; ok {
+			period = converted
+		} else {
+			period = strings.ToLower(period)
+		}
+
+		req.FileMappings[i].Period = period
+	}
 }
