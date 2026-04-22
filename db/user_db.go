@@ -128,6 +128,15 @@ func GetAllUser() (*[]models.User, error) {
 	return &users, err
 }
 
+func GetClientUser(clientCode string) (*[]models.User, error) {
+	var users []models.User
+	err := sqlDb.Model(&models.User{}).
+		Select("id", "userName", "emailAddress", "accessType", "clientId", "createdAt", "updatedAt", "updatedBy").
+		Where("clientCode = ?", clientCode).
+		Find(&users).Error
+	return &users, err
+}
+
 func RemoveUser(uid string) error {
 	// 1. fetch the user row
 	var u models.User
