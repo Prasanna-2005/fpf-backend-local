@@ -16,13 +16,10 @@ import (
 const UserExist = "User already exists"
 
 type NewUserRequest struct {
-	Data struct {
-		Username string `json:"username" binding:"required"`
-		Password string `json:"password" binding:"required"`
-		UserRole string `json:"user_role" binding:"required"`
-		Email    string
-	} `json:"data"`
-	ClientCode string `json:"client_code"`
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+	UserRole string `json:"user_role" binding:"required"`
+	Email    string `json:"email" binding:"required"`
 }
 
 func NewUser(c *gin.Context) {
@@ -134,6 +131,23 @@ func GetUsers(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"users": list})
+}
+
+func EditUser(c *gin.Context) {
+	var payload struct {
+		UserId   string  `json:"user_id" binding:"required"`
+		Username *string `json:"username"`
+		Password *string `json:"password"`
+		UserRole *string `json:"user_role"`
+		Email    *string `json:"email"`
+	}
+
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		logger.Log("ERROR", fmt.Sprintf("payload err:%v", err.Error()))
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+
 }
 
 // func DeleteUser(c *gin.Context) {
