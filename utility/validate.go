@@ -51,3 +51,5 @@ func CleanSubmitReq(req *models.SubmitReq) {
 		req.FileMappings[i].Period = period
 	}
 }
+
+func adminSanity(req)
