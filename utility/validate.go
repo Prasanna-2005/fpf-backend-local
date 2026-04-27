@@ -21,7 +21,7 @@ func ValidateUser(username, email string) error {
 	// 1. username: only letters
 	for _, r := range username {
 		if !(r == '.' || unicode.IsLetter(r) || r == ' ') {
-			return errors.New("username must contain alphabets(a-z, A-Z) and period('.')")
+			return errors.New("username must contain alphabets(a-z, A-Z),blankspaces and period('.')")
 		}
 	}
 	if username == "" {
@@ -51,5 +51,3 @@ func CleanSubmitReq(req *models.SubmitReq) {
 		req.FileMappings[i].Period = period
 	}
 }
-
-func adminSanity(req)
