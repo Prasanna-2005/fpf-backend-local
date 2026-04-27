@@ -668,8 +668,12 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 
 			value := r.Value
 			if string(r.XmlTags) == "CostBasedLiabilitiesAmount" && r.Value != nil {
-				if v, err := strconv.ParseFloat(*r.Value, 64); err == nil {
+				if v, err := strconv.ParseFloat(*r.Value, 64); err == nil && v != 0 {
 					negated := strconv.FormatFloat(-math.Abs(v), 'f', -1, 64)
+					//accounting for very small values
+					if negated == "-0" || negated == "-0.0" {
+						negated = "0"
+					}
 					value = &negated
 				}
 			}
