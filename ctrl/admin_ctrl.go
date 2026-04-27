@@ -22,6 +22,14 @@ type NewUserRequest struct {
 	Email    string `json:"email" binding:"required"`
 }
 
+type EditUserRequest struct {
+	UserId   string  `json:"user_id" binding:"required"`
+	Username *string `json:"username"`
+	Password *string `json:"password"`
+	UserRole *string `json:"user_role"`
+	Email    *string `json:"email"`
+}
+
 func NewUser(c *gin.Context) {
 	var req NewUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -138,57 +146,64 @@ func GetUsers(c *gin.Context) {
 }
 
 func EditUser(c *gin.Context) {
-	var payload struct {
-		UserId   string  `json:"user_id" binding:"required"`
-		Username *string `json:"username"`
-		Password *string `json:"password"`
-		UserRole *string `json:"user_role"`
-		Email    *string `json:"email"`
-	}
+	var payload EditUserRequest
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		logger.Log("ERROR", fmt.Sprintf("payload err:%v", err.Error()))
+		logger.Log("ERROR", fmt.Sprintf("EditUser - payload err: %v", err.Error()))
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
 
-	// Fetch existing user
 	user, err := db.GetUserByID(payload.UserId)
 	if err != nil {
-		logger.Log("ERROR", fmt.Sprintf("user not found: %v", err.Error()))
+		logger.Log("ERROR", fmt.Sprintf("EditUser - user not found [%s]: %v", payload.UserId, err.Error()))
 		c.JSON(http.StatusNotFound, gin.H{"message": "User not found"})
 		return
 	}
 
-	// Apply only provided fields (partial update)
-	if payload.Username != nil {
-		user.Username = *payload.Username
-	}
-	if payload.Password != nil {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*payload.Password), bcrypt.DefaultCost)
-		if err != nil {
-			logger.Log("ERROR", fmt.Sprintf("password hash err: %v", err.Error()))
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to process password"})
-			return
-		}
-		user.Password = string(hashedPassword)
-	}
-	if payload.UserRole != nil {
-		user.UserRole = *payload.UserRole
-	}
-	if payload.Email != nil {
-		user.Email = *payload.Email
+	if err := applyUserUpdates(user, &payload); err != nil {
+		logger.Log("ERROR", fmt.Sprintf("EditUser - apply updates err: %v", err.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to process updates"})
+		return
 	}
 
-	// Save updated user
+	if err := utility.ValidateUser(user.UserName, user.Email); err != nil {
+		logger.Log("WARNING", fmt.Sprintf("EditUser - validation err: %v", err.Error()))
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+
+	user.UpdatedAt = time.Now()
+
 	if err := db.UpdateUser(user); err != nil {
-		logger.Log("ERROR", fmt.Sprintf("update user err: %v", err.Error()))
+		logger.Log("ERROR", fmt.Sprintf("EditUser - update err [%s]: %v", payload.UserId, err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to update user"})
 		return
 	}
 
-	logger.Log("INFO", fmt.Sprintf("user %s updated successfully", payload.UserId))
+	logger.Log("INFO", fmt.Sprintf("EditUser - user [%s] updated successfully", payload.UserId))
 	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully"})
+}
+
+// applyUserUpdates mutates the user struct with non-nil payload fields
+func applyUserUpdates(user *models.User, payload *EditUserRequest) error {
+	if payload.Username != nil {
+		user.UserName = *payload.Username
+	}
+	if payload.Email != nil {
+		user.Email = *payload.Email
+	}
+	if payload.UserRole != nil {
+		user.AccessType = *payload.UserRole
+	}
+	if payload.Password != nil {
+		hashed, err := bcrypt.GenerateFromPassword([]byte(*payload.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return fmt.Errorf("password hash err: %v", err)
+		}
+		user.Password = string(hashed)
+	}
+	return nil
 }
 
 // func DeleteUser(c *gin.Context) {
