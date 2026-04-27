@@ -29,12 +29,12 @@ func NewUser(c *gin.Context) {
 		return
 	}
 
-	if err := utility.ValidateUser(req.Data.Username, req.Data.Email); err != nil {
+	if err := utility.ValidateUser(req.Username, req.Email); err != nil {
 		logger.Log("WARNING", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
 		return
 	}
-	email, err := db.GetUserEmail(req.Data.Email)
+	email, err := db.FindEmail(req.Email)
 	if email {
 		logger.Log("WARNING", UserExist)
 		c.JSON(http.StatusBadRequest, gin.H{"message": UserExist})
@@ -47,34 +47,38 @@ func NewUser(c *gin.Context) {
 	// Hash the password
 	cost := config.BcryptCost()
 	hashedPasswd, err := bcrypt.GenerateFromPassword(
-		[]byte(req.Data.Password),
+		[]byte(req.Password),
 		cost.Cost,
 	)
 
 	if err != nil {
-		logger.Log("ERROR", "Password hashing failed: "+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("Password hashing failed: %v", err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
-	role, _ := c.Get("role")
+	adminId, ok := c.Get("userId")
+	if !ok || adminId.(string) == "" {
+		logger.Log("ERROR", fmt.Sprintf("Missing userId in token claims: %v", err.Error()))
+		c.JSON(http.StatusForbidden, gin.H{"message": ServerError})
+	}
 
-	cid := req.ClientCode
-	// if err != nil {
-	// 	logger.Log("ERROR", "Client id parsing error: "+err.Error())
-	// 	c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
-	// 	return
-	// }
+	cid, ok := c.Get("clientId")
+	if !ok || cid.(string) == "" {
+		logger.Log("ERROR", fmt.Sprintf("Client id parsing error: %v", err.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
 	jti := int(time.Now().Unix())
 
 	user := models.User{
-		UserName:   req.Data.Username,
+		UserName:   req.Username,
+		Email:      req.Email,
 		Password:   string(hashedPasswd),
-		Email:      req.Data.Email,
-		AccessType: req.Data.UserRole,
-		CreatedAt:  time.Now().UTC(),
-		UpdatedBy:  role.(string),
-		ClientID:   cid,
+		AccessType: req.UserRole,
+		ClientID:   cid.(string),
 		Jti:        jti,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedBy:  adminId.(string),
 	}
 
 	uid, err := db.CreateUser(&user)
