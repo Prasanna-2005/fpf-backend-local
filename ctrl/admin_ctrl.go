@@ -95,7 +95,7 @@ func NewUser(c *gin.Context) {
 
 func GetUsers(c *gin.Context) {
 	clientCode, ok := c.Get("clientId")
-	if !ok {
+	if !ok || clientCode.(string) == "" {
 		logger.Log("ERROR", "ClientCode not present in token")
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"message": "Unauthorized - missing token claims",
@@ -152,6 +152,43 @@ func EditUser(c *gin.Context) {
 		return
 	}
 
+	// Fetch existing user
+	user, err := db.GetUserByID(payload.UserId)
+	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("user not found: %v", err.Error()))
+		c.JSON(http.StatusNotFound, gin.H{"message": "User not found"})
+		return
+	}
+
+	// Apply only provided fields (partial update)
+	if payload.Username != nil {
+		user.Username = *payload.Username
+	}
+	if payload.Password != nil {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*payload.Password), bcrypt.DefaultCost)
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("password hash err: %v", err.Error()))
+			c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to process password"})
+			return
+		}
+		user.Password = string(hashedPassword)
+	}
+	if payload.UserRole != nil {
+		user.UserRole = *payload.UserRole
+	}
+	if payload.Email != nil {
+		user.Email = *payload.Email
+	}
+
+	// Save updated user
+	if err := db.UpdateUser(user); err != nil {
+		logger.Log("ERROR", fmt.Sprintf("update user err: %v", err.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to update user"})
+		return
+	}
+
+	logger.Log("INFO", fmt.Sprintf("user %s updated successfully", payload.UserId))
+	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully"})
 }
 
 // func DeleteUser(c *gin.Context) {
