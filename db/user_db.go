@@ -105,7 +105,7 @@ func CreateUser(user *models.User) (string, error) {
 	return user.ID, nil
 }
 
-func GetUserEmail(email string) (bool, error) {
+func FindEmail(email string) (bool, error) {
 	var exists bool
 	err := sqlDb.Model(&models.User{}).
 		Select("count(*) > 0").
