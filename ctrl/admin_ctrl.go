@@ -97,6 +97,23 @@ func NewUser(c *gin.Context) {
 		return
 	}
 
+	admin, err := db.GetUserByID(adminId.(string))
+	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("EditUser - user not found [%s]: %v", adminId.(string), err.Error()))
+		c.JSON(http.StatusNotFound, gin.H{"message": "User not found"})
+		return
+	}
+	user.Password = req.Password // converted for mailing the user
+	emailTemplate, err := utility.CreateUserProvisionMail(&user, admin)
+	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("user notification email error: %v", err.Error()))
+	}
+	if emailTemplate != "" {
+		err = utility.SendOTPEmail(user.Email, emailTemplate)
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("User enrollment notification email error: %v", err.Error()))
+		}
+	}
 	c.JSON(http.StatusCreated, gin.H{"id": uid})
 
 }
