@@ -122,7 +122,7 @@ func roleAllowed(userRole string, allowed []string) bool {
 		return true
 	}
 	for _, r := range allowed {
-		if r == userRole {
+		if strings.EqualFold(r, userRole) {
 			return true
 		}
 	}
