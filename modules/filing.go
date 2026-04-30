@@ -28,7 +28,7 @@ const (
 type UploadRequest struct {
 	UserID     string                  `form:"user_id" binding:"required"`
 	NewFiling  bool                    `form:"new_filing"`
-	FilingName string                  `form:"filing_name" binding:"required"`
+	FilingName string                  `form:"filing_name" binding:"required,max=255"`
 	Timestamp  time.Time               `form:"timestamp" time_format:"2006-01-02T15:04:05.000Z" binding:"required"`
 	Files      []*multipart.FileHeader `form:"files" binding:"required"`
 }
