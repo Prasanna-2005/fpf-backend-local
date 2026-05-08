@@ -1,4 +1,3 @@
-// modules/edit_legacy.go
 package modules
 
 import (
@@ -517,6 +516,7 @@ func ValueFor(value, qtype, qno, qsubno, xmlTag string) string {
 	}
 	return value
 }
+
 func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 
 	rows, err := db.FetchFormDataByFiling(filingID)
