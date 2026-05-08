@@ -104,6 +104,12 @@ func GetApprovedFilingResponse(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
 		return
 	}
+
+	if qnos, ok := modules.MandateFieldCheck(id); !ok {
+		logger.Log("WARNING", fmt.Sprintf("Missing mandatory fields:\n%v", strings.Join(qnos, "\n")))
+		c.JSON(http.StatusBadRequest, gin.H{"message": qnos})
+		return
+	}
 	//response
 	resp, err := modules.TransformToSimpleResponse(id)
 	if err != nil {
