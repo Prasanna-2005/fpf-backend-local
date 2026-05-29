@@ -202,7 +202,7 @@ func GetAUMType(filingid, fundid, formlineno string) (string, string, error) {
 	return "", "", nil
 }
 
-func UpdateAUM(filingId string, fundId string, userId string, formlineno, newVal string) error {
+func UpdateAUM(filingId string, fundId string, userId string, formlineno, newVal string, accept bool) error {
 	var row models.FormDataLegacy
 	aumVal, aumLineNo, err := GetAUMType(filingId, fundId, formlineno)
 	if err != nil {
@@ -211,7 +211,7 @@ func UpdateAUM(filingId string, fundId string, userId string, formlineno, newVal
 
 	if err := sqlDb.Model(&models.FormDataLegacy{}).
 		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND isCurrentValue = ? AND formLineNo = ?",
-			filingId, fundId, "8", true, "8").
+			filingId, fundId, formlineno, true, formlineno).
 		Find(&row).Error; err != nil {
 		return err
 	}
@@ -229,10 +229,18 @@ func UpdateAUM(filingId string, fundId string, userId string, formlineno, newVal
 		return err
 	}
 
-	val, err := addStrings(newVal, "-"+row.Value, aumVal)
+	if accept {
+		row.Value = "-" + row.Value
+	} else {
+		newVal = "-" + newVal
+	}
+
+	val, err := addStrings(newVal, row.Value, aumVal)
 	if err != nil {
 		return err
 	}
+	fmt.Println("val")
+	fmt.Println(newVal, row.Value, aumVal)
 
 	rowsToInsert := []models.FormDataLegacy{
 		{
