@@ -239,8 +239,6 @@ func UpdateAUM(filingId string, fundId string, userId string, formlineno, newVal
 	if err != nil {
 		return err
 	}
-	fmt.Println("val")
-	fmt.Println(newVal, row.Value, aumVal)
 
 	rowsToInsert := []models.FormDataLegacy{
 		{
