@@ -116,7 +116,7 @@ func UpdateLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	}
 	for _, pair := range pairs {
 		if slices.Contains(AUM, pair.ln) {
-			UpdateAUM(fid, fundId, uid, pair.ln, pair.vl)
+			UpdateAUM(fid, fundId, uid, pair.ln, pair.vl, true)
 		}
 	}
 
@@ -238,9 +238,6 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	for i, t := range targets {
 		fieldNos[i] = t.fieldNo
 		lineNos[i] = t.lineNo
-		if slices.Contains(AUM, t.fieldNo) {
-			UpdateAUM(fid, fundId, uid, t.lineNo, "0")
-		}
 	}
 
 	type curRow struct {
@@ -322,11 +319,24 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	for i, p := range reverts {
 		oldIDs[i] = p.oldID
 	}
-	return sqlDb.Model(&models.FormDataLegacy{}).
+
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
 		Where("id IN ?", oldIDs).
 		Updates(map[string]interface{}{
 			"isCurrentValue": true,
 			"updatedAt":      now,
 			"updatedBy":      uid,
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+
+	for _, t := range targets {
+		if slices.Contains(AUM, t.fieldNo) {
+			if err := UpdateAUM(fid, fundId, uid, t.lineNo, t.value, false); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
