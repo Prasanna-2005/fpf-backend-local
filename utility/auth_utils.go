@@ -11,6 +11,7 @@ import (
 	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"html/template"
 	"log"
 	"net/smtp"
 	"os"
@@ -190,7 +191,6 @@ func CreateEmailForApproval(user, email, date string, tracker *models.FilingTrac
 	}
 	email = "mailto:" + email
 	url := baseurl + "/preview?filing_id=" + tracker.Id
-	fmt.Printf("\nhiurl:%vhi\n", url)
 	template := string(templateFile)
 	template = strings.ReplaceAll(template, "{{.RequesterName}}", user)
 	template = strings.ReplaceAll(template, "{{.RequesterMail}}", email)
@@ -201,6 +201,55 @@ func CreateEmailForApproval(user, email, date string, tracker *models.FilingTrac
 
 	logger.Log("INFO", "CreateQuantriumEmail: successfully created email template for user "+user)
 	return template, nil
+}
+
+func CreateUserProvisionMail(user, admin *models.User) (string, error) {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("CreateUserProvisionMail - failed to load config: %v", err))
+		return "", err
+	}
+
+	baseurl := cfg.CORSOrigins[0]
+
+	logger.Log("INFO", "CreateUserProvisionMail - reading user creation email template")
+	templateFile, err := os.ReadFile("static/user_creation.html")
+	if err != nil {
+		logger.Log("ERROR", "CreateUserProvisionMail - failed to read email template: "+err.Error())
+		return "", err
+	}
+
+	type MailData struct {
+		UserName        string
+		Email           string
+		UserPassword    string
+		AdminName       string
+		AdminMail       string
+		FormPFPortalURL string
+	}
+
+	data := MailData{
+		UserName:        user.UserName,
+		Email:           user.Email,
+		UserPassword:    user.Password,
+		AdminName:       admin.UserName,
+		AdminMail:       "mailto:" + admin.Email, // adjust to your config field
+		FormPFPortalURL: baseurl,                 // adjust path as needed
+	}
+
+	tmpl, err := template.New("userCreation").Parse(string(templateFile))
+	if err != nil {
+		logger.Log("ERROR", "CreateUserProvisionMail - failed to parse email template: "+err.Error())
+		return "", err
+	}
+
+	var rendered bytes.Buffer
+	if err := tmpl.Execute(&rendered, data); err != nil {
+		logger.Log("ERROR", "CreateUserProvisionMail - failed to execute email template: "+err.Error())
+		return "", err
+	}
+
+	return rendered.String(), nil
 }
 
 func CheckOtp(totpCode, userId string) (bool, error) {
