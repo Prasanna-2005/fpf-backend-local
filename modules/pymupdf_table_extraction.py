@@ -294,6 +294,8 @@ if __name__ == "__main__":
             for page_index, page_df in enumerate(page_dfs, start=1):
                 page_df.to_excel(
                     writer,
-                    sheet_name=f"Page {page_df['title'] if page_df['title'] else page_index}",
+                    sheet_name=page_df["title"]
+                    if page_df["title"]
+                    else f"Page {page_index}",
                     index=False,
                 )
