@@ -1,8 +1,11 @@
+import json
 import os
-import fitz
+import sys
 from statistics import median
-import json, sys
+
+import fitz
 import pandas as pd
+
 
 class PymupdfTableExtraction:
     def extract_blocks(page_obj):
@@ -67,7 +70,9 @@ class PymupdfTableExtraction:
 
         for idx, row in enumerate(rows):
             width = row_width(row)
-            is_table_row = width >= width_threshold and len(row["words"]) >= min_words_per_row
+            is_table_row = (
+                width >= width_threshold and len(row["words"]) >= min_words_per_row
+            )
 
             if is_table_row:
                 if current_start is None:
@@ -112,10 +117,16 @@ class PymupdfTableExtraction:
         row_tolerance = max(1, median_height * 0.5)
 
         rows = []
-        for x0, y0, x1, y1, word, block_no, line_no, word_no in sorted(word_data, key=lambda w: w[1]):
+        for x0, y0, x1, y1, word, block_no, line_no, word_no in sorted(
+            word_data, key=lambda w: w[1]
+        ):
             center_y = (y0 + y1) / 2
             matched_row = next(
-                (row for row in rows if abs(row["center_y"] - center_y) <= row_tolerance),
+                (
+                    row
+                    for row in rows
+                    if abs(row["center_y"] - center_y) <= row_tolerance
+                ),
                 None,
             )
             word_entry = {"text": word, "x0": x0, "x1": x1, "y0": y0, "y1": y1}
@@ -156,6 +167,25 @@ class PymupdfTableExtraction:
 
         return column_centers
 
+    @staticmethod
+    def extract_table_title(word_data, bounds, page_width):
+        if not bounds:
+            return None
+        above_words = [e for e in word_data if e[3] < bounds[0]]
+        rows = PymupdfTableExtraction.identify_rows(above_words)
+        page_center = page_width / 2
+        titles = [
+            " ".join(w["text"] for w in sorted(r["words"], key=lambda w: w["x0"]))
+            for r in rows[-5:]
+            if abs(
+                (min(w["x0"] for w in r["words"]) + max(w["x1"] for w in r["words"]))
+                / 2
+                - page_center
+            )
+            <= page_width * 0.15
+        ]
+        return " | ".join(titles) if titles else None
+
     def convert_to_table(word_data):
         """Convert word data to a table dataframe."""
         initial_rows = PymupdfTableExtraction.identify_rows(word_data)
@@ -182,8 +212,7 @@ class PymupdfTableExtraction:
                 if closest_idx is not None:
                     cell_blocks[closest_idx].append(word_entry["text"])
             row_values = [
-                " ".join(cell_blocks[idx]).strip()
-                for idx in range(len(column_centers))
+                " ".join(cell_blocks[idx]).strip() for idx in range(len(column_centers))
             ]
             data.append(row_values)
 
@@ -205,9 +234,7 @@ class PymupdfTableExtraction:
     def _is_header_only_column(series, max_header_rows=3):
         """Return True if the column appears to contain only header fragments."""
         non_empty = [
-            str(value).strip()
-            for value in series.dropna()
-            if str(value).strip()
+            str(value).strip() for value in series.dropna() if str(value).strip()
         ]
         if not non_empty:
             return True
@@ -245,12 +272,11 @@ class PymupdfTableExtraction:
 
 
 if __name__ == "__main__":
-    data = json.load(sys.stdin)  
+    data = json.load(sys.stdin)
     pdf_paths = data["pdf_paths"]
     excel_dir = data["excel_dir"]
     os.makedirs(excel_dir, exist_ok=True)
-    for file_path in pdf_paths :
-       
+    for file_path in pdf_paths:
         page_dfs = PymupdfTableExtraction.load_page_text(file_path)
         if not page_dfs:
             continue
@@ -259,4 +285,3 @@ if __name__ == "__main__":
         with pd.ExcelWriter(workbook_path) as writer:
             for page_index, page_df in enumerate(page_dfs, start=1):
                 page_df.to_excel(writer, sheet_name=f"Page {page_index}", index=False)
-
