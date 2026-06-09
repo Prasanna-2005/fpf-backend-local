@@ -17,8 +17,16 @@ class PymupdfTableExtraction:
         for page in doc:
             obj = page.get_textpage()
             word_data = PymupdfTableExtraction.extract_blocks(obj)
-            table_df = PymupdfTableExtraction.convert_to_table(word_data)
+            table_df, bounds = PymupdfTableExtraction.convert_to_table(word_data)
+            headers = PymupdfTableExtraction.extract_table_title(
+                word_data, bounds, page_width=page.rect.width
+            )
             if not table_df.empty:
+                table_df.attrs["title"] = (
+                    "Performance Summary"
+                    if any("Performance Summary" in header for header in headers)
+                    else None
+                )
                 page_dfs.append(table_df)
         return page_dfs
 
@@ -184,7 +192,7 @@ class PymupdfTableExtraction:
             )
             <= page_width * 0.15
         ]
-        return " | ".join(titles) if titles else None
+        return titles
 
     def convert_to_table(word_data):
         """Convert word data to a table dataframe."""
@@ -220,7 +228,7 @@ class PymupdfTableExtraction:
         df = pd.DataFrame(data, columns=column_names)
         df = df.loc[~(df == "").all(axis=1)].reset_index(drop=True)
         df = PymupdfTableExtraction._merge_split_columns(df)
-        return df
+        return df, bounds
 
     @staticmethod
     def _get_first_row_text(series):
@@ -284,4 +292,8 @@ if __name__ == "__main__":
         workbook_path = os.path.join(excel_dir, f"{base_name}.xlsx")
         with pd.ExcelWriter(workbook_path) as writer:
             for page_index, page_df in enumerate(page_dfs, start=1):
-                page_df.to_excel(writer, sheet_name=f"Page {page_index}", index=False)
+                page_df.to_excel(
+                    writer,
+                    sheet_name=f"Page {page_df['title'] if page_df['title'] else page_index}",
+                    index=False,
+                )
