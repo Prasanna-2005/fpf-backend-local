@@ -77,7 +77,7 @@ type FieldItem struct {
 	TableHeaders     []string                       `json:"table_headers,omitempty"`
 	FieldText        string                         `json:"field_text"`
 	FieldHeading     string                         `json:"field_heading"`
-	Value            string                         `json:"value"`
+	Value            string                         `json:"value" binding:"max=65535"`
 	FieldData        []LineDetail                   `json:"field_data"`
 	Confirmed        bool                           `json:"confirmed"`
 	Editing          bool                           `json:"editing"`
@@ -93,7 +93,7 @@ type LineDetail struct {
 	LineItemType    string                         `json:"line_item_type,omitempty"`
 	HasLineItemText bool                           `json:"has_line_item_text"`
 	LineText        string                         `json:"line_text,omitempty"`
-	Value           string                         `json:"value"`
+	Value           string                         `json:"value" binding:"max=65535"`
 	Options         []string                       `json:"options,omitempty"`
 	HasTableData    bool                           `json:"has_table_data"`
 	TableData       interface{}                    `json:"table_data,omitempty"`

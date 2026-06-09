@@ -132,3 +132,17 @@ func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo string) ([]models.FieldHi
 
 	return rows, nil
 }
+
+func FetchSection1a(filingId string) ([]models.FormDatum, error) {
+	var rows []models.FormDatum
+	err := GetDB().
+		Table("form_data_legacy").
+		Select("*").
+		Where("filingId = ? AND fundSeriesId = ? AND isCurrentValue = ?", filingId, "SECTION-1A", "1").
+		Find(&rows).Error
+
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
