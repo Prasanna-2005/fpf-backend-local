@@ -105,7 +105,7 @@ func CreateUser(user *models.User) (string, error) {
 	return user.ID, nil
 }
 
-func GetUserEmail(email string) (bool, error) {
+func FindEmail(email string) (bool, error) {
 	var exists bool
 	err := sqlDb.Model(&models.User{}).
 		Select("count(*) > 0").
@@ -124,6 +124,15 @@ func GetAllUser() (*[]models.User, error) {
 	var users []models.User
 	err := sqlDb.Model(&models.User{}).
 		Select("id", "userName", "emailAddress", "accessType", "clientId", "createdAt", "updatedAt", "updatedBy").
+		Find(&users).Error
+	return &users, err
+}
+
+func GetClientUser(clientCode string) (*[]models.User, error) {
+	var users []models.User
+	err := sqlDb.Model(&models.User{}).
+		Select("id", "userName", "emailAddress", "accessType", "clientId", "createdAt", "updatedAt", "updatedBy").
+		Where("clientCode = ?", clientCode).
 		Find(&users).Error
 	return &users, err
 }
@@ -157,4 +166,32 @@ func GetClient(cid string) (string, error) {
 	}
 	return user.ClientCode, nil
 
+}
+
+func GetUserByID(userID string) (*models.User, error) {
+	var user models.User
+
+	result := sqlDb.Where("id = ?", userID).First(&user)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("user with id %s not found", userID)
+		}
+		return nil, fmt.Errorf("database error: %v", result.Error)
+	}
+
+	return &user, nil
+}
+
+func UpdateUser(user *models.User) error {
+	result := sqlDb.Model(user).Updates(user)
+
+	if result.Error != nil {
+		return fmt.Errorf("failed to update user: %v", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("no rows updated, user may not exist")
+	}
+
+	return nil
 }
