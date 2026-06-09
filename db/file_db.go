@@ -1,6 +1,7 @@
 package db
 
 import (
+	"fmt"
 	"form_pf_backend/models"
 )
 
@@ -63,4 +64,22 @@ func GetFilingTracker(filingID string) (*models.FilingTracker, error) {
 		return nil, err
 	}
 	return &ft, nil
+}
+
+func GetFilingId(filingName, cid string) (*string, *string, error) {
+	var result struct {
+		Id     *string
+		Series *string
+	}
+	if filingName == "" {
+		return nil, nil, fmt.Errorf("Empty filing name present")
+	}
+	err := sqlDb.Model(&models.FilingTracker{}).
+		Select("id,series").
+		Where("filingName = ? and clientCode=?", filingName, cid).
+		Scan(&result).Error
+	if err != nil {
+		return nil, nil, err
+	}
+	return result.Id, result.Series, nil
 }
