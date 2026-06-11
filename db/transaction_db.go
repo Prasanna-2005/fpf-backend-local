@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"form_pf_backend/models"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -26,13 +27,14 @@ var (
 type fundBrief struct {
 	FundID   string
 	FundName string
+	Fundtype string
 }
 
 func loadFundCache() {
 	all, _ := GetAllFunds()
 	m := make(map[string]fundBrief, len(all))
 	for _, f := range all {
-		m[f.FundID] = fundBrief{FundID: f.FundID, FundName: f.FundName}
+		m[f.FundID] = fundBrief{FundID: f.FundID, FundName: f.FundName, Fundtype: f.FundType}
 	}
 	fundCache = m
 }
@@ -111,6 +113,11 @@ func UpdateLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	}
 	if len(pairs) == 0 {
 		return nil // nothing to do
+	}
+	for _, pair := range pairs {
+		if slices.Contains(AUM, pair.ln) {
+			UpdateAUM(fid, fundId, uid, pair.ln, pair.vl, true)
+		}
 	}
 
 	// 2. one UPDATE to mark old rows non-current
@@ -202,7 +209,7 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	}
 
 	// 2. collect every (fieldNo, formLineNo) we must revert
-	type target struct{ fieldNo, lineNo string }
+	type target struct{ fieldNo, lineNo, value string }
 	targets := make([]target, 0, 8)
 
 	if data.HasTableData && data.TableData != nil {
@@ -210,15 +217,15 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 		if err != nil {
 			return err
 		}
-		for ln := range explodeTableCells(data.FieldNo, rows) {
-			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: ln})
+		for ln, val := range explodeTableCells(data.FieldNo, rows) {
+			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: ln, value: val})
 		}
 	} else {
 		if data.Value != "" {
-			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: data.FieldNo})
+			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: data.FieldNo, value: data.Value})
 		}
 		for _, fd := range data.FieldData {
-			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: fd.LineItemNo})
+			targets = append(targets, target{fieldNo: data.FieldNo, lineNo: fd.LineItemNo, value: fd.Value})
 		}
 	}
 	if len(targets) == 0 {
@@ -312,11 +319,24 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	for i, p := range reverts {
 		oldIDs[i] = p.oldID
 	}
-	return sqlDb.Model(&models.FormDataLegacy{}).
+
+	if err := sqlDb.Model(&models.FormDataLegacy{}).
 		Where("id IN ?", oldIDs).
 		Updates(map[string]interface{}{
 			"isCurrentValue": true,
 			"updatedAt":      now,
 			"updatedBy":      uid,
-		}).Error
+		}).Error; err != nil {
+		return err
+	}
+
+	for _, t := range targets {
+		if slices.Contains(AUM, t.fieldNo) {
+			if err := UpdateAUM(fid, fundId, uid, t.lineNo, t.value, false); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

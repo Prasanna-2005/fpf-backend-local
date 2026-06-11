@@ -25,8 +25,7 @@ const (
 )
 
 func AcceptItemValue(c *gin.Context) {
-	filingID := c.Param("filing_id")
-	fundId := c.Param("fund_id")
+	filingID, fundId := c.Param("filing_id"), c.Param("fund_id")
 	if filingID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"message": EmptyFiling})
 		return
@@ -102,6 +101,12 @@ func GetApprovedFilingResponse(c *gin.Context) {
 	id := c.Param("filing_id")
 	if id == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "invalid filingId"})
+		return
+	}
+
+	if qnos, ok := modules.MandateFieldCheck(id); !ok {
+		logger.Log("WARNING", fmt.Sprintf("Missing mandatory fields:\n%v", strings.Join(qnos, "\n")))
+		c.JSON(http.StatusBadRequest, gin.H{"message": qnos})
 		return
 	}
 	//response

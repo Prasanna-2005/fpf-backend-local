@@ -14,16 +14,17 @@ type Client struct {
 }
 
 type User struct {
-	ID         string    `gorm:"primaryKey;autoIncrement"`
-	UserName   string    `gorm:"column:userName;not null"`
-	Email      string    `gorm:"column:emailAddress;not null"`
-	Password   string    `gorm:"column:password;not null"`
-	AccessType string    `gorm:"column:accessType;not null"`
-	ClientID   string    `gorm:"column:clientId;not null"`
-	Jti        int       `gorm:"column:jwtId;not null"`
-	CreatedAt  time.Time `gorm:"column:createdAt;not null"`
-	UpdatedBy  string    `gorm:"column:updatedBy"`
-	UpdatedAt  time.Time `gorm:"column:updatedAt;not null"`
+	ID         string `gorm:"primaryKey;autoIncrement"`
+	UserName   string `gorm:"column:userName;not null"`
+	Email      string `gorm:"column:emailAddress;not null"`
+	Password   string `gorm:"column:password;not null"`
+	AccessType string `gorm:"column:accessType;not null"`
+	ClientID   string `gorm:"column:clientId;not null"`
+	Jti        int    `gorm:"column:jwtId;not null"`
+	// CreatedBy  string    `gorm:"column:jwtId;not null"`
+	CreatedAt time.Time `gorm:"column:createdAt;not null"`
+	UpdatedBy string    `gorm:"column:updatedBy"`
+	UpdatedAt time.Time `gorm:"column:updatedAt;not null"`
 }
 
 type Session struct {

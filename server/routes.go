@@ -78,15 +78,12 @@ func setUpSubmission(api *gin.RouterGroup) {
 	sub.PUT("/:filing_id/:fund_id", ctrl.AcceptItemValue)
 	sub.PUT("revert/:filing_id/:fund_id", ctrl.RevertLatest)
 	sub.GET("/history", ctrl.GetFieldHistory)
-	// sub.PUT("/:filing_id/approval", ctrl.SendForApproval)
-	// sub.PUT("/:filing_id/approved", ctrl.MarkApproved)
 }
 
 func setupProfileRoutes(api *gin.RouterGroup) {
 	prof := api.Group("/profile")
 	prof.Use(middleware.Authenticate())
 	prof.POST("/reset_password", ctrl.UpdatePasswd)
-
 }
 
 func setupAdminRoutes(api *gin.RouterGroup) {
@@ -95,7 +92,6 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 	admin.GET("/users", ctrl.GetUsers)
 	admin.POST("/create_user", ctrl.NewUser)
 	// admin.DELETE("/delete_user/:user_id", ctrl.DeleteUser)
-
 }
 
 func setupFileRoutes(api *gin.RouterGroup) {
