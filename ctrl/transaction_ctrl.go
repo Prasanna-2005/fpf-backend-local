@@ -25,8 +25,7 @@ const (
 )
 
 func AcceptItemValue(c *gin.Context) {
-	filingID := c.Param("filing_id")
-	fundId := c.Param("fund_id")
+	filingID, fundId := c.Param("filing_id"), c.Param("fund_id")
 	if filingID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"message": EmptyFiling})
 		return
