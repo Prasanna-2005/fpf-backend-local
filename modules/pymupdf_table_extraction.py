@@ -23,8 +23,9 @@ class PymupdfTableExtraction:
             )
             if not table_df.empty:
                 table_df.attrs["title"] = (
-                    "Performance Summary"
-                    if any("Performance Summary" in header for header in headers)
+                    "Performance_Summary"
+                    if headers
+                    and any("Performance Summary" in header for header in headers)
                     else None
                 )
                 page_dfs.append(table_df)
@@ -292,10 +293,9 @@ if __name__ == "__main__":
         workbook_path = os.path.join(excel_dir, f"{base_name}.xlsx")
         with pd.ExcelWriter(workbook_path) as writer:
             for page_index, page_df in enumerate(page_dfs, start=1):
+                sheet_name = page_df.attrs.get("title")
                 page_df.to_excel(
                     writer,
-                    sheet_name=page_df["title"]
-                    if page_df["title"]
-                    else f"Page {page_index}",
+                    sheet_name=sheet_name if sheet_name else f"Page {page_index}",
                     index=False,
                 )
