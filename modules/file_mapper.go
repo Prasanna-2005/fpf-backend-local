@@ -273,12 +273,13 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 	return out, unmapped
 }
 
-func getOrgName(filename string) (string, error) {
+func getOrgName(filename string) string {
 	parts := strings.SplitN(filename, marker, 2)
 	if len(parts) != 2 {
-		return "", fmt.Errorf("filename %q does not match expected storage format", filename)
+		logger.Log("ERROR", fmt.Sprintf("filename %q does not match expected storage format", filename))
+		return ""
 	}
-	return parts[1], nil
+	return parts[1]
 }
 
 func matchByidentifier(filename string, filetype string) bool {
