@@ -16,7 +16,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -287,9 +286,7 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 			return errInvalidFile
 		}
 
-		// olddst := filepath.Join(dir, fh.Filename)
-
-		dst := filepath.Join(dir, uuid.New().String()+filepath.Ext(fh.Filename)) //Actual path for storage
+		dst := filepath.Join(dir, fh.Filename)
 		if checkDuplicateFilenames(dst) {
 			logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
 			skipped = append(skipped, dst)
