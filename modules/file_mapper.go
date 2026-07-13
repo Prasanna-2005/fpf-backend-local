@@ -21,6 +21,8 @@ import (
 	"github.com/brandenc40/romannumeral"
 )
 
+const marker = "_quantrium_"
+
 var (
 	dateRe      = regexp.MustCompile(`(\d{4})[.\-\/\\](0[1-9]|1[0-2])[.\-\/\\](0[1-9]|[12][0-9]|3[01])`)
 	romanRe     = regexp.MustCompile(`\b[MDCLXVI]+\b`)
@@ -269,6 +271,14 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 		}
 	}
 	return out, unmapped
+}
+
+func getOrgName(filename string) (string, error) {
+	parts := strings.SplitN(filename, marker, 2)
+	if len(parts) != 2 {
+		return "", fmt.Errorf("filename %q does not match expected storage format", filename)
+	}
+	return parts[1], nil
 }
 
 func matchByidentifier(filename string, filetype string) bool {
