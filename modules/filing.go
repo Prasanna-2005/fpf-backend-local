@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -286,7 +287,9 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 			return errInvalidFile
 		}
 
-		dst := filepath.Join(dir, fh.Filename)
+		// olddst := filepath.Join(dir, fh.Filename)
+
+		dst := filepath.Join(dir, uuid.New().String()+filepath.Ext(fh.Filename)) //Actual path for storage
 		if checkDuplicateFilenames(dst) {
 			logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
 			skipped = append(skipped, dst)
@@ -367,6 +370,8 @@ func RemoveDir(dir string) error {
 	return nil
 }
 
+// validates only allowed file extension
+// current support( xlsx,xls,pdf)
 func allowedExt(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	allowed := allowedExts[ext]
