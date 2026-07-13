@@ -16,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -285,8 +286,8 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 			logger.Log("WARNING", fmt.Sprintf("[saveAndExtract] Rejected file with invalid extension: %s", fh.Filename))
 			return errInvalidFile
 		}
-
-		dst := filepath.Join(dir, fh.Filename)
+		// UUID prefixed (not suffixed) so original ext stays at the end — findFiles() relies on filepath.Ext()
+		dst := filepath.Join(dir, uuid.New().String()+marker+fh.Filename)
 		if checkDuplicateFilenames(dst) {
 			logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
 			skipped = append(skipped, dst)
@@ -314,6 +315,7 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 	logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Successfully processed  %d files", len(files)))
 	return nil
 }
+
 func checkDuplicateFilenames(dst string) bool {
 	if _, err := os.Stat(dst); err == nil {
 		logger.Log("WARNING", fmt.Sprintf("Duplicate filename found in upload:%v", dst))
@@ -324,6 +326,7 @@ func checkDuplicateFilenames(dst string) bool {
 	}
 	return false
 }
+
 func saveUploadedFile(src *multipart.FileHeader, dst string) error {
 	in, err := src.Open()
 	if err != nil {
