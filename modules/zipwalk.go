@@ -10,7 +10,7 @@ import (
 )
 
 // ExtractAndValidateZip extracts all contents of a ZIP file to a dedicated target directory
-func ExtractAndValidateZip(zipPath, targetDir string, skipped *[]string) error {
+func ExtractAndValidateZip(zipPath, targetDir, filingName string, skipped *[]string) error {
 	// logger.Log("DEBUG", fmt.Sprintf("[ExtractAndValidateZip] Starting extraction of %s to %s", zipPath, targetDir))
 
 	r, err := zip.OpenReader(zipPath)
@@ -45,7 +45,7 @@ func ExtractAndValidateZip(zipPath, targetDir string, skipped *[]string) error {
 			continue
 		}
 
-		extractedPath, err := extractFile(f, targetDir, skipped)
+		extractedPath, err := extractFile(f, targetDir, filingName, skipped)
 		if err != nil {
 			cleanup(extractedFiles)
 			return err
@@ -57,7 +57,7 @@ func ExtractAndValidateZip(zipPath, targetDir string, skipped *[]string) error {
 	}
 
 	// Process any nested ZIP files that were extracted
-	if err := processNestedZips(extractedFiles, targetDir, skipped); err != nil {
+	if err := processNestedZips(extractedFiles, targetDir, filingName, skipped); err != nil {
 		cleanup(extractedFiles)
 		return err
 	}
@@ -128,7 +128,7 @@ func createDirectory(f *zip.File, targetDir string) error {
 }
 
 // extractFile extracts a single file from the ZIP archive
-func extractFile(f *zip.File, targetDir string, skipped *[]string) (string, error) {
+func extractFile(f *zip.File, targetDir, filingName string, skipped *[]string) (string, error) {
 	if err := validatePath(f.Name); err != nil {
 		return "", err
 	}
@@ -138,7 +138,7 @@ func extractFile(f *zip.File, targetDir string, skipped *[]string) (string, erro
 		f.Name = filepath.Join(dir, generateUUIDName(base))
 	}
 	targetPath := filepath.Join(targetDir, f.Name)
-	if checkDuplicateFilenames(targetPath) { // shld check filename only not path
+	if checkDuplicateFilenames(targetPath, filingName) { // shld check filename only not path
 		logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
 		*skipped = append(*skipped, targetPath)
 		return "", nil
@@ -176,7 +176,7 @@ func extractFile(f *zip.File, targetDir string, skipped *[]string) (string, erro
 }
 
 // processNestedZips finds and processes any nested ZIP files that were extracted
-func processNestedZips(extractedFiles []string, parentDir string, skipped *[]string) error {
+func processNestedZips(extractedFiles []string, parentDir, filingName string, skipped *[]string) error {
 	logger.Log("INFO", fmt.Sprintf("parentDir: %v", parentDir))
 	for _, filePath := range extractedFiles {
 		if strings.EqualFold(filepath.Ext(filePath), ".zip") {
@@ -187,7 +187,7 @@ func processNestedZips(extractedFiles []string, parentDir string, skipped *[]str
 			nestedDir := filepath.Join(filepath.Dir(filePath), zipBaseName)
 
 			// Recursively extract the nested ZIP to its own directory
-			if err := ExtractAndValidateZip(filePath, nestedDir, skipped); err != nil {
+			if err := ExtractAndValidateZip(filePath, nestedDir, filingName, skipped); err != nil {
 				logger.Log("ERROR", fmt.Sprintf("[processNestedZips] Failed to process nested zip %s: %v", filePath, err))
 				return err
 			}
