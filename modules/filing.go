@@ -16,7 +16,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -287,7 +286,8 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 			return errInvalidFile
 		}
 		// UUID prefixed (not suffixed) so original ext stays at the end — findFiles() relies on filepath.Ext()
-		dst := filepath.Join(dir, uuid.New().String()+marker+fh.Filename)
+		uuidName := generateUUIDName(fh.Filename)
+		dst := filepath.Join(dir, uuidName)
 		if checkDuplicateFilenames(dst) {
 			logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
 			skipped = append(skipped, dst)
@@ -301,6 +301,7 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 
 		// Extract ZIP files to their own subdirectory (key change)
 		if strings.EqualFold(filepath.Ext(fh.Filename), ".zip") {
+			dst = filepath.Join(dir, fh.Filename)
 			zipDir := filepath.Join(dir, strings.TrimSuffix(fh.Filename, filepath.Ext(fh.Filename)))
 			logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Starting ZIP extraction for: %s to %s", dst, zipDir))
 
@@ -328,6 +329,10 @@ func checkDuplicateFilenames(dst string) bool {
 }
 
 func saveUploadedFile(src *multipart.FileHeader, dst string) error {
+	if strings.EqualFold(filepath.Ext(dst), ".zip") {
+		orig := getOrgName(filepath.Base(dst))
+		dst = filepath.Join(filepath.Dir(dst), orig)
+	}
 	in, err := src.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)

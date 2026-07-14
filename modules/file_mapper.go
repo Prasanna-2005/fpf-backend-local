@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/brandenc40/romannumeral"
+	"github.com/google/uuid"
 )
 
 const marker = "_quantrium_"
@@ -241,7 +242,8 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 			var resp models.MappedResp
 			resp.FundName = fund.FundName
 			resp.ShortCode = fund.ShortCode
-			resp.FileName = filepath.Base(file)
+			resp.FileName = getOrgName(filepath.Base(file))
+			resp.VolFileName = filepath.Base(file)
 			resp.Path = strings.TrimPrefix(file, os.Getenv("STORAGE_PATH"))
 
 			if q1to5.MatchString(fund.FileType) {
@@ -265,12 +267,17 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 	for _, file := range allFiles {
 		if !slices.Contains(mappedFilePath, file) {
 			var unmap models.MappedResp
-			unmap.FileName = filepath.Base(file)
+			unmap.FileName = getOrgName(filepath.Base(file))
+			unmap.VolFileName = filepath.Base(file)
 			unmap.Path = strings.TrimPrefix(file, os.Getenv("STORAGE_PATH"))
 			unmapped = append(unmapped, unmap)
 		}
 	}
 	return out, unmapped
+}
+
+func generateUUIDName(filename string) string {
+	return uuid.New().String() + marker + filename
 }
 
 func getOrgName(filename string) string {

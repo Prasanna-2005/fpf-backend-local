@@ -132,9 +132,8 @@ func extractFile(f *zip.File, targetDir string, skipped *[]string) (string, erro
 	if err := validatePath(f.Name); err != nil {
 		return "", err
 	}
-
 	targetPath := filepath.Join(targetDir, f.Name)
-	if checkDuplicateFilenames(targetPath) {
+	if checkDuplicateFilenames(targetPath) { // shld check filename only not path
 		logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
 		*skipped = append(*skipped, targetPath)
 		return "", nil
