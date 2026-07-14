@@ -132,6 +132,9 @@ func extractFile(f *zip.File, targetDir string, skipped *[]string) (string, erro
 	if err := validatePath(f.Name); err != nil {
 		return "", err
 	}
+	if !isZipFile(f.Name) {
+		filename := generateUUID
+	}
 	targetPath := filepath.Join(targetDir, f.Name)
 	if checkDuplicateFilenames(targetPath) { // shld check filename only not path
 		logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
@@ -201,4 +204,8 @@ func cleanup(filePaths []string) {
 			logger.Log("INFO", fmt.Sprintf("[cleanup] Removed file: %s", path))
 		}
 	}
+}
+
+func isZipFile(name string) bool {
+	return strings.EqualFold(filepath.Ext(name), ".zip")
 }
