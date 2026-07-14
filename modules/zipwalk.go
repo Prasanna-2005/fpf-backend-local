@@ -133,8 +133,11 @@ func extractFile(f *zip.File, targetDir string, skipped *[]string) (string, erro
 		return "", err
 	}
 	if !isZipFile(f.Name) {
-		filename := generateUUID
+		dir := filepath.Dir(f.Name)   // "directory"
+		base := filepath.Base(f.Name) // "filename.xlsx"
+		f.Name = filepath.Join(dir, generateUUIDName(base))
 	}
+	fmt.Println(f.Name)
 	targetPath := filepath.Join(targetDir, f.Name)
 	if checkDuplicateFilenames(targetPath) { // shld check filename only not path
 		logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
