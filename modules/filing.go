@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,7 @@ var (
 	dirOnce             sync.Map
 	dirErrors           sync.Map
 	allowedExts         = map[string]bool{".zip": true, ".xls": true, ".xlsx": true, ".pdf": true}
+	directory           = make(map[string][]string) // contains all base filenames.ext present in the directory
 )
 
 // InitVolume creates the root directory (left for backward-compatibility)
@@ -128,7 +130,7 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 	}
 
 	//  Save & extract files
-	if err := saveAndExtract(req.Files, targetDir, &skipped); err != nil {
+	if err := saveAndExtract(req.Files, targetDir, &skipped, filingName); err != nil {
 		// Cleanup on failure
 		_ = os.RemoveAll(targetDir)
 		handleSaveError(c, targetDir, err)
@@ -274,9 +276,23 @@ func sanitize(name string) string {
 	return sanitized
 }
 
-func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]string) error {
+func directoryFiles(dir string) {
+	xlsxFiles, pdfFiles, err := findFiles(dir)
+	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("failed to find files in %s: %w", dir, err))
+	}
+	files := append(xlsxFiles, pdfFiles...)
+	key := filepath.Base(dir)
+	for i, path := range files {
+		files[i] = getOrgName(filepath.Base(path))
+	}
+	directory[key] = files
+}
+
+func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]string, filingName string) error {
 	var skipped []string
 	logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Processing %d files for directory: %s", len(files), dir))
+	directoryFiles(dir)
 	for i, fh := range files {
 		logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Processing file %d/%d: %s (size: %d bytes)",
 			i+1, len(files), fh.Filename, fh.Size))
@@ -288,7 +304,7 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 		// UUID prefixed (not suffixed) so original ext stays at the end — findFiles() relies on filepath.Ext()
 		uuidName := generateUUIDName(fh.Filename)
 		dst := filepath.Join(dir, uuidName)
-		if checkDuplicateFilenames(dst) {
+		if checkDuplicateFilenames(dst, filingName) {
 			logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
 			skipped = append(skipped, dst)
 			continue
@@ -305,7 +321,7 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 			zipDir := filepath.Join(dir, strings.TrimSuffix(fh.Filename, filepath.Ext(fh.Filename)))
 			logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Starting ZIP extraction for: %s to %s", dst, zipDir))
 
-			if err := ExtractAndValidateZip(dst, zipDir, &skipped); err != nil {
+			if err := ExtractAndValidateZip(dst, zipDir, filingName, &skipped); err != nil {
 				logger.Log("ERROR", fmt.Sprintf("[saveAndExtract] ZIP extraction failed for %s: %v", dst, err))
 				return err
 			}
@@ -317,12 +333,19 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 	return nil
 }
 
-func checkDuplicateFilenames(dst string) bool {
-	if _, err := os.Stat(dst); err == nil {
-		logger.Log("WARNING", fmt.Sprintf("Duplicate filename found in upload:%v", dst))
-		return true //file exist
-	} else if !os.IsNotExist(err) {
-		logger.Log("ERROR", fmt.Sprintf("Filename checking err:%v", err.Error()))
+// should check only filename at any directory level and flag duplicate files
+func checkDuplicateFilenames(dst, filingName string) bool {
+	filename := filepath.Base(dst)
+	// deprecated code block
+	// if _, err := os.Stat(dst); err == nil {
+	// 	logger.Log("WARNING", fmt.Sprintf("Duplicate filename found in upload:%v", dst))
+	// 	return true //file exist
+	// } else if !os.IsNotExist(err) {
+	// 	logger.Log("ERROR", fmt.Sprintf("Filename checking err:%v", err.Error()))
+	// 	return true
+	// } else
+	if slices.Contains(directory[filingName], getOrgName(filename)) {
+		logger.Log("WARNING", fmt.Sprintf("Duplicate filename:%v found in upload", getOrgName(filename)))
 		return true
 	}
 	return false
