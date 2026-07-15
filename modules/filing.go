@@ -137,12 +137,12 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 		return err
 	}
 	for _, filePath := range skipped {
-		skippedFileRelPath = append(skippedFileRelPath, strings.TrimPrefix(filePath, clientDir))
+		skippedFileRelPath = append(skippedFileRelPath, getOrgName(filepath.Base(filePath)))
 	}
 
 	if len(skipped) > 0 {
 		c.JSON(http.StatusConflict, gin.H{
-			"message":       "Duplicate filename in same directory level ignored",
+			"message":       "Duplicate filename uploaded in mapped directory",
 			"filing_name":   filingName,
 			"skipped_files": skippedFileRelPath,
 		})
