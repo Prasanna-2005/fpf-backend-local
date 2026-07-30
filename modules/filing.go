@@ -336,14 +336,6 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 // should check only filename at any directory level and flag duplicate files
 func checkDuplicateFilenames(dst, filingName string) bool {
 	filename := filepath.Base(dst)
-	// deprecated code block
-	// if _, err := os.Stat(dst); err == nil {
-	// 	logger.Log("WARNING", fmt.Sprintf("Duplicate filename found in upload:%v", dst))
-	// 	return true //file exist
-	// } else if !os.IsNotExist(err) {
-	// 	logger.Log("ERROR", fmt.Sprintf("Filename checking err:%v", err.Error()))
-	// 	return true
-	// } else
 	if slices.Contains(directory[filingName], getOrgName(filename)) {
 		logger.Log("WARNING", fmt.Sprintf("Duplicate filename:%v found in upload", getOrgName(filename)))
 		return true
