@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 
+	"form_pf_backend/config"
 	"form_pf_backend/db"
 	"form_pf_backend/server"
 	"form_pf_backend/utility"
@@ -35,6 +36,11 @@ func main() {
 	logger.Log("INFO", "Environment variables loaded successfully")
 
 	db.GetDB()
+	// start background cache refresher
+	logger.Log("INFO", "initiate in-memory cache store")
+	refreshInterval := config.GetLatestChangesRefreshInterval()
+	db.InitSubmissionCache(refreshInterval)
+	defer db.StopSubmissionCache()
 
 	// Set up routes
 	logger.Log("DEBUG", "Setting up application routes")
@@ -59,4 +65,5 @@ func main() {
 		logger.Log("ERROR", fmt.Sprintf("Failed to start server: %v", err))
 		log.Fatalf("Failed to start server: %v", err)
 	}
+
 }
