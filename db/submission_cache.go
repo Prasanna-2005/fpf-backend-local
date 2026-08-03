@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"form_pf_backend/config"
 	"form_pf_backend/models"
 )
 
@@ -39,7 +40,7 @@ func InitSubmissionCache(interval time.Duration) {
 			select {
 			case <-ticker.C:
 				// Background refreshes get 30s
-				if err := refreshSubmissionCacheWithTimeout(30 * time.Second); err != nil {
+				if err := refreshSubmissionCacheWithTimeout(config.GetLatestChangesRefreshInterval() * time.Second); err != nil {
 					log.Printf("submission cache: refresh failed: %v", err)
 				}
 			case <-stopRefresh:
@@ -99,7 +100,7 @@ func refreshSubmissionCacheWithTimeout(timeout time.Duration) error {
 
 func fetchLatestChangesFromDB(ctx context.Context) ([]models.FormDataLegacy, error) {
 	db := GetDB()
-	since := time.Now().Add(-24 * time.Hour)
+	since := time.Now().Add(-24 * time.Hour) // refresh the cache every 24 hrs
 
 	var results []models.FormDataLegacy
 	err := db.WithContext(ctx).
