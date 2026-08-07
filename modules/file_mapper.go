@@ -98,6 +98,11 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 			logger.Log("ERROR", fmt.Sprintf("Mapper error: %v", err.Error()))
 			return nil, MappingNotFound
 		}
+
+		for _, row := range mapped {
+			row.FileType = FileTypeConv[row.FileType]
+		}
+
 		return &models.FileIdentificationResponse{
 			Message:       "File mappings retrived successfully",
 			Series:        *mappedFileSeries,
