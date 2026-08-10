@@ -82,10 +82,11 @@ func (FegFileIdentification) TableName() string {
 }
 
 type MappedResp struct {
-	FileName  string `json:"filename,omitempty"`
-	ShortCode string `json:"shortcode,omitempty"`
-	FundName  string `json:"fundname,omitempty"`
-	FileType  string `json:"quarter"`
-	Period    string `json:"period,omitempty"`
-	Path      string `json:"filepath,"`
+	FileName    string `json:"filename,omitempty"`
+	VolFileName string `json:"volfilename,omitempty"`
+	ShortCode   string `json:"shortcode,omitempty"`
+	FundName    string `json:"fundname,omitempty"`
+	FileType    string `json:"quarter"`
+	Period      string `json:"period,omitempty"`
+	Path        string `json:"filepath,"`
 }
