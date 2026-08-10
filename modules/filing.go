@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -39,6 +40,7 @@ var (
 	dirOnce             sync.Map
 	dirErrors           sync.Map
 	allowedExts         = map[string]bool{".zip": true, ".xls": true, ".xlsx": true, ".pdf": true}
+	directory           = make(map[string][]string) // contains all base filenames.ext present in the directory
 )
 
 // InitVolume creates the root directory (left for backward-compatibility)
@@ -128,19 +130,19 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 	}
 
 	//  Save & extract files
-	if err := saveAndExtract(req.Files, targetDir, &skipped); err != nil {
+	if err := saveAndExtract(req.Files, targetDir, &skipped, filingName); err != nil {
 		// Cleanup on failure
 		_ = os.RemoveAll(targetDir)
 		handleSaveError(c, targetDir, err)
 		return err
 	}
 	for _, filePath := range skipped {
-		skippedFileRelPath = append(skippedFileRelPath, strings.TrimPrefix(filePath, clientDir))
+		skippedFileRelPath = append(skippedFileRelPath, getOrgName(filepath.Base(filePath)))
 	}
 
 	if len(skipped) > 0 {
 		c.JSON(http.StatusConflict, gin.H{
-			"message":       "Duplicate filename in same directory level ignored",
+			"message":       "Duplicate filename uploaded in mapped directory",
 			"filing_name":   filingName,
 			"skipped_files": skippedFileRelPath,
 		})
@@ -274,9 +276,23 @@ func sanitize(name string) string {
 	return sanitized
 }
 
-func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]string) error {
+func directoryFiles(dir string) {
+	xlsxFiles, pdfFiles, err := findFiles(dir)
+	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("failed to find files in %s: %w", dir, err))
+	}
+	files := append(xlsxFiles, pdfFiles...)
+	key := filepath.Base(dir)
+	for i, path := range files {
+		files[i] = getOrgName(filepath.Base(path))
+	}
+	directory[key] = files
+}
+
+func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]string, filingName string) error {
 	var skipped []string
 	logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Processing %d files for directory: %s", len(files), dir))
+	directoryFiles(dir)
 	for i, fh := range files {
 		logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Processing file %d/%d: %s (size: %d bytes)",
 			i+1, len(files), fh.Filename, fh.Size))
@@ -285,9 +301,10 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 			logger.Log("WARNING", fmt.Sprintf("[saveAndExtract] Rejected file with invalid extension: %s", fh.Filename))
 			return errInvalidFile
 		}
-
-		dst := filepath.Join(dir, fh.Filename)
-		if checkDuplicateFilenames(dst) {
+		// UUID prefixed (not suffixed) so original ext stays at the end — findFiles() relies on filepath.Ext()
+		uuidName := generateUUIDName(fh.Filename)
+		dst := filepath.Join(dir, uuidName)
+		if checkDuplicateFilenames(dst, filingName) {
 			logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
 			skipped = append(skipped, dst)
 			continue
@@ -300,10 +317,11 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 
 		// Extract ZIP files to their own subdirectory (key change)
 		if strings.EqualFold(filepath.Ext(fh.Filename), ".zip") {
+			dst = filepath.Join(dir, fh.Filename)
 			zipDir := filepath.Join(dir, strings.TrimSuffix(fh.Filename, filepath.Ext(fh.Filename)))
 			logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Starting ZIP extraction for: %s to %s", dst, zipDir))
 
-			if err := ExtractAndValidateZip(dst, zipDir, &skipped); err != nil {
+			if err := ExtractAndValidateZip(dst, zipDir, filingName, &skipped); err != nil {
 				logger.Log("ERROR", fmt.Sprintf("[saveAndExtract] ZIP extraction failed for %s: %v", dst, err))
 				return err
 			}
@@ -314,17 +332,22 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 	logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Successfully processed  %d files", len(files)))
 	return nil
 }
-func checkDuplicateFilenames(dst string) bool {
-	if _, err := os.Stat(dst); err == nil {
-		logger.Log("WARNING", fmt.Sprintf("Duplicate filename found in upload:%v", dst))
-		return true //file exist
-	} else if !os.IsNotExist(err) {
-		logger.Log("ERROR", fmt.Sprintf("Filename checking err:%v", err.Error()))
+
+// should check only filename at any directory level and flag duplicate files
+func checkDuplicateFilenames(dst, filingName string) bool {
+	filename := filepath.Base(dst)
+	if slices.Contains(directory[filingName], getOrgName(filename)) {
+		logger.Log("WARNING", fmt.Sprintf("Duplicate filename:%v found in upload", getOrgName(filename)))
 		return true
 	}
 	return false
 }
+
 func saveUploadedFile(src *multipart.FileHeader, dst string) error {
+	if strings.EqualFold(filepath.Ext(dst), ".zip") {
+		orig := getOrgName(filepath.Base(dst))
+		dst = filepath.Join(filepath.Dir(dst), orig)
+	}
 	in, err := src.Open()
 	if err != nil {
 		return fmt.Errorf("failed to open source file: %w", err)
@@ -367,6 +390,8 @@ func RemoveDir(dir string) error {
 	return nil
 }
 
+// validates only allowed file extension
+// current support( xlsx,xls,pdf)
 func allowedExt(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	allowed := allowedExts[ext]
