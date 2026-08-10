@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -66,7 +65,6 @@ func GetSubmissionLatestChanges(filingID, userId string) ([]models.EditorCache, 
 
 	var out []models.EditorCache
 	for _, item := range submissionChangeCache.data {
-		fmt.Println(userId)
 		if item.FilingID == filingID && item.CreatedBy != userId {
 			out = append(out, item)
 		}
@@ -99,20 +97,6 @@ func refreshSubmissionCacheWithTimeout(timeout time.Duration) error {
 	log.Printf("submission cache: refreshed with %d items", len(items))
 	return nil
 }
-
-// func fetchLatestChangesFromDB(ctx context.Context) ([]models.EditorCache, error) {
-// 	db := GetDB()
-// 	since := time.Now().Add(-24 * time.Hour) // refresh the cache every 24 hrs
-
-// 	var results []models.EditorCache
-// 	err := db.WithContext(ctx).
-// 		Model(&models.EditorCache{}).
-// 		Where("createdAt >= ?", since).
-// 		Order("createdAt DESC").
-// 		Find(&results).Error
-
-// 	return results, err
-// }
 
 func fetchLatestChangesFromDB(ctx context.Context) ([]models.EditorCache, error) {
 	db := GetDB()
