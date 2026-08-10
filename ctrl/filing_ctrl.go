@@ -12,11 +12,12 @@ import (
 )
 
 type latestChangeItem struct {
-	FormLineNo string    `json:"formLineNo"`
-	FieldNo    string    `json:"fieldNo"`
-	Value      string    `json:"value"`
-	CreatedAt  time.Time `json:"created_at"`
-	CreatedBy  string    `json:"created_by"`
+	FundSeriesId string    `json:fundSeriesId`
+	FormLineNo   string    `json:"formLineNo"`
+	FieldNo      string    `json:"fieldNo"`
+	Value        string    `json:"value"`
+	CreatedAt    time.Time `json:"created_at"`
+	CreatedBy    string    `json:"created_by"`
 }
 
 func GetFilings(c *gin.Context) {
@@ -134,17 +135,22 @@ func GetLatestChanges(c *gin.Context) {
 		return
 	}
 
-	items, updatedAt := db.GetSubmissionLatestChanges(req.FilingID)
+	userId := c.GetString("userId")
+	if userId == "" {
+		logger.Log("ERROR", "Empty string present in claims.ID for userId")
+	}
+	items, updatedAt := db.GetSubmissionLatestChanges(req.FilingID, userId)
 
 	// Map ORM model → response shape
 	response := make([]latestChangeItem, len(items))
 	for i, item := range items {
 		response[i] = latestChangeItem{
-			FormLineNo: item.FormLineNo,
-			FieldNo:    item.FieldNo,
-			Value:      item.Value,
-			CreatedAt:  item.CreatedAt,
-			CreatedBy:  item.CreatedBy,
+			FundSeriesId: item.FundSeriesid,
+			FormLineNo:   item.FormLineNo,
+			FieldNo:      item.FieldNo,
+			Value:        item.Value,
+			CreatedAt:    item.CreatedAt,
+			CreatedBy:    item.Username,
 		}
 	}
 
