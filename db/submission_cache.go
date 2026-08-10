@@ -115,7 +115,7 @@ func fetchLatestChangesFromDB(ctx context.Context) ([]models.EditorCache, error)
 			"form_data_legacy.createdAt",
 			"users.userName",
 		).
-		Joins("LEFT JOIN users ON user.id = form_data_legacy.createdBy").
+		Joins("LEFT JOIN users ON users.id = form_data_legacy.createdBy").
 		Where("form_data_legacy.createdAt >= ?", since).
 		Order("form_data_legacy.createdAt DESC").
 		Scan(&results).Error
