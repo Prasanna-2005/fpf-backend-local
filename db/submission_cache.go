@@ -39,7 +39,7 @@ func InitSubmissionCache(interval time.Duration) {
 		for {
 			select {
 			case <-ticker.C:
-				// Background refreshes get 30s
+				// Background refreshes get $latest_changes_refresh_interval
 				if err := refreshSubmissionCacheWithTimeout(config.GetLatestChangesRefreshInterval() * time.Second); err != nil {
 					log.Printf("submission cache: refresh failed: %v", err)
 				}
@@ -95,6 +95,7 @@ func refreshSubmissionCacheWithTimeout(timeout time.Duration) error {
 	submissionChangeCache.mu.Unlock()
 
 	log.Printf("submission cache: refreshed with %d items", len(items))
+
 	return nil
 }
 
