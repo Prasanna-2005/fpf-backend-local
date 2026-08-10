@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -12,7 +13,7 @@ import (
 
 type submissionCache struct {
 	mu        sync.RWMutex
-	data      []models.FormDataLegacy
+	data      []models.EditorCache
 	updatedAt time.Time
 }
 
@@ -24,7 +25,7 @@ var (
 // InitSubmissionCache starts the background refresher.
 func InitSubmissionCache(interval time.Duration) {
 	submissionChangeCache = &submissionCache{
-		data: make([]models.FormDataLegacy, 0),
+		data: make([]models.EditorCache, 0),
 	}
 
 	// Initial load with NO timeout — let it take whatever it needs on startup
@@ -59,13 +60,14 @@ func StopSubmissionCache() {
 }
 
 // GetSubmissionLatestChanges returns only items matching the requested filingId.
-func GetSubmissionLatestChanges(filingID string) ([]models.FormDataLegacy, time.Time) {
+func GetSubmissionLatestChanges(filingID, userId string) ([]models.EditorCache, time.Time) {
 	submissionChangeCache.mu.RLock()
 	defer submissionChangeCache.mu.RUnlock()
 
-	var out []models.FormDataLegacy
+	var out []models.EditorCache
 	for _, item := range submissionChangeCache.data {
-		if item.FilingID == filingID {
+		fmt.Println(userId)
+		if item.FilingID == filingID && item.CreatedBy != userId {
 			out = append(out, item)
 		}
 	}
@@ -98,16 +100,41 @@ func refreshSubmissionCacheWithTimeout(timeout time.Duration) error {
 	return nil
 }
 
-func fetchLatestChangesFromDB(ctx context.Context) ([]models.FormDataLegacy, error) {
-	db := GetDB()
-	since := time.Now().Add(-24 * time.Hour) // refresh the cache every 24 hrs
+// func fetchLatestChangesFromDB(ctx context.Context) ([]models.EditorCache, error) {
+// 	db := GetDB()
+// 	since := time.Now().Add(-24 * time.Hour) // refresh the cache every 24 hrs
 
-	var results []models.FormDataLegacy
+// 	var results []models.EditorCache
+// 	err := db.WithContext(ctx).
+// 		Model(&models.EditorCache{}).
+// 		Where("createdAt >= ?", since).
+// 		Order("createdAt DESC").
+// 		Find(&results).Error
+
+// 	return results, err
+// }
+
+func fetchLatestChangesFromDB(ctx context.Context) ([]models.EditorCache, error) {
+	db := GetDB()
+	since := time.Now().Add(-24 * time.Hour)
+
+	var results []models.EditorCache
 	err := db.WithContext(ctx).
 		Model(&models.FormDataLegacy{}).
-		Where("createdAt >= ?", since).
-		Order("createdAt DESC").
-		Find(&results).Error
+		Select(
+			"filingId",
+			"fundSeriesId",
+			"fieldNo",
+			"formLineNo",
+			"value",
+			"form_data_legacy.createdBy",
+			"form_data_legacy.createdAt",
+			"users.userName",
+		).
+		Joins("LEFT JOIN users ON user.id = form_data_legacy.createdBy").
+		Where("form_data_legacy.createdAt >= ?", since).
+		Order("form_data_legacy.createdAt DESC").
+		Scan(&results).Error
 
 	return results, err
 }
