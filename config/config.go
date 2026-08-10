@@ -184,7 +184,7 @@ func GetLatestChangesRefreshInterval() time.Duration {
 	if err != nil {
 		return 30 * time.Second
 	}
-	str := cfg.Section("cache").Key("latest_changes_refresh_interval").MustString("30s")
+	str := cfg.Section("storage").Key("latest_changes_refresh_interval").MustString("30s")
 	d, err := time.ParseDuration(str)
 	if err != nil {
 		return 30 * time.Second
