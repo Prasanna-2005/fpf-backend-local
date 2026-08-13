@@ -31,24 +31,22 @@ type FileMappingDetail struct {
 	Quarter  int    `json:"quarter"       gorm:"column:quarterEndDate"`
 	FileType string `json:"file_type,omitempty" gorm:"column:fileType;default:NULL"`
 }
-
 type FileMapper struct {
 	ID            string    `gorm:"column:id;primaryKey;autoIncrement"`
 	FileName      string    `gorm:"column:fileName;not null"`
 	FilingPath    string    `gorm:"column:filingPath;not null"`
 	FundShortCode string    `gorm:"column:fundShortCode"`
-	FilingID      string    `gorm:"column:filingId;not null"` // legacy DB column – keep
+	FilingID      string    `gorm:"column:filingId;not null"`
 	FileMapID     string    `gorm:"column:fileMapId"`
 	Quarter       string    `gorm:"column:quarterNo;default:NULL"`
 	Period        string    `gorm:"column:period;default:NULL"`
+	Version       int       `gorm:"column:version;not null;default:1"`      // NEW
+	IsCurrent     bool      `gorm:"column:isCurrent;not null;default:true"` // NEW — which version is active
 	IsUpdated     bool      `gorm:"column:isUpdated;default:false"`
 	CreatedAt     time.Time `gorm:"column:createdAt;not null"`
 	CreatedBy     string    `gorm:"column:createdBy;not null"`
 	UpdatedAt     time.Time `gorm:"column:updatedAt;default:NULL"`
 	UpdatedBy     string    `gorm:"column:updatedBy;default:NULL"`
-
-	// FegFileIdentificationID uint                  `gorm:"column:feg_file_identification_id"`
-	// FegFileIdentification   FegFileIdentification `gorm:"foreignKey:FegFileIdentificationID;references:ID"`
 }
 
 type SubmitReq struct {
