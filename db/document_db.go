@@ -250,7 +250,7 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 	// Select all matching records
 
 	result := sqlDb.Select("fileName", "filingPath", "fundShortCode", "quarterNo").
-		Where("filingId = ?", filingId).
+		Where("filingId = ? AND isCurrent = ?", filingId, true).
 		Find(&rows) // Changed from First to Find
 
 	if result.Error != nil {
