@@ -90,3 +90,13 @@ type MappedResp struct {
 	Period      string `json:"period,omitempty"`
 	Path        string `json:"filepath,"`
 }
+
+type PendingVersion struct {
+	OldMapID    string `json:"old_map_id"    binding:"required"`
+	ShortCode   string `json:"short_code"    binding:"required"`
+	OldFileName string `json:"old_file_name"`
+	OldVersion  int    `json:"old_version"`
+	NewFileName string `json:"new_file_name"`
+	NewVersion  int    `json:"new_version"`
+	NewFilePath string `json:"new_file_path" binding:"required"`
+}
