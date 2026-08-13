@@ -55,7 +55,8 @@ type SubmitReq struct {
 	Series       string       `json:"series"      binding:"required" gorm:"-"`
 	UserID       string       `json:"user_id"      binding:"required" gorm:"-"`
 	FilingName   string       `json:"filing_name"  binding:"required" gorm:"-"`
-	NewFiling    bool         `json:"new_filing"                gorm:"-"`
+	NewFiling    bool         `json:"new_filing"    binding:"required" gorm:"-"`
+	Replcament   string       `json:"replace_files" binding:"required" gorm:"-"`
 	Timestamp    string       `json:"timestamp"    binding:"required" gorm:"-"`
 	FileMappings []MappedResp `json:"file_mappings" binding:"min=1,dive" gorm:"-"`
 }
@@ -82,9 +83,10 @@ func (FegFileIdentification) TableName() string {
 }
 
 type MappedResp struct {
-	FileName    string `json:"filename,omitempty"`
-	VolFileName string `json:"volfilename,omitempty"`
-	ShortCode   string `json:"shortcode,omitempty"`
+	Version     string `json:version,`
+	FileName    string `json:"filename,"`
+	VolFileName string `json:"volfilename,"`
+	ShortCode   string `json:"shortcode,"`
 	FundName    string `json:"fundname,omitempty"`
 	FileType    string `json:"quarter"`
 	Period      string `json:"period,omitempty"`
