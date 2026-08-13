@@ -54,7 +54,7 @@ type SubmitReq struct {
 	UserID       string       `json:"user_id"      binding:"required" gorm:"-"`
 	FilingName   string       `json:"filing_name"  binding:"required" gorm:"-"`
 	NewFiling    bool         `json:"new_filing"    binding:"required" gorm:"-"`
-	Replcament   string       `json:"replace_files" binding:"required" gorm:"-"`
+	Replcament   string       `json:"replace_files"  gorm:"-"`
 	Timestamp    string       `json:"timestamp"    binding:"required" gorm:"-"`
 	FileMappings []MappedResp `json:"file_mappings" binding:"min=1,dive" gorm:"-"`
 }
