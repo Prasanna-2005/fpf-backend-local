@@ -98,6 +98,8 @@ func CreateMapper(req *models.SubmitReq, filingId string) ([]models.FileMapper, 
 			FileMapID:     fileMapID,
 			Quarter:       FileTypeConvRev[rec.FileType],
 			Period:        rec.Period,
+			Version:       1,    // version starts with 1
+			IsCurrent:     true, // active version
 			IsUpdated:     false,
 			CreatedBy:     req.UserID, // string is fine per your ORM
 			CreatedAt:     ts,
@@ -271,4 +273,10 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 	}
 
 	return resp, nil
+}
+
+func GetCurrentMappers(filingId string) ([]models.FileMapper, error) {
+	var rows []models.FileMapper
+	err := sqlDb.Where("filingId = ? AND isCurrent = ?", filingId, true).Find(&rows).Error
+	return rows, err
 }
