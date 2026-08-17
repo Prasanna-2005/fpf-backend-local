@@ -1,6 +1,7 @@
 package ctrl
 
 import (
+	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"net/http"
@@ -9,6 +10,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 )
+
+type latestChangeItem struct {
+	FundSeriesId string    `json:fundSeriesId`
+	FormLineNo   string    `json:"formLineNo"`
+	FieldNo      string    `json:"fieldNo"`
+	Value        string    `json:"value"`
+	CreatedAt    time.Time `json:"created_at"`
+	CreatedBy    string    `json:"created_by"`
+}
 
 func GetFilings(c *gin.Context) {
 	clientCode := c.Query("clientCode")
@@ -111,5 +121,43 @@ func FilingStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"filing_id": filingID,
 		"state":     state,
+	})
+}
+
+func GetLatestChanges(c *gin.Context) {
+	var req struct {
+		FilingID string `json:"filing_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Log("INFO", fmt.Sprintf("Internal server error:%v", err.Error()))
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Internal Server error"})
+		return
+	}
+
+	userId := c.GetString("userId")
+	if userId == "" {
+		logger.Log("ERROR", "Empty string present in claims.ID for userId")
+	}
+	items, updatedAt := db.GetSubmissionLatestChanges(req.FilingID, userId)
+
+	// Map ORM model → response shape
+	response := make([]latestChangeItem, len(items))
+	for i, item := range items {
+		response[i] = latestChangeItem{
+			FundSeriesId: item.FundSeriesid,
+			FormLineNo:   item.FormLineNo,
+			FieldNo:      item.FieldNo,
+			Value:        item.Value,
+			CreatedAt:    item.CreatedAt,
+			CreatedBy:    item.Username,
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"filing_id":       req.FilingID,
+		"count":           len(response),
+		"cache_refreshed": updatedAt,
+		"changes":         response,
 	})
 }

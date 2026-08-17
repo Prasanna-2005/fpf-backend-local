@@ -78,6 +78,7 @@ func setUpSubmission(api *gin.RouterGroup) {
 	sub.PUT("/:filing_id/:fund_id", ctrl.AcceptItemValue)
 	sub.PUT("revert/:filing_id/:fund_id", ctrl.RevertLatest)
 	sub.GET("/history", ctrl.GetFieldHistory)
+	sub.POST("/latest_changes", ctrl.GetLatestChanges)
 }
 
 func setupProfileRoutes(api *gin.RouterGroup) {
