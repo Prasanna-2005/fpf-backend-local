@@ -178,3 +178,16 @@ func LoadConfig() (*RouteConfig, error) {
 func splitOrigins(origins string) []string {
 	return strings.Split(origins, ",")
 }
+
+func GetLatestChangesRefreshInterval() time.Duration {
+	cfg, err := ini.Load("config/config.ini")
+	if err != nil {
+		return 30 * time.Second
+	}
+	str := cfg.Section("storage").Key("latest_changes_refresh_interval").MustString("30s")
+	d, err := time.ParseDuration(str)
+	if err != nil {
+		return 30 * time.Second
+	}
+	return d
+}
