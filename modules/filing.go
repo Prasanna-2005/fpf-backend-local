@@ -130,7 +130,7 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 	}
 
 	//  Save & extract files
-	if err := saveAndExtract(req.Files, targetDir, &skipped, filingName); err != nil {
+	if err := saveAndExtract(req.Files, targetDir, &skipped, filingName, req.NewFiling); err != nil {
 		// Cleanup on failure
 		_ = os.RemoveAll(targetDir)
 		handleSaveError(c, targetDir, err)
@@ -289,7 +289,7 @@ func directoryFiles(dir string) {
 	directory[key] = files
 }
 
-func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]string, filingName string) error {
+func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]string, filingName string, newFiling bool) error {
 	var skipped []string
 	logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Processing %d files for directory: %s", len(files), dir))
 	directoryFiles(dir)
@@ -304,7 +304,7 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 		// UUID prefixed (not suffixed) so original ext stays at the end — findFiles() relies on filepath.Ext()
 		uuidName := generateUUIDName(fh.Filename)
 		dst := filepath.Join(dir, uuidName)
-		if checkDuplicateFilenames(dst, filingName) {
+		if checkDuplicateFilenames(dst, filingName) && newFiling {
 			logger.Log("WARNING", "Duplicate file presence in upload/File permission error")
 			skipped = append(skipped, dst)
 			continue
@@ -321,7 +321,7 @@ func saveAndExtract(files []*multipart.FileHeader, dir string, skippedFiles *[]s
 			zipDir := filepath.Join(dir, strings.TrimSuffix(fh.Filename, filepath.Ext(fh.Filename)))
 			logger.Log("INFO", fmt.Sprintf("[saveAndExtract] Starting ZIP extraction for: %s to %s", dst, zipDir))
 
-			if err := ExtractAndValidateZip(dst, zipDir, filingName, &skipped); err != nil {
+			if err := ExtractAndValidateZip(dst, zipDir, filingName, &skipped, newFiling); err != nil {
 				logger.Log("ERROR", fmt.Sprintf("[saveAndExtract] ZIP extraction failed for %s: %v", dst, err))
 				return err
 			}
@@ -346,7 +346,7 @@ func checkDuplicateFilenames(dst, filingName string) bool {
 func saveUploadedFile(src *multipart.FileHeader, dst string) error {
 	if strings.EqualFold(filepath.Ext(dst), ".zip") {
 		orig := getOrgName(filepath.Base(dst))
-		dst = filepath.Join(filepath.Dir(dst), orig)
+		dst = filepath.Join(filepath.Dir(dst), orig) // removing uuid in zip and preserving it's original name
 	}
 	in, err := src.Open()
 	if err != nil {
