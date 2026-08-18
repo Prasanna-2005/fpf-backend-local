@@ -123,6 +123,7 @@ func SubmitFiles(c *gin.Context) {
 	var req models.SubmitReq
 	var cid = "system"
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Log("ERROR", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
