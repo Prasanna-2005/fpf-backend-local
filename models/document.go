@@ -10,12 +10,13 @@ type FileIdentificationRequest struct {
 }
 
 type FileIdentificationResponse struct {
-	Message       string       `json:"message,omitempty"        gorm:"-"`
-	Series        string       `json:"series,omitempty"        gorm:"-"`
-	FilingName    string       `json:"filing_name,omitempty"    gorm:"-"`
-	FileMappings  []MappedResp `json:"file_mappings,omitempty"  gorm:"-"`
-	UnmappedFiles []MappedResp `json:"unmapped_files," `
-	FundDetails   []MappedResp `json:"fund_details,omitempty"  gorm:"-"`
+	Message         string           `json:"message,omitempty"        gorm:"-"`
+	Series          string           `json:"series,omitempty"        gorm:"-"`
+	FilingName      string           `json:"filing_name,omitempty"    gorm:"-"`
+	FileMappings    []MappedResp     `json:"file_mappings,omitempty"  gorm:"-"`
+	UnmappedFiles   []MappedResp     `json:"unmapped_files," `
+	NewfileVersions []PendingVersion `json:"newfiles_version,"`
+	FundDetails     []MappedResp     `json:"fund_details,omitempty"  gorm:"-"`
 }
 
 type FileMappingDetail struct {
@@ -53,7 +54,7 @@ type SubmitReq struct {
 	Series       string       `json:"series"      binding:"required" gorm:"-"`
 	UserID       string       `json:"user_id"      binding:"required" gorm:"-"`
 	FilingName   string       `json:"filing_name"  binding:"required" gorm:"-"`
-	NewFiling    bool         `json:"new_filing"    binding:"required" gorm:"-"`
+	NewFiling    bool         `json:"new_filing"    gorm:"-"`
 	Replcament   string       `json:"replace_files"  gorm:"-"`
 	Timestamp    string       `json:"timestamp"    binding:"required" gorm:"-"`
 	FileMappings []MappedResp `json:"file_mappings" binding:"min=1,dive" gorm:"-"`
@@ -81,22 +82,24 @@ func (FegFileIdentification) TableName() string {
 }
 
 type MappedResp struct {
-	Version     string `json:version,`
-	FileName    string `json:"filename,"`
-	VolFileName string `json:"volfilename,"`
-	ShortCode   string `json:"shortcode,"`
-	FundName    string `json:"fundname,omitempty"`
-	FileType    string `json:"quarter"`
-	Period      string `json:"period,omitempty"`
-	Path        string `json:"filepath,"`
+	GroupId     string    `json:"group_id"`
+	Version     int       `json:"version,omitempty"`
+	FileName    string    `json:"filename,"`
+	VolFileName string    `json:"volfilename,"`
+	ShortCode   string    `json:"shortcode,"`
+	FundName    string    `json:"fundname,omitempty"`
+	FileType    string    `json:"quarter"`
+	Period      string    `json:"period,omitempty"`
+	Path        string    `json:"filepath,"`
+	Timestamp   time.Time `json:"timestamp,"`
 }
 
 type PendingVersion struct {
-	OldMapID    string `json:"old_map_id"    binding:"required"`
-	ShortCode   string `json:"short_code"    binding:"required"`
-	OldFileName string `json:"old_file_name"`
-	OldVersion  int    `json:"old_version"`
-	NewFileName string `json:"new_file_name"`
-	NewVersion  int    `json:"new_version"`
-	NewFilePath string `json:"new_file_path" binding:"required"`
+	OldMapID       string `json:"old_map_id"    binding:"required"`
+	ShortCode      string `json:"short_code"    binding:"required"`
+	Filename       string `json:"filename"    binding:"required"`
+	OldVersion     int    `json:"old_version"`
+	NewFileVolName string `json:"newfile_volume_name"`
+	NewVersion     int    `json:"new_version"`
+	NewFilePath    string `json:"new_file_path" binding:"required"`
 }
