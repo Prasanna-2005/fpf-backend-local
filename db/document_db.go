@@ -68,8 +68,6 @@ func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
 	if err := sqlDb.Create(&row).Error; err != nil { // normal call
 		return "", err
 	}
-
-	fmt.Printf("row ID: %vhi\n", row)
 	return row.Id, nil
 }
 
@@ -308,7 +306,7 @@ func ReplaceMapperVersions(filingId string, items []models.PendingVersion, userI
 			continue // stale/mismatched OldMapID — skip rather than fail the whole batch
 		}
 		newRows = append(newRows, models.FileMapper{
-			FileName:      it.NewFileName,
+			FileName:      it.Filename,
 			FilingPath:    "", // filled in by caller once the staged path is finalized
 			FundShortCode: old.FundShortCode,
 			FilingID:      filingId,
