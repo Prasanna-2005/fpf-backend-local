@@ -322,7 +322,7 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 				quarter, loc := matchQuarterByFilename(resp.FileName)
 				resp.FileType = "Q" + strconv.Itoa(quarter)
 				if loc != -1 && resp.FileType == fund.FileType {
-					resp.GroupId = fmt.Sprintf("%s-%s", resp.ShortCode, resp.FileType)
+					resp.GroupId = fmt.Sprintf("%s-%d", resp.ShortCode, quarter)
 					out = append(out, resp)
 					mappedFilePath = append(mappedFilePath, file)
 				}
@@ -332,7 +332,7 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 				if fund.Period != nil {
 					resp.Period = periodIdentifier(resp.FileName, *fund.Period)
 				}
-				resp.GroupId = fmt.Sprintf("%s-%s", resp.ShortCode, resp.FileType)
+				resp.GroupId = fmt.Sprintf("%s-%s", resp.ShortCode, fund.FileType)
 				out = append(out, resp)
 				mappedFilePath = append(mappedFilePath, file)
 			}

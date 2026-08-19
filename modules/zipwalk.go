@@ -57,7 +57,7 @@ func ExtractAndValidateZip(zipPath, targetDir, filingName string, skipped *[]str
 	}
 
 	// Process any nested ZIP files that were extracted
-	if err := processNestedZips(extractedFiles, targetDir, filingName, skipped); err != nil {
+	if err := processNestedZips(extractedFiles, targetDir, filingName, skipped, newFiling); err != nil {
 		cleanup(extractedFiles)
 		return err
 	}
@@ -176,7 +176,7 @@ func extractFile(f *zip.File, targetDir, filingName string, skipped *[]string, n
 }
 
 // processNestedZips finds and processes any nested ZIP files that were extracted
-func processNestedZips(extractedFiles []string, parentDir, filingName string, skipped *[]string) error {
+func processNestedZips(extractedFiles []string, parentDir, filingName string, skipped *[]string, newFiling bool) error {
 	logger.Log("INFO", fmt.Sprintf("parentDir: %v", parentDir))
 	for _, filePath := range extractedFiles {
 		if strings.EqualFold(filepath.Ext(filePath), ".zip") {
@@ -187,7 +187,7 @@ func processNestedZips(extractedFiles []string, parentDir, filingName string, sk
 			nestedDir := filepath.Join(filepath.Dir(filePath), zipBaseName)
 
 			// Recursively extract the nested ZIP to its own directory
-			if err := ExtractAndValidateZip(filePath, nestedDir, filingName, skipped); err != nil {
+			if err := ExtractAndValidateZip(filePath, nestedDir, filingName, skipped, newFiling); err != nil {
 				logger.Log("ERROR", fmt.Sprintf("[processNestedZips] Failed to process nested zip %s: %v", filePath, err))
 				return err
 			}
