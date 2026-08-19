@@ -33,6 +33,7 @@ type EditUserRequest struct {
 func NewUser(c *gin.Context) {
 	var req NewUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Log("WARNING", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
