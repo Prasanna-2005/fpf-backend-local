@@ -152,7 +152,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	// 1. build lookup: short-code -> new file data
 	newData := make(map[string]struct{ fileName, filePath string })
 	for _, m := range req.FileMappings {
-		newData[m.ShortCode] = struct{ fileName, filePath string }{m.FileName, m.Path}
+		newData[fmt.Sprintf("%s-%d", m.GroupId, m.Version)] = struct{ fileName, filePath string }{m.FileName, m.Path}
 	}
 
 	// 2. fetch current rows for this filing
@@ -165,17 +165,19 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 
 	// 3. update existing rows (in memory)
 	existingSC := make(map[string]bool, len(rows))
-	for i := range rows {
-		existingSC[rows[i].FundShortCode] = true
-		if nd, ok := newData[rows[i].FundShortCode]; ok {
-			rows[i].FileName = nd.fileName
-			rows[i].FilingPath = nd.filePath
-			rows[i].IsUpdated = true
-			rows[i].UpdatedAt = ts
-			rows[i].UpdatedBy = req.UserID
-		}
+	for _, m := range rows {
+		existingSC[fmt.Sprintf("%s-%s-%d", m.FundShortCode, m.Quarter, m.Version)] = true
+		fmt.Println(fmt.Sprintf("%s-%s-%d", m.FundShortCode, m.Quarter, m.Version))
+		fmt.Println(m.FileName)
+		// if nd, ok := newData[rows[i].FundShortCode]; ok {
+		// 	rows[i].FileName = nd.fileName
+		// 	rows[i].FilingPath = nd.filePath
+		// 	rows[i].IsUpdated = true
+		// 	rows[i].UpdatedAt = ts
+		// 	rows[i].UpdatedBy = req.UserID
+		// }
 	}
-
+	fmt.Println(existingSC)
 	// 4. persist updates
 	if err := sqlDb.Session(&gorm.Session{FullSaveAssociations: false}).Save(&rows).Error; err != nil {
 		return err
@@ -184,7 +186,10 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	// 5. insert brand-new files (short-codes not yet in DB)
 	var toInsert []models.FileMapper
 	for _, m := range req.FileMappings {
-		if !existingSC[m.ShortCode] {
+		if !existingSC[fmt.Sprintf("%s-%d", m.GroupId, m.Version)] {
+			fmt.Println("The truth")
+			fmt.Println(fmt.Sprintf("%s-%d", m.GroupId, m.Version))
+			fmt.Println(existingSC[fmt.Sprintf("%s-%d", m.GroupId, m.Version)])
 			toInsert = append(toInsert, models.FileMapper{
 				FileName:      m.FileName,
 				FilingPath:    m.Path,
@@ -192,6 +197,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 				FilingID:      filingId,
 				Quarter:       FileTypeConvRev[m.FileType],
 				Period:        m.Period,
+				Version:       m.Version,
 				IsUpdated:     true,
 				CreatedAt:     ts,
 				CreatedBy:     req.UserID,
