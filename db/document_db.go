@@ -167,17 +167,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	existingSC := make(map[string]bool, len(rows))
 	for _, m := range rows {
 		existingSC[fmt.Sprintf("%s-%s-%d", m.FundShortCode, m.Quarter, m.Version)] = true
-		fmt.Println(fmt.Sprintf("%s-%s-%d", m.FundShortCode, m.Quarter, m.Version))
-		fmt.Println(m.FileName)
-		// if nd, ok := newData[rows[i].FundShortCode]; ok {
-		// 	rows[i].FileName = nd.fileName
-		// 	rows[i].FilingPath = nd.filePath
-		// 	rows[i].IsUpdated = true
-		// 	rows[i].UpdatedAt = ts
-		// 	rows[i].UpdatedBy = req.UserID
-		// }
 	}
-	fmt.Println(existingSC)
 	// 4. persist updates
 	if err := sqlDb.Session(&gorm.Session{FullSaveAssociations: false}).Save(&rows).Error; err != nil {
 		return err
@@ -187,9 +177,6 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	var toInsert []models.FileMapper
 	for _, m := range req.FileMappings {
 		if !existingSC[fmt.Sprintf("%s-%d", m.GroupId, m.Version)] {
-			fmt.Println("The truth")
-			fmt.Println(fmt.Sprintf("%s-%d", m.GroupId, m.Version))
-			fmt.Println(existingSC[fmt.Sprintf("%s-%d", m.GroupId, m.Version)])
 			toInsert = append(toInsert, models.FileMapper{
 				FileName:      m.FileName,
 				FilingPath:    m.Path,
