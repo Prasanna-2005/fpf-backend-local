@@ -112,7 +112,7 @@ func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 	}
 
 	//  DB-only validation
-	existsInDB, err := filingExistsInDB(filingName)
+	existsInDB, err := filingExistsInDB(req.FilingName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "database error"})
 		return err
