@@ -159,7 +159,7 @@ func SubmitFiles(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 			return
 		}
-		err = ipc.TransferSignal(utility.CreateSignal(uid, filingId, req.Series, mappers[0].CreatedAt))
+		err = ipc.TransferSignal(utility.CreateSignal(uid, filingId, req.Series, mappers[0].CreatedAt, !req.NewFiling))
 		if err != nil {
 			logger.Log("ERROR", "Service error: "+err.Error())
 		}
@@ -184,7 +184,7 @@ func SubmitFiles(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 	}
 
-	err = ipc.TransferSignal(utility.CreateSignal(uid, tracker.Id, req.Series, submissionTimestamp))
+	err = ipc.TransferSignal(utility.CreateSignal(uid, tracker.Id, req.Series, submissionTimestamp, !req.NewFiling))
 	if err != nil {
 		logger.Log("ERROR", "Service error: "+err.Error())
 	}
