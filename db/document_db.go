@@ -148,20 +148,19 @@ func UpdateTrackerStatus(tracker *models.FilingTracker, userId string, status st
 }
 
 // UpdateMapper updates every mapper row that belongs to the given filingId:
-func UpdateMapper(filingId string, req *models.SubmitReq) error {
+func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 	// 1. build lookup: short-code -> new file data
 	newData := make(map[string]struct{ fileName, filePath string })
 	for _, m := range req.FileMappings {
 		newData[fmt.Sprintf("%s-%d", m.GroupId, m.Version)] = struct{ fileName, filePath string }{m.FileName, m.Path}
 	}
 
+	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 	// 2. fetch current rows for this filing
 	var rows []models.FileMapper
 	if err := sqlDb.Where("filingId = ?", filingId).Find(&rows).Error; err != nil {
-		return err
+		return ts, err
 	}
-
-	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
 
 	// 3. update existing rows (in memory)
 	existingSC := make(map[string]bool, len(rows))
@@ -170,7 +169,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	}
 	// 4. persist updates
 	if err := sqlDb.Session(&gorm.Session{FullSaveAssociations: false}).Save(&rows).Error; err != nil {
-		return err
+		return ts, err
 	}
 
 	// 5. insert brand-new files (short-codes not yet in DB)
@@ -193,11 +192,11 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	}
 	if len(toInsert) > 0 {
 		if err := sqlDb.Create(&toInsert).Error; err != nil {
-			return err
+			return ts, err
 		}
 	}
 
-	return nil
+	return ts, nil
 }
 
 // PullFundName returns a map of shortCode -> fundName for a given series
