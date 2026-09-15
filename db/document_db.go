@@ -68,8 +68,6 @@ func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
 	if err := sqlDb.Create(&row).Error; err != nil { // normal call
 		return "", err
 	}
-
-	fmt.Printf("row ID: %vhi\n", row)
 	return row.Id, nil
 }
 
@@ -98,6 +96,8 @@ func CreateMapper(req *models.SubmitReq, filingId string) ([]models.FileMapper, 
 			FileMapID:     fileMapID,
 			Quarter:       FileTypeConvRev[rec.FileType],
 			Period:        rec.Period,
+			Version:       1,    // version starts with 1
+			IsCurrent:     true, // active version
 			IsUpdated:     false,
 			CreatedBy:     req.UserID, // string is fine per your ORM
 			CreatedAt:     ts,
@@ -148,43 +148,34 @@ func UpdateTrackerStatus(tracker *models.FilingTracker, userId string, status st
 }
 
 // UpdateMapper updates every mapper row that belongs to the given filingId:
-func UpdateMapper(filingId string, req *models.SubmitReq) error {
+func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 	// 1. build lookup: short-code -> new file data
 	newData := make(map[string]struct{ fileName, filePath string })
 	for _, m := range req.FileMappings {
-		newData[m.ShortCode] = struct{ fileName, filePath string }{m.FileName, m.Path}
-	}
-
-	// 2. fetch current rows for this filing
-	var rows []models.FileMapper
-	if err := sqlDb.Where("filingId = ?", filingId).Find(&rows).Error; err != nil {
-		return err
+		newData[fmt.Sprintf("%s-%d", m.GroupId, m.Version)] = struct{ fileName, filePath string }{m.FileName, m.Path}
 	}
 
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
+	// 2. fetch current rows for this filing
+	var rows []models.FileMapper
+	if err := sqlDb.Where("filingId = ?", filingId).Find(&rows).Error; err != nil {
+		return ts, err
+	}
 
 	// 3. update existing rows (in memory)
 	existingSC := make(map[string]bool, len(rows))
-	for i := range rows {
-		existingSC[rows[i].FundShortCode] = true
-		if nd, ok := newData[rows[i].FundShortCode]; ok {
-			rows[i].FileName = nd.fileName
-			rows[i].FilingPath = nd.filePath
-			rows[i].IsUpdated = true
-			rows[i].UpdatedAt = ts
-			rows[i].UpdatedBy = req.UserID
-		}
+	for _, m := range rows {
+		existingSC[fmt.Sprintf("%s-%s-%d", m.FundShortCode, m.Quarter, m.Version)] = true
 	}
-
 	// 4. persist updates
 	if err := sqlDb.Session(&gorm.Session{FullSaveAssociations: false}).Save(&rows).Error; err != nil {
-		return err
+		return ts, err
 	}
 
 	// 5. insert brand-new files (short-codes not yet in DB)
 	var toInsert []models.FileMapper
 	for _, m := range req.FileMappings {
-		if !existingSC[m.ShortCode] {
+		if !existingSC[fmt.Sprintf("%s-%d", m.GroupId, m.Version)] {
 			toInsert = append(toInsert, models.FileMapper{
 				FileName:      m.FileName,
 				FilingPath:    m.Path,
@@ -192,6 +183,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 				FilingID:      filingId,
 				Quarter:       FileTypeConvRev[m.FileType],
 				Period:        m.Period,
+				Version:       m.Version,
 				IsUpdated:     true,
 				CreatedAt:     ts,
 				CreatedBy:     req.UserID,
@@ -200,11 +192,11 @@ func UpdateMapper(filingId string, req *models.SubmitReq) error {
 	}
 	if len(toInsert) > 0 {
 		if err := sqlDb.Create(&toInsert).Error; err != nil {
-			return err
+			return ts, err
 		}
 	}
 
-	return nil
+	return ts, nil
 }
 
 // PullFundName returns a map of shortCode -> fundName for a given series
@@ -248,7 +240,7 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 	// Select all matching records
 
 	result := sqlDb.Select("fileName", "filingPath", "fundShortCode", "quarterNo").
-		Where("filingId = ?", filingId).
+		Where("filingId = ? AND isCurrent = ?", filingId, true).
 		Find(&rows) // Changed from First to Find
 
 	if result.Error != nil {
@@ -271,4 +263,65 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 	}
 
 	return resp, nil
+}
+
+func GetCurrentMappers(filingId string) ([]models.FileMapper, error) {
+	var rows []models.FileMapper
+	err := sqlDb.Where("filingId = ? AND isCurrent = ?", filingId, true).Find(&rows).Error
+	return rows, err
+}
+
+func ReplaceMapperVersions(filingId string, items []models.PendingVersion, userId string) error {
+	if len(items) == 0 {
+		return nil
+	}
+
+	oldIDs := make([]string, 0, len(items))
+	for _, it := range items {
+		oldIDs = append(oldIDs, it.OldMapID)
+	}
+
+	var oldRows []models.FileMapper
+	if err := sqlDb.Where("id IN ? AND filingId = ?", oldIDs, filingId).Find(&oldRows).Error; err != nil {
+		return err
+	}
+	oldByID := make(map[string]models.FileMapper, len(oldRows))
+	for _, r := range oldRows {
+		oldByID[r.ID] = r
+	}
+
+	ts := time.Now()
+	newRows := make([]models.FileMapper, 0, len(items))
+	for _, it := range items {
+		old, ok := oldByID[it.OldMapID]
+		if !ok {
+			continue // stale/mismatched OldMapID — skip rather than fail the whole batch
+		}
+		newRows = append(newRows, models.FileMapper{
+			FileName:      it.Filename,
+			FilingPath:    "", // filled in by caller once the staged path is finalized
+			FundShortCode: old.FundShortCode,
+			FilingID:      filingId,
+			FileMapID:     old.FileMapID,
+			Quarter:       old.Quarter,
+			Period:        old.Period,
+			Version:       old.Version + 1,
+			IsCurrent:     true,
+			IsUpdated:     true,
+			CreatedAt:     ts,
+			CreatedBy:     userId,
+		})
+	}
+	if len(newRows) == 0 {
+		return fmt.Errorf("no matching current mappings found for given items")
+	}
+
+	return sqlDb.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.FileMapper{}).
+			Where("id IN ?", oldIDs).
+			Update("isCurrent", false).Error; err != nil {
+			return err
+		}
+		return tx.CreateInBatches(newRows, 100).Error
+	})
 }

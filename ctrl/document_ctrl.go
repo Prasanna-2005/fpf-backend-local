@@ -122,7 +122,9 @@ func MapFiles(c *gin.Context) {
 func SubmitFiles(c *gin.Context) {
 	var req models.SubmitReq
 	var cid = "system"
+	var submissionTimestamp time.Time
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Log("ERROR", err.Error())
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
@@ -157,7 +159,7 @@ func SubmitFiles(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 			return
 		}
-		err = ipc.TransferSignal(utility.CreateSignal(uid, filingId, req.Series))
+		err = ipc.TransferSignal(utility.CreateSignal(uid, filingId, req.Series, mappers[0].CreatedAt, !req.NewFiling))
 		if err != nil {
 			logger.Log("ERROR", "Service error: "+err.Error())
 		}
@@ -175,14 +177,14 @@ func SubmitFiles(c *gin.Context) {
 		logger.Log("ERROR", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 	}
-	fmt.Println(req)
-	err = db.UpdateMapper(tracker.Id, &req)
+
+	submissionTimestamp, err = db.UpdateMapper(tracker.Id, &req)
 	if err != nil {
 		logger.Log("ERROR", err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 	}
 
-	err = ipc.TransferSignal(utility.CreateSignal(uid, tracker.Id, req.Series))
+	err = ipc.TransferSignal(utility.CreateSignal(uid, tracker.Id, req.Series, submissionTimestamp, !req.NewFiling))
 	if err != nil {
 		logger.Log("ERROR", "Service error: "+err.Error())
 	}
