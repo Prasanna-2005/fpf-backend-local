@@ -132,7 +132,7 @@ func GetClientUser(clientCode string) (*[]models.User, error) {
 	var users []models.User
 	err := sqlDb.Model(&models.User{}).
 		Select("id", "userName", "emailAddress", "accessType", "clientId", "createdAt", "updatedAt", "updatedBy").
-		Where("clientCode = ?", clientCode).
+		Where("clientId = ?", clientCode).
 		Find(&users).Error
 	return &users, err
 }

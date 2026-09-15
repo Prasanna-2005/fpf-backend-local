@@ -189,6 +189,17 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 
 	mapped, failedFiles := FindFileType(candidates, funds, series)
 	unmapped = append(unmapped, failedFiles...)
+	multiversion := getFileVersion(mapped)
+	var newfileVer []models.PendingVersion
+	if multiversion {
+		filingId, mappedFileSeries, err := db.GetFilingId(req.FilingName, cid)
+		mappedRec, err := db.PullFilingMapper(*filingId, *mappedFileSeries)
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("Mapper error: %v", err.Error()))
+			return nil, MappingNotFound
+		}
+		newfileVer = createPendingVersion(mapped, mappedRec)
+	}
 
 	msg := "File mappings updated successfully"
 	if len(mapped) == 0 {
@@ -197,12 +208,13 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 		msg = "Partial success"
 	}
 	return &models.FileIdentificationResponse{
-		Message:       msg,
-		Series:        series,
-		FilingName:    req.FilingName,
-		FileMappings:  mapped,
-		UnmappedFiles: unmapped,
-		FundDetails:   toFundResp(funds, series),
+		Message:         msg,
+		Series:          series,
+		FilingName:      req.FilingName,
+		FileMappings:    mapped,
+		UnmappedFiles:   unmapped,
+		NewfileVersions: newfileVer,
+		FundDetails:     toFundResp(funds, series),
 	}, nil
 }
 
@@ -223,6 +235,64 @@ func findFiles(root string) ([]string, []string, error) {
 	})
 	return out, pdf, err
 }
+func createPendingVersion(mapped, storedMap []models.MappedResp) (pendingVersion []models.PendingVersion) {
+	var oldVolFiles []string
+	for _, fm := range storedMap {
+		if !slices.Contains(oldVolFiles, filepath.Base(fm.Path)) {
+			oldVolFiles = append(oldVolFiles, filepath.Base(fm.Path))
+		}
+	}
+	for _, fm := range mapped {
+		if !slices.Contains(oldVolFiles, filepath.Base(fm.Path)) {
+			newfileVersion := models.PendingVersion{
+				ShortCode:      fm.ShortCode,
+				Filename:       fm.FileName,
+				OldVersion:     fm.Version - 1,
+				NewFileVolName: filepath.Base(fm.Path),
+				NewVersion:     fm.Version,
+				NewFilePath:    fm.Path,
+			}
+			pendingVersion = append(pendingVersion, newfileVersion)
+		}
+	}
+	return pendingVersion
+}
+
+func getFileVersion(mapped []models.MappedResp) bool {
+	var multiversion bool
+	// Group by storing INDEXES instead of pointers
+	groupedFiles := make(map[string][]int)
+
+	for i := range mapped {
+		key := fmt.Sprintf("%s-%s", mapped[i].ShortCode, mapped[i].FileType)
+		groupedFiles[key] = append(groupedFiles[key], i)
+	}
+
+	for _, indexes := range groupedFiles {
+		// Sort indexes by timestamp (oldest first)
+		sort.Slice(indexes, func(i, j int) bool {
+			return mapped[indexes[i]].Timestamp.Before(mapped[indexes[j]].Timestamp)
+		})
+		// Assign versions using indexes
+		for version, idx := range indexes {
+			mapped[idx].Version = version + 1
+			// mapped[idx].GroupId = grpid
+		}
+		if len(indexes) > 1 {
+			multiversion = true
+		}
+	}
+	return multiversion
+}
+
+func getFileUploadTime(filepath string) time.Time {
+	fileInfo, err := os.Stat(filepath)
+	if err != nil {
+		logger.Log("ERROR", err.Error())
+		return time.Time{}
+	}
+	return fileInfo.ModTime()
+}
 
 func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentification, series string) ([]models.MappedResp, []models.MappedResp) {
 	var out []models.MappedResp
@@ -240,6 +310,7 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 			continue
 		}
 		for _, file := range files {
+			fmt.Println(filepath.Base(file))
 			if !slices.Contains(allFiles, file) {
 				allFiles = append(allFiles, file)
 			}
@@ -250,11 +321,13 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 			resp.FileName = getOrgName(filepath.Base(file))
 			resp.VolFileName = filepath.Base(file)
 			resp.Path = strings.TrimPrefix(file, os.Getenv("STORAGE_PATH"))
+			resp.Timestamp = getFileUploadTime(file)
 
 			if q1to5.MatchString(fund.FileType) {
 				quarter, loc := matchQuarterByFilename(resp.FileName)
 				resp.FileType = "Q" + strconv.Itoa(quarter)
 				if loc != -1 && resp.FileType == fund.FileType {
+					resp.GroupId = fmt.Sprintf("%s-%d", resp.ShortCode, quarter)
 					out = append(out, resp)
 					mappedFilePath = append(mappedFilePath, file)
 				}
@@ -264,6 +337,7 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 				if fund.Period != nil {
 					resp.Period = periodIdentifier(resp.FileName, *fund.Period)
 				}
+				resp.GroupId = fmt.Sprintf("%s-%s", resp.ShortCode, fund.FileType)
 				out = append(out, resp)
 				mappedFilePath = append(mappedFilePath, file)
 			}
@@ -402,6 +476,7 @@ func toFundResp(funds []models.FegFileIdentification, series string) []models.Ma
 						FileType:  FileTypeConv[f.FileType],
 						ShortCode: f.ShortCode,
 						Period:    p,
+						GroupId:   fmt.Sprintf("%s-%s", f.ShortCode, FileTypeConv[f.FileType]),
 					})
 				}
 			} else {
@@ -409,6 +484,7 @@ func toFundResp(funds []models.FegFileIdentification, series string) []models.Ma
 					FundName:  f.FundName,
 					FileType:  FileTypeConv[f.FileType],
 					ShortCode: f.ShortCode,
+					GroupId:   fmt.Sprintf("%s-%s", f.ShortCode, FileTypeConv[f.FileType]),
 				})
 			}
 		}

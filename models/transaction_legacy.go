@@ -142,3 +142,14 @@ type LineComputation struct {
 	HasTableData    bool        `json:"has_table_computation"`
 	TableData       interface{} `json:"table_computation,omitempty"`
 }
+
+type EditorCache struct {
+	FilingID     string    `gorm:"column:filingId"`
+	FieldNo      string    `gorm:"column:fieldNo"`
+	FundSeriesid string    `gorm:"column:fundSeriesId"`
+	FormLineNo   string    `gorm:"column:formLineNo"`
+	Value        string    `gorm:"column:value"`
+	CreatedBy    string    `gorm:"column:createdBy"`
+	CreatedAt    time.Time `gorm:"column:createdAt"`
+	Username     string    `gorm:"column:userName"`
+}
