@@ -124,6 +124,60 @@ func FilingStatus(c *gin.Context) {
 	})
 }
 
+func GetRelatedFilings(c *gin.Context) {
+	filingID := c.Param("filing_id")
+	if strings.TrimSpace(filingID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "filing_id is required"})
+		return
+	}
+
+	current, err := db.GetFilingTracker(filingID)
+	if err != nil || current == nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": FilingNotFound})
+		return
+	}
+
+	series := strings.TrimSpace(current.Series)
+	if series == "" {
+		c.JSON(http.StatusOK, gin.H{"data": []any{}})
+		return
+	}
+
+	related, err := db.GetRelatedFilingsBySeries(filingID, series, current.ClientCode)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+
+	type relatedFiling struct {
+		ID           string    `json:"id"`
+		FilingName   string    `json:"filing_name"`
+		Series       string    `json:"series"`
+		ModifiedOn   time.Time `json:"modified_on"`
+		FilingStatus string    `json:"filingStatus"`
+	}
+
+	list := make([]relatedFiling, 0, len(related))
+	for _, f := range related {
+		if strings.EqualFold(strings.TrimSpace(f.FilingStatus), "Archived") {
+			continue
+		}
+		modifiedOn := f.CreatedAt
+		if !f.UpdatedAt.IsZero() && f.UpdatedAt.After(f.CreatedAt) {
+			modifiedOn = f.UpdatedAt
+		}
+		list = append(list, relatedFiling{
+			ID:           f.Id,
+			FilingName:   f.FilingName,
+			Series:       f.Series,
+			ModifiedOn:   modifiedOn,
+			FilingStatus: f.FilingStatus,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": list})
+}
+
 func GetLatestChanges(c *gin.Context) {
 	var req struct {
 		FilingID string `json:"filing_id" binding:"required"`
