@@ -80,6 +80,15 @@ var (
 	MappingNotFound      = errors.New("Mapping not found for given filing name")
 )
 
+const unrecognizedFundReason = "The file name does not include a recognized fund short code or fund name, so it could not be matched to a fund."
+
+type fileMatchMiss struct {
+	FundName  string
+	ShortCode string
+	Kind      string
+	Detail    string
+}
+
 func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.FileIdentificationResponse, error) {
 	funds, err := db.GetAllFegFileIdentifications()
 	if err != nil {
@@ -299,6 +308,7 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 	var unmapped []models.MappedResp
 	var mappedFilePath []string
 	var allFiles []string
+	missesByFile := map[string][]fileMatchMiss{}
 	// longest code first to avoid FSAE vs FSAE2 overlap
 	sort.Slice(funds, func(i, j int) bool {
 		return len(funds[i].ShortCode) > len(funds[j].ShortCode)
@@ -330,6 +340,19 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 					resp.GroupId = fmt.Sprintf("%s-%d", resp.ShortCode, quarter)
 					out = append(out, resp)
 					mappedFilePath = append(mappedFilePath, file)
+				} else if loc == -1 {
+					missesByFile[file] = append(missesByFile[file], fileMatchMiss{
+						FundName:  fund.FundName,
+						ShortCode: fund.ShortCode,
+						Kind:      "no_quarter",
+					})
+				} else {
+					missesByFile[file] = append(missesByFile[file], fileMatchMiss{
+						FundName:  fund.FundName,
+						ShortCode: fund.ShortCode,
+						Kind:      "unexpected_quarter",
+						Detail:    resp.FileType,
+					})
 				}
 
 			} else if matchByidentifier(strings.ToLower(resp.FileName), strings.ToLower(fund.FileType)) {
@@ -340,6 +363,13 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 				resp.GroupId = fmt.Sprintf("%s-%s", resp.ShortCode, fund.FileType)
 				out = append(out, resp)
 				mappedFilePath = append(mappedFilePath, file)
+			} else {
+				missesByFile[file] = append(missesByFile[file], fileMatchMiss{
+					FundName:  fund.FundName,
+					ShortCode: fund.ShortCode,
+					Kind:      "file_type",
+					Detail:    displayFileType(fund.FileType),
+				})
 			}
 		}
 	}
@@ -349,10 +379,128 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 			unmap.FileName = getOrgName(filepath.Base(file))
 			unmap.VolFileName = filepath.Base(file)
 			unmap.Path = strings.TrimPrefix(file, os.Getenv("STORAGE_PATH"))
+			if misses := missesByFile[file]; len(misses) > 0 {
+				unmap.FundName = misses[0].FundName
+				unmap.ShortCode = misses[0].ShortCode
+				unmap.Reason = explainUnmappedFile(misses)
+			} else {
+				unmap.Reason = explainUnmappedFile(nil)
+			}
 			unmapped = append(unmapped, unmap)
 		}
 	}
 	return out, unmapped
+}
+
+func displayFileType(fileType string) string {
+	if label, ok := FileTypeConv[fileType]; ok && label != "" {
+		return label
+	}
+	cleaned := strings.ReplaceAll(strings.TrimSpace(fileType), "_", " ")
+	if cleaned == "" {
+		return "the expected file type"
+	}
+	return cleaned
+}
+
+func explainUnmappedFile(misses []fileMatchMiss) string {
+	if len(misses) == 0 {
+		return "The file could not be matched to an expected file type for its fund."
+	}
+
+	label := fundMatchLabel(misses)
+	noQuarter := false
+	var quarters []string
+	var types []string
+	for _, miss := range misses {
+		switch miss.Kind {
+		case "no_quarter":
+			noQuarter = true
+		case "unexpected_quarter":
+			if miss.Detail != "" && !slices.Contains(quarters, miss.Detail) {
+				quarters = append(quarters, miss.Detail)
+			}
+		case "file_type":
+			detail := miss.Detail
+			if detail == "" {
+				detail = "the expected file type"
+			}
+			if !slices.Contains(types, detail) {
+				types = append(types, detail)
+			}
+		}
+	}
+
+	if len(quarters) == 1 && !noQuarter && len(types) == 0 {
+		return fmt.Sprintf("The file name matches %s and looks like %s, but that quarter is not expected for this fund.", label, quarters[0])
+	}
+	if len(quarters) > 1 && !noQuarter && len(types) == 0 {
+		return fmt.Sprintf("The file name matches %s and looks like %s, but those quarters are not expected for this fund.", label, joinAnd(quarters))
+	}
+
+	var problems []string
+	if noQuarter {
+		problems = append(problems, "it does not include a recognizable reporting quarter (use a year and month such as 2024-03)")
+	}
+	if len(quarters) == 1 {
+		problems = append(problems, fmt.Sprintf("%s is not an expected quarter for this fund", quarters[0]))
+	} else if len(quarters) > 1 {
+		problems = append(problems, fmt.Sprintf("%s are not expected quarters for this fund", joinAnd(quarters)))
+	}
+	if len(types) > 0 {
+		problems = append(problems, fmt.Sprintf("it does not match an expected file type (%s)", joinOr(types)))
+	}
+	if len(problems) == 0 {
+		return fmt.Sprintf("The file name matches %s, but it could not be matched to an expected file type.", label)
+	}
+	return fmt.Sprintf("The file name matches %s, but %s.", label, joinAnd(problems))
+}
+
+func fundMatchLabel(misses []fileMatchMiss) string {
+	var names []string
+	code := ""
+	for _, miss := range misses {
+		if code == "" {
+			code = miss.ShortCode
+		}
+		if miss.FundName != "" && !slices.Contains(names, miss.FundName) {
+			names = append(names, miss.FundName)
+		}
+	}
+	name := strings.Join(names, " / ")
+	if name == "" {
+		name = "the recognized fund"
+	}
+	if code == "" {
+		return name
+	}
+	return fmt.Sprintf("%s (%s)", name, code)
+}
+
+func joinAnd(items []string) string {
+	switch len(items) {
+	case 0:
+		return ""
+	case 1:
+		return items[0]
+	case 2:
+		return items[0] + " and " + items[1]
+	default:
+		return strings.Join(items[:len(items)-1], ", ") + ", and " + items[len(items)-1]
+	}
+}
+
+func joinOr(items []string) string {
+	switch len(items) {
+	case 0:
+		return "the expected file type"
+	case 1:
+		return items[0]
+	case 2:
+		return items[0] + " or " + items[1]
+	default:
+		return strings.Join(items[:len(items)-1], ", ") + ", or " + items[len(items)-1]
+	}
 }
 
 func generateUUIDName(filename string) string {
@@ -531,6 +679,7 @@ func shortCodesFromFiles(paths []string, funds []models.FegFileIdentification) (
 		if !flg {
 			file.FileName = filepath.Base(p)
 			file.Path = strings.TrimPrefix(p, os.Getenv("STORAGE_PATH"))
+			file.Reason = unrecognizedFundReason
 			unmapped = append(unmapped, file)
 		}
 	}
