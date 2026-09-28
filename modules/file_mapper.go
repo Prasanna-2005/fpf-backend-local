@@ -157,6 +157,9 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	if len(excels) == 0 {
 		return nil, errors.New("no Excel files found")
 	}
+	// Storage names are "{uuid}_quantrium_{original}". Re-uploads keep every copy,
+	// so collapse to the newest file for each original name before mapping.
+	excels = dedupeStoredFiles(excels)
 	candidates, unmapped := shortCodesFromFiles(excels, funds)
 	// for key, files := range candidates {
 	// 	for _, file := range files {
@@ -328,7 +331,7 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 			var resp models.MappedResp
 			resp.FundName = fund.FundName
 			resp.ShortCode = fund.ShortCode
-			resp.FileName = getOrgName(filepath.Base(file))
+			resp.FileName = originalFileName(file)
 			resp.VolFileName = filepath.Base(file)
 			resp.Path = strings.TrimPrefix(file, os.Getenv("STORAGE_PATH"))
 			resp.Timestamp = getFileUploadTime(file)
@@ -376,7 +379,7 @@ func FindFileType(fundMap map[string][]string, funds []models.FegFileIdentificat
 	for _, file := range allFiles {
 		if !slices.Contains(mappedFilePath, file) {
 			var unmap models.MappedResp
-			unmap.FileName = getOrgName(filepath.Base(file))
+			unmap.FileName = originalFileName(file)
 			unmap.VolFileName = filepath.Base(file)
 			unmap.Path = strings.TrimPrefix(file, os.Getenv("STORAGE_PATH"))
 			if misses := missesByFile[file]; len(misses) > 0 {
@@ -505,6 +508,43 @@ func joinOr(items []string) string {
 
 func generateUUIDName(filename string) string {
 	return uuid.New().String() + marker + filename
+}
+
+// originalFileName strips the storage prefix "{uuid}_quantrium_" from a path or file name.
+func originalFileName(path string) string {
+	base := filepath.Base(path)
+	if i := strings.Index(base, marker); i >= 0 {
+		return base[i+len(marker):]
+	}
+	return base
+}
+
+// dedupeStoredFiles keeps the newest stored copy of each original filename.
+func dedupeStoredFiles(paths []string) []string {
+	type chosen struct {
+		path string
+		when time.Time
+	}
+	best := make(map[string]chosen, len(paths))
+	order := make([]string, 0, len(paths))
+	for _, p := range paths {
+		key := strings.ToLower(originalFileName(p))
+		when := getFileUploadTime(p)
+		prev, ok := best[key]
+		if !ok {
+			order = append(order, key)
+			best[key] = chosen{path: p, when: when}
+			continue
+		}
+		if !when.Before(prev.when) {
+			best[key] = chosen{path: p, when: when}
+		}
+	}
+	out := make([]string, 0, len(order))
+	for _, key := range order {
+		out = append(out, best[key].path)
+	}
+	return out
 }
 
 func getOrgName(filename string) string {
@@ -660,8 +700,9 @@ func shortCodesFromFiles(paths []string, funds []models.FegFileIdentification) (
 	for _, p := range paths {
 		flg := false
 		file := models.MappedResp{}
-		ogBase := strings.ToLower(filepath.Base(p))
-		base := strings.ToLower(normalizeRomans(filepath.Base(p)))
+		orgName := originalFileName(p)
+		ogBase := strings.ToLower(orgName)
+		base := strings.ToLower(normalizeRomans(orgName))
 		for _, f := range funds {
 			ogSc := strings.ToLower(f.ShortCode)
 			ogFname := strings.ToLower(f.FundName)
@@ -677,7 +718,8 @@ func shortCodesFromFiles(paths []string, funds []models.FegFileIdentification) (
 			}
 		}
 		if !flg {
-			file.FileName = filepath.Base(p)
+			file.FileName = orgName
+			file.VolFileName = filepath.Base(p)
 			file.Path = strings.TrimPrefix(p, os.Getenv("STORAGE_PATH"))
 			file.Reason = unrecognizedFundReason
 			unmapped = append(unmapped, file)
