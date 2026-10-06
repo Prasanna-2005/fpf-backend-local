@@ -1,4 +1,4 @@
-package modules
+package tests
 
 import (
 	"os"
@@ -8,22 +8,25 @@ import (
 	"time"
 
 	"form_pf_backend/models"
+	"form_pf_backend/modules"
 )
 
+const storageMarker = "_quantrium_"
+
 func TestShortCodesFromFiles_UnmappedReason(t *testing.T) {
-	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+marker+"notes.xlsx")
+	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+storageMarker+"notes.xlsx")
 	funds := []models.FegFileIdentification{
 		{ShortCode: "FSAE", FundName: "Fund Alpha", FileType: "Q1"},
 	}
 
-	mapped, unmapped := shortCodesFromFiles([]string{path}, funds)
+	mapped, unmapped := modules.ShortCodesFromFiles([]string{path}, funds)
 	if len(mapped) != 0 {
 		t.Fatalf("expected no fund candidates, got %#v", mapped)
 	}
 	if len(unmapped) != 1 {
 		t.Fatalf("expected 1 unmapped file, got %d", len(unmapped))
 	}
-	if unmapped[0].Reason != unrecognizedFundReason {
+	if unmapped[0].Reason != modules.UnrecognizedFundReason {
 		t.Fatalf("reason = %q", unmapped[0].Reason)
 	}
 	if unmapped[0].ShortCode != "" || unmapped[0].FundName != "" {
@@ -37,9 +40,9 @@ func TestShortCodesFromFiles_UnmappedReason(t *testing.T) {
 func TestDedupeStoredFiles_CollapsesUUIDPrefixCopies(t *testing.T) {
 	dir := t.TempDir()
 	org := "1. FSAAEM-FSAAEM~^investors20251231 capital register_palbreakout~.xls"
-	older := filepath.Join(dir, "ee1fd554-cb6b-4201-b109-f4c9a0938d0f"+marker+org)
-	newer := filepath.Join(dir, "4259c335-fc4d-4e21-b28d-8d87250cdb05"+marker+org)
-	other := filepath.Join(dir, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"+marker+"2. FSAEM2-report.xlsx")
+	older := filepath.Join(dir, "ee1fd554-cb6b-4201-b109-f4c9a0938d0f"+storageMarker+org)
+	newer := filepath.Join(dir, "4259c335-fc4d-4e21-b28d-8d87250cdb05"+storageMarker+org)
+	other := filepath.Join(dir, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"+storageMarker+"2. FSAEM2-report.xlsx")
 	for _, path := range []string{older, newer, other} {
 		if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
@@ -50,26 +53,26 @@ func TestDedupeStoredFiles_CollapsesUUIDPrefixCopies(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := dedupeStoredFiles([]string{older, newer, other})
+	got := modules.DedupeStoredFiles([]string{older, newer, other})
 	if len(got) != 2 {
 		t.Fatalf("expected 2 files after collapsing copies, got %#v", got)
 	}
 	if got[0] != newer {
 		t.Fatalf("kept %q, want newest copy %q", got[0], newer)
 	}
-	if originalFileName(got[0]) != org {
-		t.Fatalf("original name = %q", originalFileName(got[0]))
+	if modules.OriginalFileName(got[0]) != org {
+		t.Fatalf("original name = %q", modules.OriginalFileName(got[0]))
 	}
 }
 
 func TestFindFileType_QuarterMatchHasNoReason(t *testing.T) {
-	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+marker+"FSAE_2024-03.xlsx")
+	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+storageMarker+"FSAE_2024-03.xlsx")
 	funds := []models.FegFileIdentification{
 		{ShortCode: "FSAE", FundName: "Fund Alpha", FileType: "Q1"},
 		{ShortCode: "FSAE", FundName: "Fund Alpha", FileType: "Q2"},
 	}
 
-	mapped, unmapped := FindFileType(map[string][]string{"FSAE": {path}}, funds, "Private Investors")
+	mapped, unmapped := modules.FindFileType(map[string][]string{"FSAE": {path}}, funds, "Private Investors")
 	if len(unmapped) != 0 {
 		t.Fatalf("expected file to map, unmapped=%#v", unmapped)
 	}
@@ -85,13 +88,13 @@ func TestFindFileType_QuarterMatchHasNoReason(t *testing.T) {
 }
 
 func TestFindFileType_MissingQuarterReason(t *testing.T) {
-	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+marker+"FSAE_misc.xlsx")
+	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+storageMarker+"FSAE_misc.xlsx")
 	funds := []models.FegFileIdentification{
 		{ShortCode: "FSAE", FundName: "Fund Alpha", FileType: "Q1"},
 		{ShortCode: "FSAE", FundName: "Fund Alpha", FileType: "Q2"},
 	}
 
-	mapped, unmapped := FindFileType(map[string][]string{"FSAE": {path}}, funds, "Private Investors")
+	mapped, unmapped := modules.FindFileType(map[string][]string{"FSAE": {path}}, funds, "Private Investors")
 	if len(mapped) != 0 {
 		t.Fatalf("expected no mapping, got %#v", mapped)
 	}
@@ -111,12 +114,12 @@ func TestFindFileType_MissingQuarterReason(t *testing.T) {
 }
 
 func TestFindFileType_UnexpectedQuarterReason(t *testing.T) {
-	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+marker+"FSAE_2024-09.xlsx")
+	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+storageMarker+"FSAE_2024-09.xlsx")
 	funds := []models.FegFileIdentification{
 		{ShortCode: "FSAE", FundName: "Fund Alpha", FileType: "Q1"},
 	}
 
-	_, unmapped := FindFileType(map[string][]string{"FSAE": {path}}, funds, "Private Investors")
+	_, unmapped := modules.FindFileType(map[string][]string{"FSAE": {path}}, funds, "Private Investors")
 	if len(unmapped) != 1 {
 		t.Fatalf("expected 1 unmapped file, got %#v", unmapped)
 	}
@@ -126,19 +129,19 @@ func TestFindFileType_UnexpectedQuarterReason(t *testing.T) {
 }
 
 func TestFindFileType_FileTypeReason(t *testing.T) {
-	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+marker+"Curio_One_misc.xlsx")
+	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+storageMarker+"Curio_One_misc.xlsx")
 	period := "Q"
 	funds := []models.FegFileIdentification{
 		{ShortCode: "CUR", FundName: "Curio One", FileType: "capital_register", Period: &period},
 		{ShortCode: "CUR", FundName: "Curio One", FileType: "nav_tb", Period: &period},
 	}
 
-	mapped, unmapped := FindFileType(map[string][]string{"CUR": {path}}, funds, "Curio")
+	mapped, unmapped := modules.FindFileType(map[string][]string{"CUR": {path}}, funds, "Curio")
 	if len(mapped) != 0 {
 		t.Fatalf("expected no mapping, got %#v", mapped)
 	}
 	if len(unmapped) != 1 {
-		t.Fatalf("expected 1 unmapped file, got %#v", unmapped)
+		t.Fatalf("expected 1 unmapped file, got %d", len(unmapped))
 	}
 	reason := unmapped[0].Reason
 	if !strings.Contains(reason, "Curio One (CUR)") {
@@ -153,13 +156,13 @@ func TestFindFileType_FileTypeReason(t *testing.T) {
 }
 
 func TestFindFileType_FileTypeStillMaps(t *testing.T) {
-	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+marker+"Curio_One_capital_register.xlsx")
+	path := writeMapperFile(t, "11111111-1111-1111-1111-111111111111"+storageMarker+"Curio_One_capital_register.xlsx")
 	period := "M"
 	funds := []models.FegFileIdentification{
 		{ShortCode: "CUR", FundName: "Curio One", FileType: "capital_register", Period: &period},
 	}
 
-	mapped, unmapped := FindFileType(map[string][]string{"CUR": {path}}, funds, "Curio")
+	mapped, unmapped := modules.FindFileType(map[string][]string{"CUR": {path}}, funds, "Curio")
 	if len(unmapped) != 0 || len(mapped) != 1 {
 		t.Fatalf("mapped=%#v unmapped=%#v", mapped, unmapped)
 	}

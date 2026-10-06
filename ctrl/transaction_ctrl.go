@@ -257,6 +257,8 @@ type HistoryResponse struct {
 	FundSeriesid   string    `json:"fund_series_id"`
 	FieldNo        string    `json:"field_no"`
 	Value          string    `json:"value"`
+	SourceFiles    []string  `json:"source_files"`
+	ManuallyEdited bool      `json:"manually_edited"`
 	LineText       string    `json:"line_text"`
 	IsCurrentValue bool      `json:"is_current_value"`
 	CreatedAt      time.Time `json:"created_at"`
@@ -302,10 +304,15 @@ func GetFieldHistory(c *gin.Context) {
 
 	groupedResponse := make(map[string][]HistoryResponse)
 	for _, r := range rows {
+		files := models.ParseSourceFiles(r.SourceFiles)
+		// A saved edit has updatedBy and no source files. A revert also sets
+		// updatedBy, on the extracted row, so that row can still show its files.
 		item := HistoryResponse{
 			FundSeriesid:   r.FundSeriesid,
 			FieldNo:        r.FieldNo,
 			Value:          r.Value,
+			SourceFiles:    files,
+			ManuallyEdited: strings.TrimSpace(r.UpdatedByID) != "" && len(files) == 0,
 			LineText:       r.LineText,
 			IsCurrentValue: r.IsCurrentValue,
 			CreatedAt:      r.CreatedAt,
