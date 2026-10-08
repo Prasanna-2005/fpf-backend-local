@@ -1,6 +1,8 @@
 package models
 
 import (
+	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -11,6 +13,7 @@ type FormDataLegacy struct {
 	FundSeriesid   string    `gorm:"column:fundSeriesId"`
 	FormLineNo     string    `gorm:"column:formLineNo"`
 	Value          string    `gorm:"column:value"`
+	SourceFiles    string    `gorm:"column:sourceFiles"`
 	CreatedBy      string    `gorm:"column:createdBy"`
 	IsCurrentValue bool      `gorm:"column:isCurrentValue"`
 	UpdatedAt      time.Time `gorm:"column:updatedAt"`
@@ -26,11 +29,26 @@ type FieldHistoryRow struct {
 	FormLineNo     string    `gorm:"column:formLineNo"`
 	LineText       string    `gorm:"column:lineText"`
 	Value          string    `gorm:"column:value"`
+	SourceFiles    string    `gorm:"column:sourceFiles"`
 	IsCurrentValue bool      `gorm:"column:isCurrentValue"`
 	CreatedAt      time.Time `gorm:"column:createdAt"`
 	CreatedBy      string    `gorm:"column:createdBy"`
 	UpdatedAt      time.Time `gorm:"column:updatedAt"`
+	UpdatedByID    string    `gorm:"column:updatedById"`
 	UpdatedBy      string    `gorm:"column:updatedBy"`
+}
+
+// ParseSourceFiles decodes the JSON array stored on form_data_legacy.sourceFiles.
+func ParseSourceFiles(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "null" {
+		return []string{}
+	}
+	var files []string
+	if err := json.Unmarshal([]byte(raw), &files); err != nil || files == nil {
+		return []string{}
+	}
+	return files
 }
 
 type FormFieldMSLegacy struct {

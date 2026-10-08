@@ -121,9 +121,9 @@ func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo string) ([]models.FieldHi
 		SELECT 
 			f.fundSeriesId, f.fieldNo, f.formLineNo,
 			ffml.lineText,
-			f.value, f.isCurrentValue,
+			f.value, f.sourceFiles, f.isCurrentValue,
 			f.createdAt, u.userName as createdBy, 
-			f.updatedAt, u2.userName as updatedBy
+			f.updatedAt, f.updatedBy as updatedById, u2.userName as updatedBy
 		FROM form_data_legacy f
 		left join users u on u.id = f.createdBy 
 		left join users u2 on u2.id = f.updatedBy
