@@ -80,6 +80,12 @@ func setUpSubmission(api *gin.RouterGroup) {
 	sub.PUT("revert/:filing_id/:fund_id", ctrl.RevertLatest)
 	sub.GET("/history", ctrl.GetFieldHistory)
 	sub.POST("/latest_changes", ctrl.GetLatestChanges)
+
+	reviews := api.Group("/submissions")
+	reviews.Use(middleware.Authenticate("contributor", "approver", "admin"), middleware.RequireFilingAccess())
+	reviews.GET("/:filing_id/reviews", ctrl.ListQuestionReviews)
+	reviews.POST("/:filing_id/reviews", ctrl.CreateQuestionReview)
+	reviews.DELETE("/:filing_id/reviews", ctrl.DeleteQuestionReview)
 }
 
 func setupProfileRoutes(api *gin.RouterGroup) {
