@@ -1,20 +1,9 @@
-# Python dependencies stage (builds once, cached forever)
-FROM alpine:3.18 AS python-builder
-
-RUN apk add --no-cache \
-    python3 \
-    py3-pip \
-    gcc \
-    g++ \
-    musl-dev \
-    python3-dev \
-    jpeg-dev \
-    zlib-dev \
-    freetype-dev \
-    make
+# Python dependencies stage (manylinux wheels; Alpine/musl has no PyMuPDF wheels)
+FROM python:3.11-slim-bookworm AS python-builder
 
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt
+
+RUN pip install --no-cache-dir uv && uv pip install --system --no-cache-dir -r requirements.txt
 
 # Go build stage
 FROM golang:1.24-alpine AS go-builder
@@ -29,29 +18,25 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o bin/formpf .
 
-# Final runtime stage
-FROM alpine:3.18 AS runner
+# Final runtime stage (glibc, same Python as python-builder)
+FROM python:3.11-slim-bookworm AS runner
 
-RUN apk add --no-cache \
-    tzdata \
-    python3
-
-RUN adduser -D -g '' formpf \
+RUN apt-get update \
+ && apt-get install --no-install-recommends -y tzdata \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd -r formpf \
  && mkdir -p /var/storage/formpf/
 
 WORKDIR /app
 
-# Copy Python packages from python-builder (CACHED after first build!)
-COPY --from=python-builder /usr/lib/python3.11/site-packages /usr/lib/python3.11/site-packages
+COPY --from=python-builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 
-# Copy Go binary and app files
 COPY --from=go-builder /app/bin /app/bin
 COPY --from=go-builder /app/config ./config
 COPY --from=go-builder /app/static ./static
 COPY --from=go-builder /app/entrypoint.sh /app/entrypoint.sh
 COPY --from=go-builder /app/.env ./.env
 
-# Copy Python script
 COPY modules/pymupdf_table_extraction.py ./modules/
 
 RUN chmod +x /app/entrypoint.sh

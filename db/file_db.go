@@ -66,6 +66,16 @@ func GetFilingTracker(filingID string) (*models.FilingTracker, error) {
 	return &ft, nil
 }
 
+// GetRelatedFilingsBySeries returns other filings that share the same company
+// series and client code, excluding the current filing and deleted rows.
+func GetRelatedFilingsBySeries(filingID, series, clientCode string) ([]models.FilingTracker, error) {
+	var filings []models.FilingTracker
+	err := sqlDb.Model(&models.FilingTracker{}).
+		Where("series = ? AND id <> ? AND clientCode = ? AND isDeleted = ?", series, filingID, clientCode, false).
+		Find(&filings).Error
+	return filings, err
+}
+
 func GetFilingId(filingName, cid string) (*string, *string, error) {
 	var result struct {
 		Id     *string

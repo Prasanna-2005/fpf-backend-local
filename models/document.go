@@ -91,6 +91,8 @@ type MappedResp struct {
 	Period      string    `json:"period,omitempty"`
 	Path        string    `json:"filepath,"`
 	Timestamp   time.Time `json:"timestamp,"`
+	// Reason explains why an uploaded file was not mapped. Empty for successful mappings.
+	Reason string `json:"reason,omitempty"`
 }
 
 type PendingVersion struct {
