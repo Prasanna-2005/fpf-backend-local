@@ -413,27 +413,46 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 
 	// Select all matching records
 
-	result := sqlDb.Select("fileName", "filingPath", "fundShortCode", "quarterNo").
+	result := sqlDb.Select("fileName", "filingPath", "fundShortCode", "quarterNo", "period", "version", "createdAt").
 		Where("filingId = ? AND isCurrent = ?", filingId, true).
-		Find(&rows) // Changed from First to Find
+		Order("createdAt ASC, version ASC").
+		Find(&rows)
 
 	if result.Error != nil {
 		return resp, result.Error
 	}
 
-	// Map each row to response
+	// Latest stored copy per slot, reusing the same collapse the mapper
+	// uses. Rows written before the isCurrent flip existed are all flagged
+	// current, so several current rows can exist per group; the newest
+	// upload wins. FileType carries the stored quarter code, which
+	// FileGroupKey passes through untouched.
+	candidates := make([]models.MappedResp, 0, len(rows))
 	for _, row := range rows {
-		// Lookup fundname using  shortcode
-		fundName := fundMap[strings.ToLower(row.FundShortCode)]
-
-		mapped := models.MappedResp{
+		candidates = append(candidates, models.MappedResp{
 			FileName:  row.FileName,
 			Path:      row.FilingPath,
 			ShortCode: row.FundShortCode,
 			FileType:  row.Quarter,
+			Period:    row.Period,
+			Version:   row.Version,
+			Timestamp: row.CreatedAt,
+		})
+	}
+
+	// Map each row to response
+	for _, m := range LatestPerGroup(candidates) {
+		// Lookup fundname using  shortcode
+		fundName := fundMap[strings.ToLower(m.ShortCode)]
+
+		resp = append(resp, models.MappedResp{
+			FileName:  m.FileName,
+			Path:      m.Path,
+			ShortCode: m.ShortCode,
+			FileType:  m.FileType,
 			FundName:  fundName,
-		}
-		resp = append(resp, mapped)
+			Version:   m.Version,
+		})
 	}
 
 	return resp, nil
