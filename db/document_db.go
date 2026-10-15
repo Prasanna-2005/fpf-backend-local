@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var FileTypeConvRev = map[string]string{
@@ -145,9 +146,11 @@ type StoredFileVersion struct {
 	VolBase       string // uuid-prefixed basename of the stored path
 }
 
-func GetStoredFileVersions(filingId string) ([]StoredFileVersion, error) {
+func GetStoredFileVersions(tx *gorm.DB, filingId string) ([]StoredFileVersion, error) {
 	var rows []models.FileMapper
-	if err := sqlDb.Where("filingId = ?", filingId).Find(&rows).Error; err != nil {
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("filingId = ?", filingId).
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	out := make([]StoredFileVersion, 0, len(rows))
@@ -210,19 +213,20 @@ func slotKey(m models.MappedResp) string {
 // AnchorFileVersions reduces mappings to the latest file per slot, then
 // versions that file from stored state. A volume path already stored for the
 // same group keeps its version. Anything else is max(group version)+1.
-func AnchorFileVersions(filingId string, mapped []models.MappedResp) ([]models.MappedResp, []AnchoredFile, error) {
+func AnchorFileVersions(tx *gorm.DB, filingId string, mapped []models.MappedResp) ([]models.MappedResp, []AnchoredFile, error) {
 	latest := LatestPerGroup(mapped)
-	stored, err := GetStoredFileVersions(filingId)
+	stored, err := GetStoredFileVersions(tx, filingId)
 	if err != nil {
 		return nil, nil, err
 	}
 	byVol := make(map[string]StoredFileVersion, len(stored))
 	maxVer := make(map[string]int)
 	for _, s := range stored {
-		if _, ok := byVol[s.VolBase]; !ok {
-			byVol[s.VolBase] = s
-		}
 		key := s.FundShortCode + "|" + s.Quarter
+		vk := key + "|" + s.VolBase
+		if _, ok := byVol[vk]; !ok {
+			byVol[vk] = s
+		}
 		if s.Version > maxVer[key] {
 			maxVer[key] = s.Version
 		}
@@ -237,7 +241,7 @@ func AnchorFileVersions(filingId string, mapped []models.MappedResp) ([]models.M
 		if vol == "" || vol == "." {
 			vol = m.FileName
 		}
-		if s, ok := byVol[vol]; ok && s.FundShortCode == shortCode && s.Quarter == quarterCode {
+		if s, ok := byVol[key+"|"+vol]; ok && s.FundShortCode == shortCode && s.Quarter == quarterCode {
 			m.Version = s.Version
 			out = append(out, AnchoredFile{Index: i, ShortCode: shortCode, QuarterCode: quarterCode, Version: s.Version, Stored: true})
 			continue
@@ -297,21 +301,6 @@ func UpdateTrackerStatus(tracker *models.FilingTracker, userId string, status st
 // one transaction. Resubmitting an unchanged mapping inserts nothing.
 func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
-
-	latest, anchored, err := AnchorFileVersions(filingId, req.FileMappings)
-	if err != nil {
-		return ts, err
-	}
-	req.FileMappings = latest
-	var fresh []AnchoredFile
-	for _, a := range anchored {
-		if !a.Stored {
-			fresh = append(fresh, a)
-		}
-	}
-	if len(fresh) == 0 {
-		return ts, nil
-	}
 
 	identities, err := GetAllFileMapId()
 	if err != nil {
