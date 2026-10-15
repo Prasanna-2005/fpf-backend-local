@@ -312,6 +312,32 @@ func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 	}
 
 	return ts, sqlDb.Transaction(func(tx *gorm.DB) error {
+		// Lock the filing row first. SELECT FOR UPDATE on file_mapper locks
+		// nothing when the filing has no rows yet, so two first submits could
+		// both mint version 1.
+		var tracker models.FilingTracker
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").
+			Where("id = ?", filingId).
+			Take(&tracker).Error; err != nil {
+			return err
+		}
+
+		latest, anchored, err := AnchorFileVersions(tx, filingId, req.FileMappings)
+		if err != nil {
+			return err
+		}
+		req.FileMappings = latest
+		var fresh []AnchoredFile
+		for _, a := range anchored {
+			if !a.Stored {
+				fresh = append(fresh, a)
+			}
+		}
+		if len(fresh) == 0 {
+			return nil
+		}
+
 		seenGroup := make(map[string]bool, len(fresh))
 		for _, a := range fresh {
 			key := a.ShortCode + "|" + a.QuarterCode
