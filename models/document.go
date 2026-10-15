@@ -10,13 +10,12 @@ type FileIdentificationRequest struct {
 }
 
 type FileIdentificationResponse struct {
-	Message         string           `json:"message,omitempty"        gorm:"-"`
-	Series          string           `json:"series,omitempty"        gorm:"-"`
-	FilingName      string           `json:"filing_name,omitempty"    gorm:"-"`
-	FileMappings    []MappedResp     `json:"file_mappings,omitempty"  gorm:"-"`
-	UnmappedFiles   []MappedResp     `json:"unmapped_files," `
-	NewfileVersions []PendingVersion `json:"newfiles_version,"`
-	FundDetails     []MappedResp     `json:"fund_details,omitempty"  gorm:"-"`
+	Message       string       `json:"message,omitempty"        gorm:"-"`
+	Series        string       `json:"series,omitempty"        gorm:"-"`
+	FilingName    string       `json:"filing_name,omitempty"    gorm:"-"`
+	FileMappings  []MappedResp `json:"file_mappings,omitempty"  gorm:"-"`
+	UnmappedFiles []MappedResp `json:"unmapped_files," `
+	FundDetails   []MappedResp `json:"fund_details,omitempty"  gorm:"-"`
 }
 
 type FileMappingDetail struct {
@@ -93,14 +92,4 @@ type MappedResp struct {
 	Timestamp   time.Time `json:"timestamp,"`
 	// Reason explains why an uploaded file was not mapped. Empty for successful mappings.
 	Reason string `json:"reason,omitempty"`
-}
-
-type PendingVersion struct {
-	OldMapID       string `json:"old_map_id"    binding:"required"`
-	ShortCode      string `json:"short_code"    binding:"required"`
-	Filename       string `json:"filename"    binding:"required"`
-	OldVersion     int    `json:"old_version"`
-	NewFileVolName string `json:"newfile_volume_name"`
-	NewVersion     int    `json:"new_version"`
-	NewFilePath    string `json:"new_file_path" binding:"required"`
 }

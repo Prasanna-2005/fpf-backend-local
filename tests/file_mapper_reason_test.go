@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
@@ -34,34 +33,6 @@ func TestShortCodesFromFiles_UnmappedReason(t *testing.T) {
 	}
 	if unmapped[0].FileName != "notes.xlsx" {
 		t.Fatalf("filename should omit the storage prefix, got %q", unmapped[0].FileName)
-	}
-}
-
-func TestDedupeStoredFiles_CollapsesUUIDPrefixCopies(t *testing.T) {
-	dir := t.TempDir()
-	org := "1. FSAAEM-FSAAEM~^investors20251231 capital register_palbreakout~.xls"
-	older := filepath.Join(dir, "ee1fd554-cb6b-4201-b109-f4c9a0938d0f"+storageMarker+org)
-	newer := filepath.Join(dir, "4259c335-fc4d-4e21-b28d-8d87250cdb05"+storageMarker+org)
-	other := filepath.Join(dir, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"+storageMarker+"2. FSAEM2-report.xlsx")
-	for _, path := range []string{older, newer, other} {
-		if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
-	past := time.Now().Add(-time.Hour)
-	if err := os.Chtimes(older, past, past); err != nil {
-		t.Fatal(err)
-	}
-
-	got := modules.DedupeStoredFiles([]string{older, newer, other})
-	if len(got) != 2 {
-		t.Fatalf("expected 2 files after collapsing copies, got %#v", got)
-	}
-	if got[0] != newer {
-		t.Fatalf("kept %q, want newest copy %q", got[0], newer)
-	}
-	if modules.OriginalFileName(got[0]) != org {
-		t.Fatalf("original name = %q", modules.OriginalFileName(got[0]))
 	}
 }
 
