@@ -3,6 +3,8 @@ package db
 import (
 	"fmt"
 	"form_pf_backend/models"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -106,6 +108,147 @@ func CreateMapper(req *models.SubmitReq, filingId string) ([]models.FileMapper, 
 	return mapper, nil
 }
 
+// FileGroupKey returns the canonical identity of a file slot:
+// shortCode + stored quarter code. It is the same key whether it is built
+// from a mapper response (display file type + group id) or from a stored
+// row (fundShortCode + quarterNo), so both sides always agree.
+func FileGroupKey(shortCode, fileTypeDisplay, groupId string) string {
+	code := FileTypeConvRev[fileTypeDisplay]
+	if code == "" {
+		if i := strings.LastIndex(groupId, "-"); i >= 0 && strings.HasPrefix(groupId, shortCode+"-") {
+			code = groupId[i+1:]
+		} else {
+			code = fileTypeDisplay
+		}
+	}
+	return shortCode + "|" + code
+}
+
+func splitGroupKey(key string) (string, string) {
+	parts := strings.SplitN(key, "|", 2)
+	if len(parts) != 2 {
+		return key, ""
+	}
+	return parts[0], parts[1]
+}
+
+// StoredFileVersion is the persisted state used to anchor append-only file
+// versions. Versions are assigned once from stored state, never recomputed
+// from directory order.
+type StoredFileVersion struct {
+	ID            string
+	FileName      string
+	FundShortCode string
+	Quarter       string
+	Version       int
+	IsCurrent     bool
+	VolBase       string // uuid-prefixed basename of the stored path
+}
+
+func GetStoredFileVersions(filingId string) ([]StoredFileVersion, error) {
+	var rows []models.FileMapper
+	if err := sqlDb.Where("filingId = ?", filingId).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]StoredFileVersion, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, StoredFileVersion{
+			ID:            r.ID,
+			FileName:      r.FileName,
+			FundShortCode: r.FundShortCode,
+			Quarter:       r.Quarter,
+			Version:       r.Version,
+			IsCurrent:     r.IsCurrent,
+			VolBase:       filepath.Base(r.FilingPath),
+		})
+	}
+	return out, nil
+}
+
+// AnchoredFile is the version decision for one incoming mapping.
+type AnchoredFile struct {
+	Index       int    // index into the input slice (Version is set in place)
+	ShortCode   string // canonical group parts, for the isCurrent flip
+	QuarterCode string
+	Version     int
+	Stored      bool // volume copy already persisted: keep version, no new row
+}
+
+// LatestPerGroup keeps one mapping per slot: the newest upload in that
+// short-code, file-type, and period. Callers can return this list directly,
+// so the UI does not choose among copies.
+func LatestPerGroup(mapped []models.MappedResp) []models.MappedResp {
+	order := make([]int, 0, len(mapped))
+	for i := range mapped {
+		order = append(order, i)
+	}
+	sort.SliceStable(order, func(a, b int) bool {
+		return mapped[order[a]].Timestamp.Before(mapped[order[b]].Timestamp)
+	})
+
+	chosen := make(map[string]models.MappedResp, len(mapped))
+	keyOrder := make([]string, 0, len(mapped))
+	for _, i := range order {
+		m := mapped[i]
+		key := slotKey(m)
+		if _, ok := chosen[key]; !ok {
+			keyOrder = append(keyOrder, key)
+		}
+		chosen[key] = m
+	}
+	out := make([]models.MappedResp, 0, len(keyOrder))
+	for _, key := range keyOrder {
+		out = append(out, chosen[key])
+	}
+	return out
+}
+
+func slotKey(m models.MappedResp) string {
+	return FileGroupKey(m.ShortCode, m.FileType, m.GroupId) + "|" + strings.ToLower(m.Period)
+}
+
+// AnchorFileVersions reduces mappings to the latest file per slot, then
+// versions that file from stored state. A volume path already stored for the
+// same group keeps its version. Anything else is max(group version)+1.
+func AnchorFileVersions(filingId string, mapped []models.MappedResp) ([]models.MappedResp, []AnchoredFile, error) {
+	latest := LatestPerGroup(mapped)
+	stored, err := GetStoredFileVersions(filingId)
+	if err != nil {
+		return nil, nil, err
+	}
+	byVol := make(map[string]StoredFileVersion, len(stored))
+	maxVer := make(map[string]int)
+	for _, s := range stored {
+		if _, ok := byVol[s.VolBase]; !ok {
+			byVol[s.VolBase] = s
+		}
+		key := s.FundShortCode + "|" + s.Quarter
+		if s.Version > maxVer[key] {
+			maxVer[key] = s.Version
+		}
+	}
+
+	out := make([]AnchoredFile, 0, len(latest))
+	for i := range latest {
+		m := &latest[i]
+		shortCode, quarterCode := splitGroupKey(FileGroupKey(m.ShortCode, m.FileType, m.GroupId))
+		key := shortCode + "|" + quarterCode
+		vol := filepath.Base(m.Path)
+		if vol == "" || vol == "." {
+			vol = m.FileName
+		}
+		if s, ok := byVol[vol]; ok && s.FundShortCode == shortCode && s.Quarter == quarterCode {
+			m.Version = s.Version
+			out = append(out, AnchoredFile{Index: i, ShortCode: shortCode, QuarterCode: quarterCode, Version: s.Version, Stored: true})
+			continue
+		}
+		maxVer[key]++
+		m.Version = maxVer[key]
+		out = append(out, AnchoredFile{Index: i, ShortCode: shortCode, QuarterCode: quarterCode, Version: m.Version, Stored: false})
+	}
+	return latest, out, nil
+}
+
 func GetAllFileMapId() ([]models.FegFileIdentification, error) {
 	var list []models.FegFileIdentification
 	err := sqlDb.Find(&list).Error
@@ -147,56 +290,72 @@ func UpdateTrackerStatus(tracker *models.FilingTracker, userId string, status st
 	return sqlDb.Save(tracker).Error
 }
 
-// UpdateMapper updates every mapper row that belongs to the given filingId:
+// UpdateMapper persists an upload-more submit for an existing filing.
+// Every mapping whose volume file is not yet stored gets a new row at
+// maxGroupVersion+1 with isCurrent=true, and the superseded current rows in
+// the same (shortCode, quarter) group are flipped to isCurrent=false, all in
+// one transaction. Resubmitting an unchanged mapping inserts nothing.
 func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
-	// 1. build lookup: short-code -> new file data
-	newData := make(map[string]struct{ fileName, filePath string })
-	for _, m := range req.FileMappings {
-		newData[fmt.Sprintf("%s-%d", m.GroupId, m.Version)] = struct{ fileName, filePath string }{m.FileName, m.Path}
-	}
-
 	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
-	// 2. fetch current rows for this filing
-	var rows []models.FileMapper
-	if err := sqlDb.Where("filingId = ?", filingId).Find(&rows).Error; err != nil {
+
+	latest, anchored, err := AnchorFileVersions(filingId, req.FileMappings)
+	if err != nil {
 		return ts, err
 	}
-
-	// 3. update existing rows (in memory)
-	existingSC := make(map[string]bool, len(rows))
-	for _, m := range rows {
-		existingSC[fmt.Sprintf("%s-%s-%d", m.FundShortCode, m.Quarter, m.Version)] = true
+	req.FileMappings = latest
+	var fresh []AnchoredFile
+	for _, a := range anchored {
+		if !a.Stored {
+			fresh = append(fresh, a)
+		}
 	}
-	// 4. persist updates
-	if err := sqlDb.Session(&gorm.Session{FullSaveAssociations: false}).Save(&rows).Error; err != nil {
+	if len(fresh) == 0 {
+		return ts, nil
+	}
+
+	identities, err := GetAllFileMapId()
+	if err != nil {
 		return ts, err
 	}
+	idByShort := make(map[string]string, len(identities))
+	for _, id := range identities {
+		idByShort[id.ShortCode] = id.ID
+	}
 
-	// 5. insert brand-new files (short-codes not yet in DB)
-	var toInsert []models.FileMapper
-	for _, m := range req.FileMappings {
-		if !existingSC[fmt.Sprintf("%s-%d", m.GroupId, m.Version)] {
-			toInsert = append(toInsert, models.FileMapper{
+	return ts, sqlDb.Transaction(func(tx *gorm.DB) error {
+		seenGroup := make(map[string]bool, len(fresh))
+		for _, a := range fresh {
+			key := a.ShortCode + "|" + a.QuarterCode
+			if seenGroup[key] {
+				continue
+			}
+			seenGroup[key] = true
+			if err := tx.Model(&models.FileMapper{}).
+				Where("filingId = ? AND fundShortCode = ? AND quarterNo = ? AND isCurrent = ?", filingId, a.ShortCode, a.QuarterCode, true).
+				Update("isCurrent", false).Error; err != nil {
+				return err
+			}
+		}
+		rows := make([]models.FileMapper, 0, len(fresh))
+		for _, a := range fresh {
+			m := req.FileMappings[a.Index]
+			rows = append(rows, models.FileMapper{
 				FileName:      m.FileName,
 				FilingPath:    m.Path,
-				FundShortCode: m.ShortCode,
+				FundShortCode: a.ShortCode,
 				FilingID:      filingId,
-				Quarter:       FileTypeConvRev[m.FileType],
+				FileMapID:     idByShort[m.ShortCode],
+				Quarter:       a.QuarterCode,
 				Period:        m.Period,
-				Version:       m.Version,
+				Version:       a.Version,
+				IsCurrent:     true,
 				IsUpdated:     true,
 				CreatedAt:     ts,
 				CreatedBy:     req.UserID,
 			})
 		}
-	}
-	if len(toInsert) > 0 {
-		if err := sqlDb.Create(&toInsert).Error; err != nil {
-			return ts, err
-		}
-	}
-
-	return ts, nil
+		return tx.CreateInBatches(rows, 100).Error
+	})
 }
 
 // PullFundName returns a map of shortCode -> fundName for a given series
