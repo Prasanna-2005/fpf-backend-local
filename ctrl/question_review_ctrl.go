@@ -2,6 +2,7 @@ package ctrl
 
 import (
 	"errors"
+	"fmt"
 	"form_pf_backend/db"
 	"net/http"
 	"strings"
@@ -38,13 +39,13 @@ func ListQuestionReviews(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !ensureReviewTarget(c, filingID, fundID, "", false) {
+	if !ensureReviewTarget(c, userID, filingID, fundID, "", false) {
 		return
 	}
 
 	rows, err := db.ListQuestionReviews(filingID, fundID)
 	if err != nil {
-		logger.Log("ERROR", "ListQuestionReviews: "+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("ListQuestionReviews: user_id=%s filing=%s fund=%s: %v", userID, filingID, fundID, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
@@ -55,6 +56,7 @@ func CreateQuestionReview(c *gin.Context) {
 	filingID := c.Param("filing_id")
 	var req reviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Log("ERROR", fmt.Sprintf("CreateQuestionReview payload: user_id=%s filing=%s: %v", c.GetString("userId"), filingID, err))
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
@@ -68,20 +70,20 @@ func CreateQuestionReview(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !ensureReviewTarget(c, filingID, req.FundID, req.FieldNo, true) {
+	if !ensureReviewTarget(c, userID, filingID, req.FundID, req.FieldNo, true) {
 		return
 	}
 
 	created, err := db.CreateQuestionReview(filingID, req.FundID, req.FieldNo, userID)
 	if err != nil {
-		logger.Log("ERROR", "CreateQuestionReview: "+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("CreateQuestionReview: user_id=%s filing=%s fund=%s field=%s: %v", userID, filingID, req.FundID, req.FieldNo, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
 	item, err := questionReviewItem(filingID, req.FundID, req.FieldNo, userID)
 	if err != nil {
-		logger.Log("ERROR", "CreateQuestionReview list: "+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("CreateQuestionReview list: user_id=%s filing=%s fund=%s field=%s: %v", userID, filingID, req.FundID, req.FieldNo, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
@@ -96,6 +98,7 @@ func DeleteQuestionReview(c *gin.Context) {
 	filingID := c.Param("filing_id")
 	var req reviewRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Log("ERROR", fmt.Sprintf("DeleteQuestionReview payload: user_id=%s filing=%s: %v", c.GetString("userId"), filingID, err))
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
@@ -109,7 +112,7 @@ func DeleteQuestionReview(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !ensureReviewTarget(c, filingID, req.FundID, req.FieldNo, true) {
+	if !ensureReviewTarget(c, userID, filingID, req.FundID, req.FieldNo, true) {
 		return
 	}
 
@@ -119,14 +122,14 @@ func DeleteQuestionReview(c *gin.Context) {
 		return
 	}
 	if err != nil {
-		logger.Log("ERROR", "DeleteQuestionReview: "+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("DeleteQuestionReview: user_id=%s filing=%s fund=%s field=%s: %v", userID, filingID, req.FundID, req.FieldNo, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
 
 	item, err := questionReviewItem(filingID, req.FundID, req.FieldNo, userID)
 	if err != nil {
-		logger.Log("ERROR", "DeleteQuestionReview list: "+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("DeleteQuestionReview list: user_id=%s filing=%s fund=%s field=%s: %v", userID, filingID, req.FundID, req.FieldNo, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
@@ -137,16 +140,17 @@ func authUserID(c *gin.Context) (string, bool) {
 	raw, exists := c.Get("userId")
 	userID, _ := raw.(string)
 	if !exists || strings.TrimSpace(userID) == "" {
+		logger.Log("ERROR", "question review: missing user id")
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
 		return "", false
 	}
 	return userID, true
 }
 
-func ensureReviewTarget(c *gin.Context, filingID, fundID, fieldNo string, requireField bool) bool {
+func ensureReviewTarget(c *gin.Context, userID, filingID, fundID, fieldNo string, requireField bool) bool {
 	onFiling, err := db.FundOnFiling(filingID, fundID)
 	if err != nil {
-		logger.Log("ERROR", "FundOnFiling: "+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("FundOnFiling: user_id=%s filing=%s fund=%s: %v", userID, filingID, fundID, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return false
 	}
@@ -159,7 +163,7 @@ func ensureReviewTarget(c *gin.Context, filingID, fundID, fieldNo string, requir
 	}
 	exists, err := db.QuestionFieldExists(fieldNo)
 	if err != nil {
-		logger.Log("ERROR", "QuestionFieldExists: "+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("QuestionFieldExists: user_id=%s field=%s: %v", userID, fieldNo, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return false
 	}

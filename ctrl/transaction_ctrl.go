@@ -295,16 +295,21 @@ func GetFieldHistory(c *gin.Context) {
 		),
 	)
 
+	userID := c.GetString("userId")
 	rows, err := db.GetFieldHistoryDB(filingID, fundSeriesID, fieldNo)
 	if err != nil {
-		logger.Log("ERROR", "GetFieldHistory: "+err.Error())
+		logger.Log("ERROR", fmt.Sprintf("GetFieldHistory: user_id=%s filing=%s fund=%s field=%s: %v", userID, filingID, fundSeriesID, fieldNo, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": ServerError})
 		return
 	}
 
 	groupedResponse := make(map[string][]HistoryResponse)
 	for _, r := range rows {
-		files := models.ParseSourceFiles(r.SourceFiles)
+		files, parseErr := models.ParseSourceFiles(r.SourceFiles)
+		if parseErr != nil {
+			logger.Log("ERROR", fmt.Sprintf("GetFieldHistory: invalid sourceFiles user_id=%s filing=%s field=%s: %v", userID, filingID, r.FieldNo, parseErr))
+			files = []string{}
+		}
 		// A saved edit has updatedBy and no source files. A revert also sets
 		// updatedBy, on the extracted row, so that row can still show its files.
 		item := HistoryResponse{

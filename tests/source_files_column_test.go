@@ -68,7 +68,10 @@ func TestSourceFilesColumnRoundTrip(t *testing.T) {
 	if got.SourceFiles != want {
 		t.Fatalf("sourceFiles = %q, want %q", got.SourceFiles, want)
 	}
-	files := models.ParseSourceFiles(got.SourceFiles)
+	files, err := models.ParseSourceFiles(got.SourceFiles)
+	if err != nil {
+		t.Fatalf("parse sourceFiles: %v", err)
+	}
 	if len(files) != 2 || files[0] != "tb.xlsx" || files[1] != "unfunded.xlsx" {
 		t.Fatalf("parsed %v", files)
 	}

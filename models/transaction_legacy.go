@@ -39,16 +39,20 @@ type FieldHistoryRow struct {
 }
 
 // ParseSourceFiles decodes the JSON array stored on form_data_legacy.sourceFiles.
-func ParseSourceFiles(raw string) []string {
+// Invalid JSON returns an empty list and the decode error so callers can log it.
+func ParseSourceFiles(raw string) ([]string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" || raw == "null" {
-		return []string{}
+		return []string{}, nil
 	}
 	var files []string
-	if err := json.Unmarshal([]byte(raw), &files); err != nil || files == nil {
-		return []string{}
+	if err := json.Unmarshal([]byte(raw), &files); err != nil {
+		return []string{}, err
 	}
-	return files
+	if files == nil {
+		return []string{}, nil
+	}
+	return files, nil
 }
 
 type FormFieldMSLegacy struct {

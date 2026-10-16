@@ -131,8 +131,14 @@ func GetRelatedFilings(c *gin.Context) {
 		return
 	}
 
+	userID := c.GetString("userId")
 	current, err := db.GetFilingTracker(filingID)
 	if err != nil || current == nil {
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("GetRelatedFilings tracker: user_id=%s filing=%s: %v", userID, filingID, err))
+		} else {
+			logger.Log("ERROR", fmt.Sprintf("GetRelatedFilings: user_id=%s filing tracker missing for %s", userID, filingID))
+		}
 		c.JSON(http.StatusNotFound, gin.H{"message": FilingNotFound})
 		return
 	}
@@ -145,6 +151,7 @@ func GetRelatedFilings(c *gin.Context) {
 
 	related, err := db.GetRelatedFilingsBySeries(filingID, series, current.ClientCode)
 	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("GetRelatedFilings: user_id=%s filing=%s: %v", userID, filingID, err))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}

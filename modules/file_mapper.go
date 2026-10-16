@@ -92,10 +92,12 @@ type fileMatchMiss struct {
 func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.FileIdentificationResponse, error) {
 	funds, err := db.GetAllFegFileIdentifications()
 	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("cannot load funds: %v", err))
 		return nil, fmt.Errorf("cannot load funds: %w", err)
 	}
 	cfg, err := config.LoadConfig()
 	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("config error: %v", err))
 		return nil, fmt.Errorf("config error")
 	}
 
@@ -128,6 +130,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 	baseDir := filepath.Join(cfg.UploadVolumePath, cid, sanitize(req.FilingName))
 	excels, pdf, err := findFiles(baseDir)
 	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("cannot walk dir %s: %v", baseDir, err))
 		return nil, fmt.Errorf("cannot walk dir: %w", err)
 	}
 	if len(pdf) != 0 {
@@ -143,9 +146,10 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil { // blocks until completion
 			if exitErr, ok := err.(*exec.ExitError); ok {
-				fmt.Errorf("table extractor failed with exit code %d", exitErr.ExitCode())
+				logger.Log("ERROR", fmt.Sprintf("table extractor failed with exit code %d: %v", exitErr.ExitCode(), err))
+			} else {
+				logger.Log("ERROR", fmt.Sprintf("table extractor failed: %v", err))
 			}
-			fmt.Errorf("table extractor failed: %w", err)
 		}
 
 		for _, pdfPath := range pdf {
@@ -495,6 +499,7 @@ func matchByidentifier(filename string, filetype string) bool {
 
 	re, err := regexp.Compile("(?i)" + pattern) // (?i) = case-insensitive
 	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("file type pattern %q failed to compile: %v", filetype, err))
 		return false
 	}
 

@@ -3,6 +3,7 @@ package db
 import (
 	"errors"
 	"form_pf_backend/models"
+	"log"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -32,6 +33,7 @@ func QuestionFieldExists(fieldNo string) (bool, error) {
 		Limit(1).
 		Count(&count).Error
 	if err != nil {
+		log.Printf("QuestionFieldExists: field %s: %v", fieldNo, err)
 		return false, err
 	}
 	return count > 0, nil
@@ -40,6 +42,7 @@ func QuestionFieldExists(fieldNo string) (bool, error) {
 func FundOnFiling(filingID, fundID string) (bool, error) {
 	ids, err := FetchFundSeriesForFiling(filingID)
 	if err != nil {
+		log.Printf("FundOnFiling: filing %s: %v", filingID, err)
 		return false, err
 	}
 	for _, id := range ids {
@@ -60,6 +63,7 @@ func ListQuestionReviews(filingID, fundID string) ([]QuestionReviewRecord, error
 		Order("qr.fieldNo, qr.createdAt").
 		Scan(&rows).Error
 	if err != nil {
+		log.Printf("ListQuestionReviews: filing %s fund %s: %v", filingID, fundID, err)
 		return nil, err
 	}
 	if rows == nil {
@@ -86,6 +90,7 @@ func CreateQuestionReview(filingID, fundID, fieldNo, userID string) (bool, error
 	if isDuplicateReview(err) {
 		return false, nil
 	}
+	log.Printf("CreateQuestionReview: filing %s fund %s field %s: %v", filingID, fundID, fieldNo, err)
 	return false, err
 }
 
@@ -96,6 +101,7 @@ func DeleteQuestionReview(filingID, fundID, fieldNo, userID string) error {
 			filingID, fundID, fieldNo, userID).
 		Delete(&models.QuestionReview{})
 	if res.Error != nil {
+		log.Printf("DeleteQuestionReview: filing %s fund %s field %s: %v", filingID, fundID, fieldNo, res.Error)
 		return res.Error
 	}
 	if res.RowsAffected == 0 {

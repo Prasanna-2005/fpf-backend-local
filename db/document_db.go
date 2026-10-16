@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"form_pf_backend/models"
+	"log"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -151,6 +152,7 @@ func GetStoredFileVersions(tx *gorm.DB, filingId string) ([]StoredFileVersion, e
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("filingId = ?", filingId).
 		Find(&rows).Error; err != nil {
+		log.Printf("GetStoredFileVersions: filing %s: %v", filingId, err)
 		return nil, err
 	}
 	out := make([]StoredFileVersion, 0, len(rows))
@@ -300,10 +302,14 @@ func UpdateTrackerStatus(tracker *models.FilingTracker, userId string, status st
 // the same (shortCode, quarter) group are flipped to isCurrent=false, all in
 // one transaction. Resubmitting an unchanged mapping inserts nothing.
 func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
-	ts, _ := time.Parse(time.RFC3339, req.Timestamp)
+	ts, err := time.Parse(time.RFC3339, req.Timestamp)
+	if err != nil {
+		log.Printf("UpdateMapper: invalid timestamp %q for filing %s: %v", req.Timestamp, filingId, err)
+	}
 
 	identities, err := GetAllFileMapId()
 	if err != nil {
+		log.Printf("UpdateMapper: load file map ids for filing %s: %v", filingId, err)
 		return ts, err
 	}
 	idByShort := make(map[string]string, len(identities))
@@ -320,6 +326,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 			Select("id").
 			Where("id = ?", filingId).
 			Take(&tracker).Error; err != nil {
+			log.Printf("UpdateMapper: lock filing %s: %v", filingId, err)
 			return err
 		}
 
@@ -348,6 +355,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 			if err := tx.Model(&models.FileMapper{}).
 				Where("filingId = ? AND fundShortCode = ? AND quarterNo = ? AND isCurrent = ?", filingId, a.ShortCode, a.QuarterCode, true).
 				Update("isCurrent", false).Error; err != nil {
+				log.Printf("UpdateMapper: clear current version for filing %s group %s: %v", filingId, key, err)
 				return err
 			}
 		}
@@ -369,7 +377,11 @@ func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 				CreatedBy:     req.UserID,
 			})
 		}
-		return tx.CreateInBatches(rows, 100).Error
+		if err := tx.CreateInBatches(rows, 100).Error; err != nil {
+			log.Printf("UpdateMapper: insert file versions for filing %s: %v", filingId, err)
+			return err
+		}
+		return nil
 	})
 }
 
@@ -408,6 +420,7 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 	// Get fund name map for the series
 	fundMap, err := PullFundName(series)
 	if err != nil {
+		log.Printf("PullFilingMapper: fund name map for filing %s series %s: %v", filingId, series, err)
 		return resp, fmt.Errorf("failed to get fund name map: %w", err)
 	}
 
@@ -419,6 +432,7 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 		Find(&rows)
 
 	if result.Error != nil {
+		log.Printf("PullFilingMapper: load current files for filing %s: %v", filingId, result.Error)
 		return resp, result.Error
 	}
 
