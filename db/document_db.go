@@ -49,7 +49,7 @@ func CreateFegFileIdentification(h *models.FegFileIdentification) error {
 
 // BatchSaveFileMappings -> insert children
 func BatchSaveFileMappings(rows []models.FileMapper) error {
-	return GetDB().CreateInBatches(rows, 100).Error
+	return GetDB().Omit("Version").CreateInBatches(rows, 100).Error
 }
 
 func CreateTracker(req *models.SubmitReq, cid string) (string, error) {
@@ -100,8 +100,7 @@ func CreateMapper(req *models.SubmitReq, filingId string) ([]models.FileMapper, 
 			FileMapID:     fileMapID,
 			Quarter:       FileTypeConvRev[rec.FileType],
 			Period:        rec.Period,
-			Version:       1,    // version starts with 1
-			IsCurrent:     true, // active version
+			IsCurrent:     true,
 			IsUpdated:     false,
 			CreatedBy:     req.UserID, // string is fine per your ORM
 			CreatedAt:     ts,
@@ -134,35 +133,32 @@ func splitGroupKey(key string) (string, string) {
 	return parts[0], parts[1]
 }
 
-// StoredFileVersion is the persisted state used to anchor append-only file
-// versions. Versions are assigned once from stored state, never recomputed
-// from directory order.
-type StoredFileVersion struct {
+// StoredFile is a persisted file_mapper row, used to tell whether an
+// incoming volume path is already stored for a slot.
+type StoredFile struct {
 	ID            string
 	FileName      string
 	FundShortCode string
 	Quarter       string
-	Version       int
 	IsCurrent     bool
 	VolBase       string // uuid-prefixed basename of the stored path
 }
 
-func GetStoredFileVersions(tx *gorm.DB, filingId string) ([]StoredFileVersion, error) {
+func GetStoredFiles(tx *gorm.DB, filingId string) ([]StoredFile, error) {
 	var rows []models.FileMapper
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("filingId = ?", filingId).
 		Find(&rows).Error; err != nil {
-		log.Printf("GetStoredFileVersions: filing %s: %v", filingId, err)
+		log.Printf("GetStoredFiles: filing %s: %v", filingId, err)
 		return nil, err
 	}
-	out := make([]StoredFileVersion, 0, len(rows))
+	out := make([]StoredFile, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, StoredFileVersion{
+		out = append(out, StoredFile{
 			ID:            r.ID,
 			FileName:      r.FileName,
 			FundShortCode: r.FundShortCode,
 			Quarter:       r.Quarter,
-			Version:       r.Version,
 			IsCurrent:     r.IsCurrent,
 			VolBase:       filepath.Base(r.FilingPath),
 		})
@@ -170,13 +166,12 @@ func GetStoredFileVersions(tx *gorm.DB, filingId string) ([]StoredFileVersion, e
 	return out, nil
 }
 
-// AnchoredFile is the version decision for one incoming mapping.
+// AnchoredFile is the stored-or-new decision for one incoming mapping.
 type AnchoredFile struct {
-	Index       int    // index into the input slice (Version is set in place)
+	Index       int
 	ShortCode   string // canonical group parts, for the isCurrent flip
 	QuarterCode string
-	Version     int
-	Stored      bool // volume copy already persisted: keep version, no new row
+	Stored      bool // volume copy already persisted: no new row
 }
 
 // LatestPerGroup keeps one mapping per slot: the newest upload in that
@@ -212,25 +207,20 @@ func slotKey(m models.MappedResp) string {
 	return FileGroupKey(m.ShortCode, m.FileType, m.GroupId) + "|" + strings.ToLower(m.Period)
 }
 
-// AnchorFileVersions reduces mappings to the latest file per slot, then
-// versions that file from stored state. A volume path already stored for the
-// same group keeps its version. Anything else is max(group version)+1.
-func AnchorFileVersions(tx *gorm.DB, filingId string, mapped []models.MappedResp) ([]models.MappedResp, []AnchoredFile, error) {
+// AnchorIncomingFiles reduces mappings to the latest file per slot, then
+// marks a volume path already stored for the same group so it is not
+// inserted again. New files are identified only by isCurrent.
+func AnchorIncomingFiles(tx *gorm.DB, filingId string, mapped []models.MappedResp) ([]models.MappedResp, []AnchoredFile, error) {
 	latest := LatestPerGroup(mapped)
-	stored, err := GetStoredFileVersions(tx, filingId)
+	stored, err := GetStoredFiles(tx, filingId)
 	if err != nil {
 		return nil, nil, err
 	}
-	byVol := make(map[string]StoredFileVersion, len(stored))
-	maxVer := make(map[string]int)
+	byVol := make(map[string]StoredFile, len(stored))
 	for _, s := range stored {
-		key := s.FundShortCode + "|" + s.Quarter
-		vk := key + "|" + s.VolBase
-		if _, ok := byVol[vk]; !ok {
-			byVol[vk] = s
-		}
-		if s.Version > maxVer[key] {
-			maxVer[key] = s.Version
+		key := s.FundShortCode + "|" + s.Quarter + "|" + s.VolBase
+		if _, ok := byVol[key]; !ok {
+			byVol[key] = s
 		}
 	}
 
@@ -238,19 +228,16 @@ func AnchorFileVersions(tx *gorm.DB, filingId string, mapped []models.MappedResp
 	for i := range latest {
 		m := &latest[i]
 		shortCode, quarterCode := splitGroupKey(FileGroupKey(m.ShortCode, m.FileType, m.GroupId))
-		key := shortCode + "|" + quarterCode
 		vol := filepath.Base(m.Path)
 		if vol == "" || vol == "." {
 			vol = m.FileName
 		}
-		if s, ok := byVol[key+"|"+vol]; ok && s.FundShortCode == shortCode && s.Quarter == quarterCode {
-			m.Version = s.Version
-			out = append(out, AnchoredFile{Index: i, ShortCode: shortCode, QuarterCode: quarterCode, Version: s.Version, Stored: true})
+		key := shortCode + "|" + quarterCode + "|" + vol
+		if s, ok := byVol[key]; ok && s.FundShortCode == shortCode && s.Quarter == quarterCode {
+			out = append(out, AnchoredFile{Index: i, ShortCode: shortCode, QuarterCode: quarterCode, Stored: true})
 			continue
 		}
-		maxVer[key]++
-		m.Version = maxVer[key]
-		out = append(out, AnchoredFile{Index: i, ShortCode: shortCode, QuarterCode: quarterCode, Version: m.Version, Stored: false})
+		out = append(out, AnchoredFile{Index: i, ShortCode: shortCode, QuarterCode: quarterCode, Stored: false})
 	}
 	return latest, out, nil
 }
@@ -297,10 +284,10 @@ func UpdateTrackerStatus(tracker *models.FilingTracker, userId string, status st
 }
 
 // UpdateMapper persists an upload-more submit for an existing filing.
-// Every mapping whose volume file is not yet stored gets a new row at
-// maxGroupVersion+1 with isCurrent=true, and the superseded current rows in
-// the same (shortCode, quarter) group are flipped to isCurrent=false, all in
-// one transaction. Resubmitting an unchanged mapping inserts nothing.
+// Every mapping whose volume file is not yet stored gets a new row with
+// isCurrent=true, and the superseded current rows in the same
+// (shortCode, quarter) group are flipped to isCurrent=false, all in one
+// transaction. Resubmitting an unchanged mapping inserts nothing.
 func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 	ts, err := time.Parse(time.RFC3339, req.Timestamp)
 	if err != nil {
@@ -320,7 +307,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 	return ts, sqlDb.Transaction(func(tx *gorm.DB) error {
 		// Lock the filing row first. SELECT FOR UPDATE on file_mapper locks
 		// nothing when the filing has no rows yet, so two first submits could
-		// both mint version 1.
+		// both insert a current row for the same slot.
 		var tracker models.FilingTracker
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Select("id").
@@ -330,7 +317,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 			return err
 		}
 
-		latest, anchored, err := AnchorFileVersions(tx, filingId, req.FileMappings)
+		latest, anchored, err := AnchorIncomingFiles(tx, filingId, req.FileMappings)
 		if err != nil {
 			return err
 		}
@@ -355,7 +342,7 @@ func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 			if err := tx.Model(&models.FileMapper{}).
 				Where("filingId = ? AND fundShortCode = ? AND quarterNo = ? AND isCurrent = ?", filingId, a.ShortCode, a.QuarterCode, true).
 				Update("isCurrent", false).Error; err != nil {
-				log.Printf("UpdateMapper: clear current version for filing %s group %s: %v", filingId, key, err)
+				log.Printf("UpdateMapper: clear current file for filing %s group %s: %v", filingId, key, err)
 				return err
 			}
 		}
@@ -370,15 +357,14 @@ func UpdateMapper(filingId string, req *models.SubmitReq) (time.Time, error) {
 				FileMapID:     idByShort[m.ShortCode],
 				Quarter:       a.QuarterCode,
 				Period:        m.Period,
-				Version:       a.Version,
 				IsCurrent:     true,
 				IsUpdated:     true,
 				CreatedAt:     ts,
 				CreatedBy:     req.UserID,
 			})
 		}
-		if err := tx.CreateInBatches(rows, 100).Error; err != nil {
-			log.Printf("UpdateMapper: insert file versions for filing %s: %v", filingId, err)
+		if err := tx.Omit("Version").CreateInBatches(rows, 100).Error; err != nil {
+			log.Printf("UpdateMapper: insert files for filing %s: %v", filingId, err)
 			return err
 		}
 		return nil
@@ -426,9 +412,9 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 
 	// Select all matching records
 
-	result := sqlDb.Select("fileName", "filingPath", "fundShortCode", "quarterNo", "period", "version", "createdAt").
+	result := sqlDb.Select("fileName", "filingPath", "fundShortCode", "quarterNo", "period", "createdAt").
 		Where("filingId = ? AND isCurrent = ?", filingId, true).
-		Order("createdAt ASC, version ASC").
+		Order("createdAt ASC").
 		Find(&rows)
 
 	if result.Error != nil {
@@ -449,7 +435,6 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 			ShortCode: row.FundShortCode,
 			FileType:  row.Quarter,
 			Period:    row.Period,
-			Version:   row.Version,
 			Timestamp: row.CreatedAt,
 		})
 	}
@@ -465,7 +450,6 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 			ShortCode: m.ShortCode,
 			FileType:  m.FileType,
 			FundName:  fundName,
-			Version:   m.Version,
 		})
 	}
 

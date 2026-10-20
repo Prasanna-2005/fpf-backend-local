@@ -204,9 +204,8 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 
 	mapped, failedFiles := FindFileType(candidates, funds, series)
 	unmapped = append(unmapped, failedFiles...)
-	// One entry per slot: the newest upload. Versioning happens once at
-	// submit, on the submitted payload, so the mapper stays pure compute
-	// with no version reads.
+	// One entry per slot: the newest upload. Which copy is current is
+	// decided at submit with isCurrent, so the mapper stays pure compute.
 	mapped = db.LatestPerGroup(mapped)
 
 	msg := "File mappings updated successfully"
