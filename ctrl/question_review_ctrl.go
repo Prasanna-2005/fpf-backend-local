@@ -19,7 +19,7 @@ type reviewerResponse struct {
 
 type questionReviewResponse struct {
 	FieldNo      string             `json:"field_no"`
-	ReviewedByMe bool               `json:"reviewed_by_me"`
+	ReviewStatus bool               `json:"review_status"`
 	Reviewers    []reviewerResponse `json:"reviewers"`
 }
 
@@ -187,7 +187,7 @@ func questionReviewItem(filingID, fundID, fieldNo, userID string) (questionRevie
 	}
 	return questionReviewResponse{
 		FieldNo:      fieldNo,
-		ReviewedByMe: false,
+		ReviewStatus: false,
 		Reviewers:    []reviewerResponse{},
 	}, nil
 }
@@ -206,7 +206,7 @@ func groupQuestionReviews(rows []db.QuestionReviewRecord, userID string) []quest
 			order = append(order, row.FieldNo)
 		}
 		if row.CreatedBy == userID {
-			item.ReviewedByMe = true
+			item.ReviewStatus = true
 		}
 		name := strings.TrimSpace(row.UserName)
 		if name == "" {
