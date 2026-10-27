@@ -22,7 +22,7 @@ func FetchFormFieldMSLegacy() ([]models.FormFieldMSLegacy, error) {
 	return rows, err
 }
 
-func FetchCurrentValuesForFiling(filingID string) (map[string]map[string]string, error) {
+func FetchCurrentValuesForFiling(filingID string, version int) (map[string]map[string]string, error) {
 	type skinny struct {
 		FundSeriesid string `gorm:"column:fundSeriesid"`
 		FieldNo      string `gorm:"column:fieldNo"`
@@ -34,7 +34,7 @@ func FetchCurrentValuesForFiling(filingID string) (map[string]map[string]string,
 	err := GetDB().
 		Raw(`SELECT fundSeriesid, fieldNo, formLineNo, value
 		     FROM form_data_legacy
-		     WHERE filingid = ? AND isCurrentValue = ?`, filingID, true).
+		     WHERE filingid = ? AND version = ? AND isCurrentValue = ?`, filingID, version, true).
 		Scan(&rows).Error
 	if err != nil {
 		return nil, err
@@ -114,6 +114,53 @@ func grpFormat(expression string) string {
 	return statement
 }
 
+// HeadVersion is the committed filing version. Zero means that no extraction
+// has completed; uncommitted form_data_legacy rows must not become the head.
+func HeadVersion(filingID string) (int, error) {
+	var head int
+	if err := GetDB().Raw(`SELECT currentVersion FROM filing_tracker WHERE id = ?`, filingID).Scan(&head).Error; err != nil {
+		return 0, err
+	}
+	if head > 0 {
+		return head, nil
+	}
+	return 0, nil
+}
+
+func AvailableVersions(filingID string) ([]int, error) {
+	head, err := HeadVersion(filingID)
+	if err != nil {
+		return nil, err
+	}
+	if head == 0 {
+		return nil, ErrExtractionNotCompleted
+	}
+	var versions []int
+	err = GetDB().Raw(`SELECT DISTINCT version FROM form_data_legacy WHERE filingId = ? AND version <= ? ORDER BY version ASC`, filingID, head).Scan(&versions).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(versions) == 0 {
+		return []int{1}, nil
+	}
+	return versions, nil
+}
+
+// ResolveWriteVersion accepts an omitted version as the head and rejects any other version.
+func ResolveWriteVersion(filingID string, requested int) (int, error) {
+	head, err := HeadVersion(filingID)
+	if err != nil {
+		return 0, err
+	}
+	if head == 0 {
+		return 0, ErrExtractionNotCompleted
+	}
+	if requested == 0 || requested == head {
+		return head, nil
+	}
+	return 0, ErrVersionNotHead
+}
+
 func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo string) ([]models.FieldHistoryRow, error) {
 	var rows []models.FieldHistoryRow
 
@@ -122,6 +169,7 @@ func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo string) ([]models.FieldHi
 			f.fundSeriesId, f.fieldNo, f.formLineNo,
 			ffml.lineText,
 			f.value, f.sourceFiles, f.isCurrentValue,
+			f.version, f.isEdit,
 			f.createdAt, u.userName as createdBy, 
 			f.updatedAt, f.updatedBy as updatedById, u2.userName as updatedBy
 		FROM form_data_legacy f
@@ -131,7 +179,7 @@ func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo string) ([]models.FieldHi
 		WHERE f.filingid = ? 
 		  AND f.fundSeriesId = ? 
 		  AND f.fieldNo = ? 
-		ORDER BY createdAt DESC`,
+		ORDER BY f.version DESC, f.createdAt DESC`,
 		filingID, fundSeriesID, fieldNo).
 		Scan(&rows).Error
 
@@ -143,11 +191,15 @@ func GetFieldHistoryDB(filingID, fundSeriesID, fieldNo string) ([]models.FieldHi
 }
 
 func FetchSection1a(filingId string) ([]models.FormDatum, error) {
+	head, err := HeadVersion(filingId)
+	if err != nil {
+		return nil, err
+	}
 	var rows []models.FormDatum
-	err := GetDB().
+	err = GetDB().
 		Table("form_data_legacy").
 		Select("*").
-		Where("filingId = ? AND fundSeriesId = ? AND isCurrentValue = ?", filingId, "SECTION-1A", "1").
+		Where("filingId = ? AND fundSeriesId = ? AND isCurrentValue = ? AND version = ?", filingId, "SECTION-1A", "1", head).
 		Find(&rows).Error
 
 	if err != nil {
@@ -158,15 +210,19 @@ func FetchSection1a(filingId string) ([]models.FormDatum, error) {
 
 func GetAUM(filingid string) ([]models.FormDataLegacy, error) {
 	var rows []models.FormDataLegacy
-	if err := sqlDb.Where("filingid = ? AND fieldNo= ? AND isCurrentValue= ?", filingid, "3", 1).Find(&rows).Error; err != nil {
+	head, err := HeadVersion(filingid)
+	if err != nil {
+		return rows, err
+	}
+	if err := sqlDb.Where("filingid = ? AND fieldNo= ? AND isCurrentValue= ? AND version = ?", filingid, "3", 1, head).Find(&rows).Error; err != nil {
 		return rows, err
 	}
 	return rows, nil
 }
 
-func GetAUMType(filingid, fundid, formlineno string) (string, string, error) {
+func getAUMType(tx *gorm.DB, filingID, fundID, formLineNo string, version int) (string, string, error) {
 	onceFundCache.Do(loadFundCache)
-	b, ok := fundCache[fundid]
+	b, ok := fundCache[fundID]
 	if !ok {
 		return "", "", gorm.ErrRecordNotFound
 	}
@@ -194,52 +250,45 @@ func GetAUMType(filingid, fundid, formlineno string) (string, string, error) {
 		return "", "", fmt.Errorf("unknown fund type: %s", b.Fundtype)
 	}
 
-	// Fetch AUM rows for this filing
-	rows, err := GetAUM(filingid)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to fetch AUM rows: %w", err)
-	}
-
 	// Map formLineNo -> AUM suffix
 	formLineToSuffix := map[string]string{
 		"8": "Regulatory_assets_under_management",
 		"9": "Net_assets_under_management",
 	}
 
-	key := fmt.Sprintf("3_(%s)_%s", fundTypeLetter, formLineToSuffix[formlineno])
-	for _, row := range rows {
-		if strings.Contains(key, row.FormLineNo) {
-			return row.Value, key, nil
-		}
+	suffix, ok := formLineToSuffix[formLineNo]
+	if !ok {
+		return "", "", fmt.Errorf("unsupported AUM line %s", formLineNo)
 	}
-
-	return "", "", nil
+	line := fmt.Sprintf("3_(%s)_%s", fundTypeLetter, suffix)
+	var row models.FormDataLegacy
+	if err := tx.Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND formLineNo = ? AND version = ? AND isCurrentValue = ?",
+		filingID, "SECTION-1A", "3", line, version, true).First(&row).Error; err != nil {
+		return "", "", fmt.Errorf("fetching current Section 1A AUM: %w", err)
+	}
+	return row.Value, line, nil
 }
 
-func UpdateAUM(filingId string, fundId string, userId string, formlineno, newVal string, accept bool) error {
+// updateAUM updates the Section 1A Question 3 aggregate in the caller's
+// transaction. It must be used with the associated Question 8/9 write.
+func updateAUM(tx *gorm.DB, filingID, fundID, userID string, version int, formLineNo, newVal string, accept bool) error {
 	var row models.FormDataLegacy
-	aumVal, aumLineNo, err := GetAUMType(filingId, fundId, formlineno)
+	aumVal, aumLineNo, err := getAUMType(tx, filingID, fundID, formLineNo, version)
 	if err != nil {
 		return err
 	}
 
-	if err := sqlDb.Model(&models.FormDataLegacy{}).
-		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND isCurrentValue = ? AND formLineNo = ?",
-			filingId, fundId, formlineno, true, formlineno).
-		Find(&row).Error; err != nil {
-		return err
-	}
-	if err != nil {
+	if err := tx.Model(&models.FormDataLegacy{}).
+		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND isCurrentValue = ? AND version = ? AND formLineNo = ?",
+			filingID, fundID, formLineNo, true, version, formLineNo).
+		First(&row).Error; err != nil {
 		return err
 	}
 
-	if err := sqlDb.Model(&models.FormDataLegacy{}).
-		Where("filingid = ?  AND fieldNo = ? AND isCurrentValue = ? AND formLineNo = ?",
-			filingId, "3", true, aumLineNo).
+	if err := tx.Model(&models.FormDataLegacy{}).
+		Where("filingid = ?  AND fieldNo = ? AND isCurrentValue = ? AND version = ? AND formLineNo = ?",
+			filingID, "3", true, version, aumLineNo).
 		Update("isCurrentValue", false).Error; err != nil {
-		return err
-	}
-	if err != nil {
 		return err
 	}
 
@@ -257,20 +306,22 @@ func UpdateAUM(filingId string, fundId string, userId string, formlineno, newVal
 	rowsToInsert := []models.FormDataLegacy{
 		{
 			ID:             uuid.New().String(),
-			FilingID:       filingId,
+			FilingID:       filingID,
 			FundSeriesid:   "SECTION-1A",
 			FieldNo:        "3",
 			FormLineNo:     aumLineNo,
 			Value:          strconv.FormatFloat(val, 'f', -1, 64),
 			IsCurrentValue: true,
-			CreatedBy:      userId,
+			Version:        version,
+			IsEdit:         true,
+			CreatedBy:      userID,
 			CreatedAt:      time.Now(),
-			UpdatedBy:      userId,
+			UpdatedBy:      userID,
 		},
 	}
 
 	// CreateInBatches sends one INSERT with multiple values
-	return sqlDb.CreateInBatches(&rowsToInsert, 200).Error
+	return tx.CreateInBatches(&rowsToInsert, 200).Error
 }
 
 func addStrings(vals ...string) (float64, error) {

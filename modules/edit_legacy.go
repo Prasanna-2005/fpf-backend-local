@@ -134,10 +134,17 @@ func headingFor(fieldNo string) string {
 }
 
 // response entry point
-func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) {
+func BuildResponselegacy(filingID string, requested int) (*models.FilingResponselegacy, error) {
 	meta, err := db.FetchFormFieldMSLegacy()
 	if err != nil {
 		return nil, err
+	}
+	head, err := db.HeadVersion(filingID)
+	if err != nil {
+		return nil, err
+	}
+	if head == 0 {
+		return nil, db.ErrExtractionNotCompleted
 	}
 
 	fsIDs, err := db.FetchFundSeriesForFiling(filingID)
@@ -149,8 +156,27 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 			fmt.Errorf("extraction is still in process")
 	}
 
+	versions, err := db.AvailableVersions(filingID)
+	if err != nil {
+		return nil, err
+	}
+	loadVersion := head
+	if requested > 0 {
+		found := false
+		for _, v := range versions {
+			if v == requested {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, db.ErrVersionNotFound
+		}
+		loadVersion = requested
+	}
+
 	// valueMap is now 2-level: fundSeriesid -> formLineNo -> value
-	valueMap, err := db.FetchCurrentValuesForFiling(filingID)
+	valueMap, err := db.FetchCurrentValuesForFiling(filingID, loadVersion)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +204,12 @@ func BuildResponselegacy(filingID string) (*models.FilingResponselegacy, error) 
 	}
 
 	// 2. build response
-	resp := &models.FilingResponselegacy{Funds: make([]models.Fundlegacy, 0, len(fsIDs))}
+	resp := &models.FilingResponselegacy{
+		Funds:             make([]models.Fundlegacy, 0, len(fsIDs)),
+		CurrentVersion:    head,
+		Version:           loadVersion,
+		AvailableVersions: versions,
+	}
 
 	for _, fsID := range fsIDs {
 		fundRec := fundMap[fsID]

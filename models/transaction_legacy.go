@@ -16,6 +16,8 @@ type FormDataLegacy struct {
 	SourceFiles    string    `gorm:"column:sourceFiles"`
 	CreatedBy      string    `gorm:"column:createdBy"`
 	IsCurrentValue bool      `gorm:"column:isCurrentValue"`
+	Version        int       `gorm:"column:version;default:1"`
+	IsEdit         bool      `gorm:"column:isEdit;default:false"`
 	UpdatedAt      time.Time `gorm:"column:updatedAt"`
 	UpdatedBy      string    `gorm:"column:updatedBy"`
 	CreatedAt      time.Time `gorm:"column:createdAt"`
@@ -31,6 +33,8 @@ type FieldHistoryRow struct {
 	Value          string    `gorm:"column:value"`
 	SourceFiles    string    `gorm:"column:sourceFiles"`
 	IsCurrentValue bool      `gorm:"column:isCurrentValue"`
+	Version        int       `gorm:"column:version"`
+	IsEdit         bool      `gorm:"column:isEdit"`
 	CreatedAt      time.Time `gorm:"column:createdAt"`
 	CreatedBy      string    `gorm:"column:createdBy"`
 	UpdatedAt      time.Time `gorm:"column:updatedAt"`
@@ -72,7 +76,10 @@ func (FormFieldMSLegacy) TableName() string { return "form_fields_ms_legacy" }
 
 // FilingResponse is the top-level envelope sent back to the UI.
 type FilingResponselegacy struct {
-	Funds []Fundlegacy `json:"funds"`
+	Funds             []Fundlegacy `json:"funds"`
+	CurrentVersion    int          `json:"current_version"`
+	Version           int          `json:"version"`
+	AvailableVersions []int        `json:"available_versions"`
 }
 
 // Fund represents one fund-series block inside the funds array.
@@ -100,6 +107,7 @@ type FieldItem struct {
 	FieldText        string                         `json:"field_text"`
 	FieldHeading     string                         `json:"field_heading"`
 	Value            string                         `json:"value" binding:"max=65535"`
+	Version          int                            `json:"version,omitempty"`
 	FieldData        []LineDetail                   `json:"field_data"`
 	Confirmed        bool                           `json:"confirmed"`
 	Editing          bool                           `json:"editing"`

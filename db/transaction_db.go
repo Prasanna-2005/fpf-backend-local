@@ -14,9 +14,12 @@ import (
 )
 
 var (
-	ErrFilingNotFound = errors.New("no filing found for the provided filing_id")
-	ErrNothingToDo    = errors.New("no update")
-	ServerError       = errors.New("server down")
+	ErrFilingNotFound         = errors.New("no filing found for the provided filing_id")
+	ErrNothingToDo            = errors.New("no update")
+	ErrVersionNotHead         = errors.New("version is not the current filing version")
+	ErrVersionNotFound        = errors.New("version not found")
+	ErrExtractionNotCompleted = errors.New("extraction did not complete; no filing version is available")
+	ServerError               = errors.New("server down")
 )
 
 var (
@@ -52,8 +55,15 @@ func GetFundBrief(seriesID string) (fundID, fundName string, err error) {
 }
 
 func FetchFormDataByFiling(filingID string) ([]models.FormDatum, error) {
+	head, err := HeadVersion(filingID)
+	if err != nil {
+		return nil, err
+	}
+	if head == 0 {
+		return nil, ErrExtractionNotCompleted
+	}
 	var rows []models.FormDatum
-	err := GetDB().
+	err = GetDB().
 		Table("form_fields_ms_legacy fld").
 		Select(`d.createdAt, d.createdBy, d.updatedAt, d.updatedBy, d.value,
 		        d.fundSeriesId,
@@ -63,7 +73,7 @@ func FetchFormDataByFiling(filingID string) ([]models.FormDatum, error) {
 		        fld.isTableData, fld.disclaimerText, fld.xmlTags`).
 		Joins("LEFT JOIN form_data_legacy d ON fld.fieldNo = d.fieldNo AND "+
 			"fld.formLineNo = d.formLineNo AND "+
-			"d.filingId = ? AND d.isCurrentValue = 1", filingID).
+			"d.filingId = ? AND d.isCurrentValue = 1 AND d.version = ?", filingID, head).
 		Joins("INNER JOIN feg_funds f ON f.fegFundId = d.fundSeriesId").
 		Order(`d.fundSeriesId IS NULL, d.fundSeriesId, fld.fieldNo, fld.formLineNo`). // NULLs last, then by fund, then field/line
 		Find(&rows).Error
@@ -114,16 +124,27 @@ func UpdateLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	if len(pairs) == 0 {
 		return nil // nothing to do
 	}
+	targetVersion, err := ResolveWriteVersion(fid, data.Version)
+	if err != nil {
+		return err
+	}
+	tx := sqlDb.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer tx.Rollback()
 	for _, pair := range pairs {
 		if slices.Contains(AUM, pair.ln) {
-			UpdateAUM(fid, fundId, uid, pair.ln, pair.vl, true)
+			if err := updateAUM(tx, fid, fundId, uid, targetVersion, pair.ln, pair.vl, true); err != nil {
+				return err
+			}
 		}
 	}
 
-	// 2. one UPDATE to mark old rows non-current
-	if err := sqlDb.Model(&models.FormDataLegacy{}).
-		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND isCurrentValue = ? AND formLineNo IN ?",
-			fid, fundId, data.FieldNo, true, pairLineNos(pairs)).
+	// 2. one UPDATE to mark old rows non-current inside this version only
+	if err := tx.Model(&models.FormDataLegacy{}).
+		Where("filingid = ? AND fundSeriesId = ? AND fieldNo = ? AND version = ? AND isCurrentValue = ? AND formLineNo IN ?",
+			fid, fundId, data.FieldNo, targetVersion, true, pairLineNos(pairs)).
 		Update("isCurrentValue", false).Error; err != nil {
 		return err
 	}
@@ -139,13 +160,18 @@ func UpdateLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 			FormLineNo:     p.ln,
 			Value:          p.vl,
 			IsCurrentValue: true,
+			Version:        targetVersion,
+			IsEdit:         true,
 			CreatedBy:      uid,
 			CreatedAt:      now,
 			UpdatedBy:      uid,
 		}
 	}
 	// CreateInBatches sends one INSERT with multiple values
-	return sqlDb.CreateInBatches(rowsToInsert, 200).Error
+	if err := tx.CreateInBatches(rowsToInsert, 200).Error; err != nil {
+		return err
+	}
+	return tx.Commit().Error
 }
 
 // helper to extract []string of line numbers for the IN clause
@@ -207,6 +233,10 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 		Where("filingid = ?", fid).Limit(1).Count(&cnt).Error; err != nil || cnt == 0 {
 		return ErrFilingNotFound
 	}
+	head, err := ResolveWriteVersion(fid, data.Version)
+	if err != nil {
+		return err
+	}
 
 	// 2. collect every (fieldNo, formLineNo) we must revert
 	type target struct{ fieldNo, lineNo, value string }
@@ -231,6 +261,11 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	if len(targets) == 0 {
 		return ErrNothingToDo
 	}
+	tx := sqlDb.Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer tx.Rollback()
 
 	// 3. bulk fetch CURRENT rows (isCurrentValue = 1)
 	fieldNos := make([]string, len(targets))
@@ -248,10 +283,10 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	}
 	var currents []curRow
 
-	if err := sqlDb.Model(&models.FormDataLegacy{}).
+	if err := tx.Model(&models.FormDataLegacy{}).
 		Select("id", "fieldNo", "formLineNo", "createdAt").
-		Where("filingid = ? AND fundSeriesId = ? AND isCurrentValue = ? AND fieldNo IN ? AND formLineNo IN ?",
-			fid, fundId, true, fieldNos, lineNos).
+		Where("filingid = ? AND fundSeriesId = ? AND version = ? AND isCurrentValue = ? AND fieldNo IN ? AND formLineNo IN ?",
+			fid, fundId, head, true, fieldNos, lineNos).
 		Find(&currents).Error; err != nil {
 		return err
 	}
@@ -269,15 +304,15 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	var olds []oldRow
 
 	// build OR-clause of (fieldNo, formLineNo, createdAt) tuples
-	cond := sqlDb.Session(&gorm.Session{NewDB: true}) // fresh builder
+	cond := tx.Session(&gorm.Session{NewDB: true}) // fresh builder
 	for _, c := range currents {
 		cond = cond.Or("(fieldNo = ? AND formLineNo = ? AND createdAt < ?)",
 			c.FieldNo, c.FormLineNo, c.CreatedAt)
 	}
 
-	if err := sqlDb.Model(&models.FormDataLegacy{}).
+	if err := tx.Model(&models.FormDataLegacy{}).
 		Select("id", "fieldNo", "formLineNo", "createdAt").
-		Where("filingid = ? AND fundSeriesId = ?", fid, fundId).
+		Where("filingid = ? AND fundSeriesId = ? AND version = ?", fid, fundId, head).
 		Where(cond).
 		Order("fieldNo, formLineNo, createdAt DESC"). // important
 		Find(&olds).Error; err != nil {
@@ -304,7 +339,7 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 		curIDs[i] = p.curID
 	}
 	now := time.Now()
-	if err := sqlDb.Model(&models.FormDataLegacy{}).
+	if err := tx.Model(&models.FormDataLegacy{}).
 		Where("id IN ?", curIDs).
 		Updates(map[string]interface{}{
 			"isCurrentValue": false,
@@ -320,7 +355,7 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 		oldIDs[i] = p.oldID
 	}
 
-	if err := sqlDb.Model(&models.FormDataLegacy{}).
+	if err := tx.Model(&models.FormDataLegacy{}).
 		Where("id IN ?", oldIDs).
 		Updates(map[string]interface{}{
 			"isCurrentValue": true,
@@ -332,11 +367,11 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 
 	for _, t := range targets {
 		if slices.Contains(AUM, t.fieldNo) {
-			if err := UpdateAUM(fid, fundId, uid, t.lineNo, t.value, false); err != nil {
+			if err := updateAUM(tx, fid, fundId, uid, head, t.lineNo, t.value, false); err != nil {
 				return err
 			}
 		}
 	}
 
-	return nil
+	return tx.Commit().Error
 }

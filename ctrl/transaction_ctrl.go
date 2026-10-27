@@ -8,6 +8,7 @@ import (
 	"form_pf_backend/modules"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,6 +74,8 @@ func AcceptItemValue(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": FilingNotFound})
 	case errors.Is(err, db.ErrNothingToDo):
 		c.JSON(http.StatusOK, gin.H{"message": Accepted})
+	case errors.Is(err, db.ErrVersionNotHead):
+		c.JSON(http.StatusConflict, gin.H{"message": "edits are only allowed on the current version"})
 	case err != nil:
 		logger.Log("ERROR", "AcceptItem: "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
@@ -89,8 +92,23 @@ func GetFilingResponse(c *gin.Context) {
 		return
 	}
 
-	resp, err := modules.BuildResponselegacy(id)
+	requested := 0
+	if raw := strings.TrimSpace(c.Query("version")); raw != "" {
+		if n, convErr := strconv.Atoi(raw); convErr == nil && n > 0 {
+			requested = n
+		}
+	}
+
+	resp, err := modules.BuildResponselegacy(id, requested)
 	if err != nil {
+		if errors.Is(err, db.ErrExtractionNotCompleted) {
+			c.JSON(http.StatusConflict, gin.H{"message": "Extraction did not complete. No filing version is available to edit."})
+			return
+		}
+		if errors.Is(err, db.ErrVersionNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"message": "version not found"})
+			return
+		}
 		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 		return
 	}
@@ -173,6 +191,8 @@ func RevertLatest(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"message": "filing not found"})
 	case errors.Is(err, db.ErrNothingToDo):
 		c.JSON(http.StatusOK, gin.H{"message": "no changes to update"})
+	case errors.Is(err, db.ErrVersionNotHead):
+		c.JSON(http.StatusConflict, gin.H{"message": "revert stays inside the current version"})
 	case err != nil:
 		logger.Log("ERROR", "RevertLatest error: "+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "internal server error"})
@@ -254,17 +274,20 @@ func GetCompLogs(c *gin.Context) {
 }
 
 type HistoryResponse struct {
-	FundSeriesid   string    `json:"fund_series_id"`
-	FieldNo        string    `json:"field_no"`
-	Value          string    `json:"value"`
-	SourceFiles    []string  `json:"source_files"`
-	ManuallyEdited bool      `json:"manually_edited"`
-	LineText       string    `json:"line_text"`
-	IsCurrentValue bool      `json:"is_current_value"`
-	CreatedAt      time.Time `json:"created_at"`
-	CreatedBy      string    `json:"created_by"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	UpdatedBy      string    `json:"updated_by"`
+	FundSeriesid         string    `json:"fund_series_id"`
+	FieldNo              string    `json:"field_no"`
+	Value                string    `json:"value"`
+	SourceFiles          []string  `json:"source_files"`
+	ManuallyEdited       bool      `json:"manually_edited"`
+	IsEdit               bool      `json:"is_edit"`
+	Version              int       `json:"version"`
+	FilingCurrentVersion int       `json:"filing_current_version"`
+	LineText             string    `json:"line_text"`
+	IsCurrentValue       bool      `json:"is_current_value"`
+	CreatedAt            time.Time `json:"created_at"`
+	CreatedBy            string    `json:"created_by"`
+	UpdatedAt            time.Time `json:"updated_at"`
+	UpdatedBy            string    `json:"updated_by"`
 }
 
 func GetFieldHistory(c *gin.Context) {
@@ -296,6 +319,12 @@ func GetFieldHistory(c *gin.Context) {
 	)
 
 	userID := c.GetString("userId")
+	head, err := db.HeadVersion(filingID)
+	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("GetFieldHistory head version: user_id=%s filing=%s: %v", userID, filingID, err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": ServerError})
+		return
+	}
 	rows, err := db.GetFieldHistoryDB(filingID, fundSeriesID, fieldNo)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("GetFieldHistory: user_id=%s filing=%s fund=%s field=%s: %v", userID, filingID, fundSeriesID, fieldNo, err))
@@ -310,20 +339,23 @@ func GetFieldHistory(c *gin.Context) {
 			logger.Log("ERROR", fmt.Sprintf("GetFieldHistory: invalid sourceFiles user_id=%s filing=%s field=%s: %v", userID, filingID, r.FieldNo, parseErr))
 			files = []string{}
 		}
-		// A saved edit has updatedBy and no source files. A revert also sets
-		// updatedBy, on the extracted row, so that row can still show its files.
+		// isEdit is the saved flag. A revert stamps updatedBy on an extracted row
+		// that still has source files, so that row stays isEdit false.
 		item := HistoryResponse{
-			FundSeriesid:   r.FundSeriesid,
-			FieldNo:        r.FieldNo,
-			Value:          r.Value,
-			SourceFiles:    files,
-			ManuallyEdited: strings.TrimSpace(r.UpdatedByID) != "" && len(files) == 0,
-			LineText:       r.LineText,
-			IsCurrentValue: r.IsCurrentValue,
-			CreatedAt:      r.CreatedAt,
-			CreatedBy:      r.CreatedBy,
-			UpdatedAt:      r.UpdatedAt,
-			UpdatedBy:      r.UpdatedBy,
+			FundSeriesid:         r.FundSeriesid,
+			FieldNo:              r.FieldNo,
+			Value:                r.Value,
+			SourceFiles:          files,
+			ManuallyEdited:       r.IsEdit,
+			IsEdit:               r.IsEdit,
+			Version:              r.Version,
+			FilingCurrentVersion: head,
+			LineText:             r.LineText,
+			IsCurrentValue:       r.IsCurrentValue,
+			CreatedAt:            r.CreatedAt,
+			CreatedBy:            r.CreatedBy,
+			UpdatedAt:            r.UpdatedAt,
+			UpdatedBy:            r.UpdatedBy,
 		}
 		groupedResponse[r.FormLineNo] = append(groupedResponse[r.FormLineNo], item)
 	}

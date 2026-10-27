@@ -3,18 +3,19 @@ package models
 import "time"
 
 type FilingTracker struct {
-	Id           string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
-	FilingName   string    `gorm:"type:varchar(50);not null;column:filingName"`
-	Series       string    `gorm:"type:varchar(255);not null;column:series"`
-	ClientCode   string    `gorm:"type:varchar(20);not null;column:clientCode"`
-	UploadCount  int       `gorm:"not null;column:uploadCount"`
-	IsSubmitted  bool      `gorm:"not null;column:isSubmitted"`
-	IsDeleted    bool      `gorm:"not null;column:isDeleted"`
-	CreatedAt    time.Time `gorm:"not null;column:createdAt"`
-	CreatedBy    string    `gorm:"not null;column:createdBy"`
-	UpdatedAt    time.Time `gorm:"column:updatedAt"`
-	UpdatedBy    string    `gorm:"column:updatedBy"`
-	FilingStatus string    `gorm:"column:filingStatus"`
+	Id             string    `gorm:"type:uuid;default:gen_random_uuid();primaryKey"`
+	FilingName     string    `gorm:"type:varchar(50);not null;column:filingName"`
+	Series         string    `gorm:"type:varchar(255);not null;column:series"`
+	ClientCode     string    `gorm:"type:varchar(20);not null;column:clientCode"`
+	UploadCount    int       `gorm:"not null;column:uploadCount"`
+	IsSubmitted    bool      `gorm:"not null;column:isSubmitted"`
+	IsDeleted      bool      `gorm:"not null;column:isDeleted"`
+	CreatedAt      time.Time `gorm:"not null;column:createdAt"`
+	CreatedBy      string    `gorm:"not null;column:createdBy"`
+	UpdatedAt      time.Time `gorm:"column:updatedAt"`
+	UpdatedBy      string    `gorm:"column:updatedBy"`
+	FilingStatus   string    `gorm:"column:filingStatus"`
+	CurrentVersion int       `gorm:"column:currentVersion;default:0"`
 }
 
 func (FilingTracker) TableName() string {
