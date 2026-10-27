@@ -1,6 +1,7 @@
 package db
 
 import (
+	"database/sql"
 	"fmt"
 	"form_pf_backend/models"
 	"log"
@@ -398,38 +399,107 @@ func PullFundName(series string) (map[string]string, error) {
 	return fundMap, nil
 }
 
-// PullFilingMapper pulls all file mappers for a filing and enriches with fund names
-func PullFilingMapper(filingId string, series string) ([]models.MappedResp, error) {
-	var rows []models.FileMapper
-	var resp []models.MappedResp
-
-	// Get fund name map for the series
+// PullFilingMapper returns the files that were in the mapper when a version
+// was extracted, including files no question opened. file_mapper has no
+// version column, so the cutoff is the earliest non-edit createdAt of that
+// form_data_legacy version. version <= 0 uses the filing's current version.
+// A version with no extraction rows falls back to the latest current copy.
+func PullFilingMapper(filingId string, series string, version int) ([]models.MappedResp, error) {
 	fundMap, err := PullFundName(series)
 	if err != nil {
 		log.Printf("PullFilingMapper: fund name map for filing %s series %s: %v", filingId, series, err)
-		return resp, fmt.Errorf("failed to get fund name map: %w", err)
+		return nil, fmt.Errorf("failed to get fund name map: %w", err)
 	}
 
-	// Select all matching records
+	if version <= 0 {
+		version, err = filingHeadVersion(filingId)
+		if err != nil {
+			log.Printf("PullFilingMapper: head version for filing %s: %v", filingId, err)
+			return nil, err
+		}
+	}
 
+	extractedAt, found, err := versionExtractedAt(filingId, version)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		log.Printf("PullFilingMapper: filing %s version %d has no extraction time; using current copies", filingId, version)
+		return currentMappedFiles(filingId, fundMap)
+	}
+
+	var rows []models.FileMapper
+	result := sqlDb.Select("fileName", "filingPath", "fundShortCode", "quarterNo", "period", "createdAt").
+		Where("filingId = ?", filingId).
+		Order("createdAt ASC").
+		Find(&rows)
+	if result.Error != nil {
+		log.Printf("PullFilingMapper: load files for filing %s: %v", filingId, result.Error)
+		return nil, result.Error
+	}
+
+	return withFundNames(filesPresentAt(rows, extractedAt), fundMap), nil
+}
+
+func filingHeadVersion(filingId string) (int, error) {
+	var version int
+	err := sqlDb.Model(&models.FilingTracker{}).
+		Where("id = ?", filingId).
+		Pluck("currentVersion", &version).Error
+	return version, err
+}
+
+// versionExtractedAt is the earliest non-edit write for a form version.
+// Edits in the same version are later and must not move the cutoff.
+func versionExtractedAt(filingId string, version int) (time.Time, bool, error) {
+	var row struct {
+		ExtractedAt sql.NullTime `gorm:"column:extractedAt"`
+	}
+	err := sqlDb.Model(&models.FormDataLegacy{}).
+		Select("MIN(createdAt) AS extractedAt").
+		Where("filingId = ? AND version = ? AND isEdit = ?", filingId, version, false).
+		Scan(&row).Error
+	if err != nil {
+		log.Printf("PullFilingMapper: extraction time for filing %s version %d: %v", filingId, version, err)
+		return time.Time{}, false, err
+	}
+	if !row.ExtractedAt.Valid {
+		return time.Time{}, false, nil
+	}
+	return row.ExtractedAt.Time, true, nil
+}
+
+func currentMappedFiles(filingId string, fundMap map[string]string) ([]models.MappedResp, error) {
+	var rows []models.FileMapper
 	result := sqlDb.Select("fileName", "filingPath", "fundShortCode", "quarterNo", "period", "createdAt").
 		Where("filingId = ? AND isCurrent = ?", filingId, true).
 		Order("createdAt ASC").
 		Find(&rows)
-
 	if result.Error != nil {
 		log.Printf("PullFilingMapper: load current files for filing %s: %v", filingId, result.Error)
-		return resp, result.Error
+		return nil, result.Error
 	}
 
-	// Latest stored copy per slot, reusing the same collapse the mapper
-	// uses. Rows written before the isCurrent flip existed are all flagged
-	// current, so several current rows can exist per group; the newest
-	// upload wins. FileType carries the stored quarter code, which
-	// FileGroupKey passes through untouched.
-	candidates := make([]models.MappedResp, 0, len(rows))
+	return withFundNames(LatestPerGroup(toMappedResp(rows)), fundMap), nil
+}
+
+// filesPresentAt keeps one file per slot from the copies submitted at or
+// before extraction. A later replacement of the same slot stays on a later version.
+func filesPresentAt(rows []models.FileMapper, extractedAt time.Time) []models.MappedResp {
+	present := make([]models.FileMapper, 0, len(rows))
 	for _, row := range rows {
-		candidates = append(candidates, models.MappedResp{
+		if row.CreatedAt.After(extractedAt) {
+			continue
+		}
+		present = append(present, row)
+	}
+	return LatestPerGroup(toMappedResp(present))
+}
+
+func toMappedResp(rows []models.FileMapper) []models.MappedResp {
+	out := make([]models.MappedResp, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, models.MappedResp{
 			FileName:  row.FileName,
 			Path:      row.FilingPath,
 			ShortCode: row.FundShortCode,
@@ -438,22 +508,22 @@ func PullFilingMapper(filingId string, series string) ([]models.MappedResp, erro
 			Timestamp: row.CreatedAt,
 		})
 	}
+	return out
+}
 
-	// Map each row to response
-	for _, m := range LatestPerGroup(candidates) {
-		// Lookup fundname using  shortcode
-		fundName := fundMap[strings.ToLower(m.ShortCode)]
-
+func withFundNames(mapped []models.MappedResp, fundMap map[string]string) []models.MappedResp {
+	resp := make([]models.MappedResp, 0, len(mapped))
+	for _, m := range mapped {
 		resp = append(resp, models.MappedResp{
 			FileName:  m.FileName,
 			Path:      m.Path,
 			ShortCode: m.ShortCode,
 			FileType:  m.FileType,
-			FundName:  fundName,
+			FundName:  fundMap[strings.ToLower(m.ShortCode)],
+			Period:    m.Period,
 		})
 	}
-
-	return resp, nil
+	return resp
 }
 
 func GetCurrentMappers(filingId string) ([]models.FileMapper, error) {

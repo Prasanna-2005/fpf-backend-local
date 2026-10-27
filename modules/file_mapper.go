@@ -107,7 +107,7 @@ func IdentifyFiles(req *models.FileIdentificationRequest, cid string) (*models.F
 			logger.Log("ERROR", fmt.Sprintf("Filing tracker error: %v", err.Error()))
 			return nil, FilingNotFound
 		}
-		mapped, err := db.PullFilingMapper(*filingId, *mappedFileSeries)
+		mapped, err := db.PullFilingMapper(*filingId, *mappedFileSeries, req.Version)
 		if err != nil {
 			logger.Log("ERROR", fmt.Sprintf("Mapper error: %v", err.Error()))
 			return nil, MappingNotFound

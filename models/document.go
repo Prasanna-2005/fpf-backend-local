@@ -7,6 +7,9 @@ import (
 type FileIdentificationRequest struct {
 	FilingName string `json:"filing_name" gorm:"-"` // incoming payload only
 	Filing     *bool  `json:"filing" gorm:"-"`
+	// Version is the filing version whose files should be listed.
+	// Zero means the filing's current version.
+	Version int `json:"version,omitempty" gorm:"-"`
 }
 
 type FileIdentificationResponse struct {
