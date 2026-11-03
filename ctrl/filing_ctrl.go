@@ -145,7 +145,7 @@ func GetRelatedFilings(c *gin.Context) {
 
 	series := strings.TrimSpace(current.Series)
 	if series == "" {
-		c.JSON(http.StatusOK, gin.H{"data": []any{}})
+		c.JSON(http.StatusOK, gin.H{"data": []any{}, "company": current.Series, "current_version": current.CurrentVersion})
 		return
 	}
 
@@ -182,7 +182,59 @@ func GetRelatedFilings(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{"data": list})
+	c.JSON(http.StatusOK, gin.H{"data": list, "company": current.Series, "current_version": current.CurrentVersion})
+}
+
+func GetFilingVersions(c *gin.Context) {
+	filingID := c.Param("filing_id")
+	if strings.TrimSpace(filingID) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "filing_id is required"})
+		return
+	}
+
+	userID := c.GetString("userId")
+	current, err := db.GetFilingTracker(filingID)
+	if err != nil || current == nil {
+		if err != nil {
+			logger.Log("ERROR", fmt.Sprintf("GetFilingVersions tracker: user_id=%s filing=%s: %v", userID, filingID, err))
+		} else {
+			logger.Log("ERROR", fmt.Sprintf("GetFilingVersions: user_id=%s filing tracker missing for %s", userID, filingID))
+		}
+		c.JSON(http.StatusNotFound, gin.H{"message": FilingNotFound})
+		return
+	}
+
+	versions, err := db.AvailableVersions(filingID)
+	if err != nil {
+		logger.Log("ERROR", fmt.Sprintf("GetFilingVersions: user_id=%s filing=%s: %v", userID, filingID, err))
+		c.JSON(http.StatusOK, gin.H{
+			"data":            []any{},
+			"company":         current.Series,
+			"current_version": current.CurrentVersion,
+		})
+		return
+	}
+
+	head, err := db.HeadVersion(filingID)
+	if err != nil {
+		head = current.CurrentVersion
+	}
+
+	type filingVersion struct {
+		Version   int  `json:"version"`
+		IsCurrent bool `json:"is_current"`
+	}
+
+	list := make([]filingVersion, 0, len(versions))
+	for _, v := range versions {
+		list = append(list, filingVersion{Version: v, IsCurrent: v == head})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":            list,
+		"company":         current.Series,
+		"current_version": head,
+	})
 }
 
 func GetLatestChanges(c *gin.Context) {

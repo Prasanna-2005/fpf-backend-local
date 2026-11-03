@@ -63,6 +63,7 @@ func setUpGeneralRoutes(api *gin.RouterGroup) {
 	gen.Use(middleware.Authenticate())
 	gen.GET("/filings_list", ctrl.GetFilings)
 	gen.GET("/filings/:filing_id/related", middleware.RequireFilingAccess(), ctrl.GetRelatedFilings)
+	gen.GET("/filings/:filing_id/versions", middleware.RequireFilingAccess(), ctrl.GetFilingVersions)
 	// gen.GET("/response/:filing_id", ctrl.EditDoc)
 	gen.GET("/fund_details", ctrl.GetFunds)
 	gen.GET("/status", ctrl.FilingStatus)
