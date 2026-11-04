@@ -45,6 +45,12 @@ func main() {
 	}
 	logger.Log("INFO", "Static form metadata preloaded successfully")
 
+	logger.Log("INFO", "Preloading funds...")
+	if err := db.InitFundMap(); err != nil {
+		logger.Log("ERROR", fmt.Sprintf("Failed to preload funds: %v", err))
+		log.Fatalf("Failed to preload funds: %v", err)
+	}
+	logger.Log("INFO", "Funds preloaded successfully")
 
 	// start background cache refresher
 	logger.Log("INFO", "initiate in-memory cache store")
