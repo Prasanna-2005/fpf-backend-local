@@ -22,6 +22,17 @@ var (
 	staticFormFieldMSLegacyMu sync.Mutex
 )
 
+type formulaKey struct {
+	series string
+	client string
+}
+
+// Formulas are loaded once at startup, the same way question metadata and funds are.
+var (
+	staticFormulas   map[formulaKey]map[string]map[string][2]string
+	staticFormulasMu sync.RWMutex
+)
+
 // InitFormFieldMSLegacy loads all Form PF field metadata from the database into memory once on server startup.
 func InitFormFieldMSLegacy() error {
 	staticFormFieldMSLegacyMu.Lock()
@@ -95,43 +106,83 @@ func fetchFundSeries(filingID string, version int) ([]string, error) {
 	return rows, err
 }
 
-func GetComputationlogs(series, clientCode string) (map[string]map[string][2]string, error) {
+// InitComputationFormulas loads every computation_formula row into memory.
+// The table does not change per request.
+func InitComputationFormulas() error {
 	var rows []models.CompLogs
+	if err := GetDB().Model(&models.CompLogs{}).Find(&rows).Error; err != nil {
+		return fmt.Errorf("failed to load computation formulas: %w", err)
+	}
 
-	err := GetDB().
-		Model(&models.CompLogs{}).
-		Select("formlineNo", "fundId", "computationType", "staticData", "filters", "InfixExpression").
-		Where("series = ? AND clientCode = ?", series, clientCode).
-		Find(&rows).Error
+	byKey := make(map[formulaKey]map[string]map[string][2]string)
+	for _, row := range rows {
+		key := formulaKey{series: row.Series, client: row.ClientCode}
+		funds := byKey[key]
+		if funds == nil {
+			funds = make(map[string]map[string][2]string)
+			byKey[key] = funds
+		}
+		if funds[row.FundID] == nil {
+			funds[row.FundID] = make(map[string][2]string)
+		}
+		funds[row.FundID][row.FormLineNo] = formulaEntry(row)
+	}
+
+	staticFormulasMu.Lock()
+	staticFormulas = byKey
+	staticFormulasMu.Unlock()
+	return nil
+}
+
+func loadedFormulas() (map[formulaKey]map[string]map[string][2]string, error) {
+	staticFormulasMu.RLock()
+	byKey := staticFormulas
+	staticFormulasMu.RUnlock()
+	if byKey != nil {
+		return byKey, nil
+	}
+	if err := InitComputationFormulas(); err != nil {
+		return nil, err
+	}
+	staticFormulasMu.RLock()
+	defer staticFormulasMu.RUnlock()
+	return staticFormulas, nil
+}
+
+func GetComputationlogs(series, clientCode string) (map[string]map[string][2]string, error) {
+	byKey, err := loadedFormulas()
 	if err != nil {
 		return nil, err
 	}
-
-	out := make(map[string]map[string][2]string)
-	for _, r := range rows {
-		if out[r.FundID] == nil {
-			out[r.FundID] = make(map[string][2]string)
-		}
-		if r.ComputationType == nil {
-			out[r.FundID][r.FormLineNo] = [2]string{"null", "null"}
-			continue
-		}
-
-		switch *r.ComputationType {
-		case "staticData":
-			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, r.StaticData}
-		case "InfixExpression":
-			out[r.FundID][r.FormLineNo] = [2]string{"formula", r.InfixExpression}
-		case "filters":
-			out[r.FundID][r.FormLineNo] = [2]string{*r.ComputationType, grpFormat(r.GroupOperation)}
-		default:
-			out[r.FundID][r.FormLineNo] = [2]string{"null", "null"}
-			continue
-		}
-
+	src := byKey[formulaKey{series: series, client: clientCode}]
+	if len(src) == 0 {
+		return map[string]map[string][2]string{}, nil
 	}
-
+	out := make(map[string]map[string][2]string, len(src))
+	for fundID, lines := range src {
+		copied := make(map[string][2]string, len(lines))
+		for line, entry := range lines {
+			copied[line] = entry
+		}
+		out[fundID] = copied
+	}
 	return out, nil
+}
+
+func formulaEntry(row models.CompLogs) [2]string {
+	if row.ComputationType == nil {
+		return [2]string{"null", "null"}
+	}
+	switch *row.ComputationType {
+	case "staticData":
+		return [2]string{*row.ComputationType, row.StaticData}
+	case "InfixExpression":
+		return [2]string{"formula", row.InfixExpression}
+	case "filters":
+		return [2]string{*row.ComputationType, grpFormat(row.GroupOperation)}
+	default:
+		return [2]string{"null", "null"}
+	}
 }
 
 func grpFormat(expression string) string {

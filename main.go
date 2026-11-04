@@ -52,6 +52,13 @@ func main() {
 	}
 	logger.Log("INFO", "Funds preloaded successfully")
 
+	logger.Log("INFO", "Preloading computation formulas...")
+	if err := db.InitComputationFormulas(); err != nil {
+		logger.Log("ERROR", fmt.Sprintf("Failed to preload computation formulas: %v", err))
+		log.Fatalf("Failed to preload computation formulas: %v", err)
+	}
+	logger.Log("INFO", "Computation formulas preloaded successfully")
+
 	// start background cache refresher
 	logger.Log("INFO", "initiate in-memory cache store")
 	refreshInterval := config.GetLatestChangesRefreshInterval()

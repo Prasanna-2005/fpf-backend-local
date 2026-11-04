@@ -260,13 +260,24 @@ func GetCompLogs(c *gin.Context) {
 	}
 	id, _ := c.Get("clientId")
 	cid, _ := id.(string)
-	series, err := db.GetSeries(fid, cid)
-	if err != nil {
-		logger.Log("ERROR", err.Error())
-		c.JSON(http.StatusNotFound, gin.H{"message": ServerError})
-		return
+
+	var series string
+	head := 0
+	if tracker := utility.FilingTracker(c); tracker != nil {
+		series = tracker.Series
+		head = tracker.CurrentVersion
 	}
-	resp, err := modules.BuildComp(fid, series, cid)
+	if series == "" {
+		var err error
+		series, err = db.GetSeries(fid, cid)
+		if err != nil {
+			logger.Log("ERROR", err.Error())
+			c.JSON(http.StatusNotFound, gin.H{"message": ServerError})
+			return
+		}
+	}
+
+	resp, err := modules.BuildComp(fid, series, cid, head)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"message": err.Error()})
 		return

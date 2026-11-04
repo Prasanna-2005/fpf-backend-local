@@ -15,13 +15,18 @@ type compGroup struct {
 }
 
 // computation entry point
-func BuildComp(filingID, series, clientCode string) (*models.ComputationLogsLegacy, error) {
+func BuildComp(filingID, series, clientCode string, head int) (*models.ComputationLogsLegacy, error) {
 	meta, err := db.FetchFormFieldMSLegacy()
 	if err != nil {
 		return nil, err
 	}
 
-	fsIDs, err := db.FetchFundSeriesForFiling(filingID)
+	var fsIDs []string
+	if head > 0 {
+		fsIDs, err = db.FetchFundSeriesForVersion(filingID, head)
+	} else {
+		fsIDs, err = db.FetchFundSeriesForFiling(filingID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +35,6 @@ func BuildComp(filingID, series, clientCode string) (*models.ComputationLogsLega
 			fmt.Errorf("extraction is still in process")
 	}
 
-	// valueMap is now 2-level: fundSeriesid -> formLineNo -> value
 	valueMap, err := db.GetComputationlogs(series, clientCode)
 	if err != nil {
 		return nil, err
