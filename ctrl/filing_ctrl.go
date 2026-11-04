@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"form_pf_backend/db"
 	"form_pf_backend/models"
+	"form_pf_backend/utility"
 	"net/http"
 	"strings"
 	"time"
@@ -12,7 +13,7 @@ import (
 )
 
 type latestChangeItem struct {
-	FundSeriesId string    `json:fundSeriesId`
+	FundSeriesId string    `json:"fundSeriesId"`
 	FormLineNo   string    `json:"formLineNo"`
 	FieldNo      string    `json:"fieldNo"`
 	Value        string    `json:"value"`
@@ -26,22 +27,10 @@ func GetFilings(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "clientCode is required"})
 		return
 	}
-	filingsPtr, err := db.GetFilingsByClientCode(clientCode)
+	filings, err := db.ListFilingsForClient(clientCode)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
-	}
-
-	userList, err := db.GetAllUser()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
-		return
-	}
-
-	// build id → userName map  (User.ID is string)
-	userMap := make(map[string]string, len(*userList))
-	for _, u := range *userList {
-		userMap[u.ID] = u.UserName
 	}
 
 	type respFiling struct {
@@ -55,20 +44,20 @@ func GetFilings(c *gin.Context) {
 		FilingStatus string    `json:"filingStatus"`
 	}
 
-	list := make([]respFiling, 0, len(*filingsPtr))
-	for _, f := range *filingsPtr {
+	list := make([]respFiling, 0, len(filings))
+	for _, f := range filings {
 		modifiedOn := f.CreatedAt
-		if f.UpdatedAt.IsZero() && f.UpdatedAt.After(f.CreatedAt) {
+		if !f.UpdatedAt.IsZero() && f.UpdatedAt.After(f.CreatedAt) {
 			modifiedOn = f.UpdatedAt
 		}
 		list = append(list, respFiling{
-			ID:           f.Id,
+			ID:           f.ID,
 			FilingName:   f.FilingName,
 			IsSubmitted:  f.IsSubmitted,
 			IsDeleted:    f.IsDeleted,
-			PreparedBy:   userMap[f.CreatedBy],
+			PreparedBy:   f.PreparedBy,
 			ModifiedOn:   modifiedOn,
-			ModifiedBy:   userMap[f.UpdatedBy],
+			ModifiedBy:   f.ModifiedBy,
 			FilingStatus: f.FilingStatus,
 		})
 	}
@@ -132,13 +121,9 @@ func GetRelatedFilings(c *gin.Context) {
 	}
 
 	userID := c.GetString("userId")
-	current, err := db.GetFilingTracker(filingID)
-	if err != nil || current == nil {
-		if err != nil {
-			logger.Log("ERROR", fmt.Sprintf("GetRelatedFilings tracker: user_id=%s filing=%s: %v", userID, filingID, err))
-		} else {
-			logger.Log("ERROR", fmt.Sprintf("GetRelatedFilings: user_id=%s filing tracker missing for %s", userID, filingID))
-		}
+	current := utility.FilingTracker(c)
+	if current == nil {
+		logger.Log("ERROR", fmt.Sprintf("GetRelatedFilings: user_id=%s filing tracker missing for %s", userID, filingID))
 		c.JSON(http.StatusNotFound, gin.H{"message": FilingNotFound})
 		return
 	}
@@ -193,32 +178,14 @@ func GetFilingVersions(c *gin.Context) {
 	}
 
 	userID := c.GetString("userId")
-	current, err := db.GetFilingTracker(filingID)
-	if err != nil || current == nil {
-		if err != nil {
-			logger.Log("ERROR", fmt.Sprintf("GetFilingVersions tracker: user_id=%s filing=%s: %v", userID, filingID, err))
-		} else {
-			logger.Log("ERROR", fmt.Sprintf("GetFilingVersions: user_id=%s filing tracker missing for %s", userID, filingID))
-		}
+	current := utility.FilingTracker(c)
+	if current == nil {
+		logger.Log("ERROR", fmt.Sprintf("GetFilingVersions: user_id=%s filing tracker missing for %s", userID, filingID))
 		c.JSON(http.StatusNotFound, gin.H{"message": FilingNotFound})
 		return
 	}
 
-	versions, err := db.AvailableVersions(filingID)
-	if err != nil {
-		logger.Log("ERROR", fmt.Sprintf("GetFilingVersions: user_id=%s filing=%s: %v", userID, filingID, err))
-		c.JSON(http.StatusOK, gin.H{
-			"data":            []any{},
-			"company":         current.Series,
-			"current_version": current.CurrentVersion,
-		})
-		return
-	}
-
-	head, err := db.HeadVersion(filingID)
-	if err != nil {
-		head = current.CurrentVersion
-	}
+	versions := db.VersionList(current.CurrentVersion)
 
 	type filingVersion struct {
 		Version   int  `json:"version"`
@@ -227,13 +194,13 @@ func GetFilingVersions(c *gin.Context) {
 
 	list := make([]filingVersion, 0, len(versions))
 	for _, v := range versions {
-		list = append(list, filingVersion{Version: v, IsCurrent: v == head})
+		list = append(list, filingVersion{Version: v, IsCurrent: v == current.CurrentVersion})
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"data":            list,
 		"company":         current.Series,
-		"current_version": head,
+		"current_version": current.CurrentVersion,
 	})
 }
 

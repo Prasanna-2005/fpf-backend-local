@@ -36,6 +36,16 @@ func main() {
 	logger.Log("INFO", "Environment variables loaded successfully")
 
 	db.GetDB()
+
+	// Preload static form metadata permanently on server startup
+	logger.Log("INFO", "Preloading static form metadata...")
+	if err := db.InitFormFieldMSLegacy(); err != nil {
+		logger.Log("ERROR", fmt.Sprintf("Failed to preload static form metadata: %v", err))
+		log.Fatalf("Failed to preload static form metadata: %v", err)
+	}
+	logger.Log("INFO", "Static form metadata preloaded successfully")
+
+
 	// start background cache refresher
 	logger.Log("INFO", "initiate in-memory cache store")
 	refreshInterval := config.GetLatestChangesRefreshInterval()

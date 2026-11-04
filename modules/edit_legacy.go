@@ -133,54 +133,48 @@ func headingFor(fieldNo string) string {
 	}
 }
 
-// response entry point
-func BuildResponselegacy(filingID string, requested int) (*models.FilingResponselegacy, error) {
+// BuildResponselegacy loads one filing version. tracker is the row already
+// read by RequireFilingAccess; a nil tracker falls back to HeadVersion.
+func BuildResponselegacy(filingID string, requested int, tracker *models.FilingTracker) (*models.FilingResponselegacy, error) {
 	meta, err := db.FetchFormFieldMSLegacy()
 	if err != nil {
 		return nil, err
 	}
-	head, err := db.HeadVersion(filingID)
-	if err != nil {
-		return nil, err
+
+	var head int
+	if tracker != nil && tracker.CurrentVersion > 0 {
+		head = tracker.CurrentVersion
+	} else {
+		head, err = db.HeadVersion(filingID)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if head == 0 {
 		return nil, db.ErrExtractionNotCompleted
 	}
 
-	fsIDs, err := db.FetchFundSeriesForFiling(filingID)
-	if err != nil {
-		return nil, err
-	}
-	if len(fsIDs) == 0 {
-		return &models.FilingResponselegacy{Funds: []models.Fundlegacy{}},
-			fmt.Errorf("extraction is still in process")
-	}
-
-	versions, err := db.AvailableVersions(filingID)
-	if err != nil {
-		return nil, err
-	}
+	versions := db.VersionList(head)
 	loadVersion := head
 	if requested > 0 {
-		found := false
-		for _, v := range versions {
-			if v == requested {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if requested > head {
 			return nil, db.ErrVersionNotFound
 		}
 		loadVersion = requested
 	}
 
-	// valueMap is now 2-level: fundSeriesid -> formLineNo -> value
 	valueMap, err := db.FetchCurrentValuesForFiling(filingID, loadVersion)
 	if err != nil {
 		return nil, err
 	}
-
+	fsIDs := make([]string, 0, len(valueMap))
+	for fundID := range valueMap {
+		fsIDs = append(fsIDs, fundID)
+	}
+	if len(fsIDs) == 0 {
+		return &models.FilingResponselegacy{Funds: []models.Fundlegacy{}},
+			fmt.Errorf("extraction is still in process")
+	}
 	fundMap, err := db.GetFundMap(fsIDs)
 	if err != nil {
 		return nil, err
@@ -513,13 +507,6 @@ var reportingPeriod = map[string]string{
 	"B": "Q",
 }
 
-func sectionFor(fieldNo string) string {
-	if q, _ := strconv.Atoi(fieldNo); q > 17 {
-		return "1c"
-	}
-	return "1b"
-}
-
 func ValueFor(value, qtype, qno, qsubno, xmlTag string) string {
 	if xmlTag == "StrategyType_StrategyChecked" {
 		vals := qsubno[strings.Index(qsubno, "(")+1] - 'a' + 1
@@ -555,7 +542,7 @@ func TransformToSimpleResponse(filingID string) (*SimpleResponse, error) {
 		return nil, fmt.Errorf("failed to fetch form data: %w", err)
 	}
 	if len(rows) == 0 {
-		return nil, fmt.Errorf("no data found for filingID %d", filingID)
+		return nil, fmt.Errorf("no data found for filingID %s", filingID)
 	}
 
 	sort.Slice(rows, func(i, j int) bool {

@@ -5,6 +5,7 @@ import (
 	"form_pf_backend/models"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,11 +16,35 @@ var AUM = []string{
 	"8", "9",
 }
 
-/* ---------- meta ---------- */
-func FetchFormFieldMSLegacy() ([]models.FormFieldMSLegacy, error) {
+/* ---------- static form metadata (permanently preloaded on startup) ---------- */
+var (
+	staticFormFieldMSLegacy   []models.FormFieldMSLegacy
+	staticFormFieldMSLegacyMu sync.Mutex
+)
+
+// InitFormFieldMSLegacy loads all Form PF field metadata from the database into memory once on server startup.
+func InitFormFieldMSLegacy() error {
+	staticFormFieldMSLegacyMu.Lock()
+	defer staticFormFieldMSLegacyMu.Unlock()
+
 	var rows []models.FormFieldMSLegacy
-	err := GetDB().Order("formLineNo ASC").Find(&rows).Error
-	return rows, err
+	if err := GetDB().Order("formLineNo ASC").Find(&rows).Error; err != nil {
+		return fmt.Errorf("failed to load static form metadata: %w", err)
+	}
+	staticFormFieldMSLegacy = rows
+	return nil
+}
+
+// FetchFormFieldMSLegacy returns the permanently preloaded static metadata.
+func FetchFormFieldMSLegacy() ([]models.FormFieldMSLegacy, error) {
+	if len(staticFormFieldMSLegacy) == 0 {
+		if err := InitFormFieldMSLegacy(); err != nil {
+			return nil, err
+		}
+	}
+	out := make([]models.FormFieldMSLegacy, len(staticFormFieldMSLegacy))
+	copy(out, staticFormFieldMSLegacy)
+	return out, nil
 }
 
 func FetchCurrentValuesForFiling(filingID string, version int) (map[string]map[string]string, error) {
@@ -52,20 +77,33 @@ func FetchCurrentValuesForFiling(filingID string, version int) (map[string]map[s
 
 /* ---------- filing → fund-series ---------- */
 func FetchFundSeriesForFiling(filingID string) ([]string, error) {
+	return fetchFundSeries(filingID, 0)
+}
+
+// FetchFundSeriesForVersion returns fund series that have a current row in one version.
+func FetchFundSeriesForVersion(filingID string, version int) ([]string, error) {
+	return fetchFundSeries(filingID, version)
+}
+
+func fetchFundSeries(filingID string, version int) ([]string, error) {
 	var rows []string
-	err := GetDB().
-		Table("form_data_legacy").
-		Select("DISTINCT fundSeriesid").
-		Where("filingid = ?", filingID).
-		Scan(&rows).Error
+	q := GetDB().Model(&models.FormDataLegacy{}).Distinct("fundSeriesId").Where("filingId = ?", filingID)
+	if version > 0 {
+		q = q.Where("version = ? AND isCurrentValue = ?", version, true)
+	}
+	err := q.Pluck("fundSeriesId", &rows).Error
 	return rows, err
 }
 
 func GetComputationlogs(series, clientCode string) (map[string]map[string][2]string, error) {
-
 	var rows []models.CompLogs
 
-	if err := sqlDb.Where("series = ? AND clientCode = ?", series, clientCode).Find(&rows).Error; err != nil {
+	err := GetDB().
+		Model(&models.CompLogs{}).
+		Select("formlineNo", "fundId", "computationType", "staticData", "filters", "InfixExpression").
+		Where("series = ? AND clientCode = ?", series, clientCode).
+		Find(&rows).Error
+	if err != nil {
 		return nil, err
 	}
 
@@ -127,23 +165,16 @@ func HeadVersion(filingID string) (int, error) {
 	return 0, nil
 }
 
-func AvailableVersions(filingID string) ([]int, error) {
-	head, err := HeadVersion(filingID)
-	if err != nil {
-		return nil, err
+// VersionList is 1..head. The head only moves forward, so the numbers in between exist.
+func VersionList(head int) []int {
+	if head < 1 {
+		return []int{}
 	}
-	if head == 0 {
-		return nil, ErrExtractionNotCompleted
+	versions := make([]int, head)
+	for i := 1; i <= head; i++ {
+		versions[i-1] = i
 	}
-	var versions []int
-	err = GetDB().Raw(`SELECT DISTINCT version FROM form_data_legacy WHERE filingId = ? AND version <= ? ORDER BY version ASC`, filingID, head).Scan(&versions).Error
-	if err != nil {
-		return nil, err
-	}
-	if len(versions) == 0 {
-		return []int{1}, nil
-	}
-	return versions, nil
+	return versions
 }
 
 // ResolveWriteVersion accepts an omitted version as the head and rejects any other version.
@@ -208,28 +239,19 @@ func FetchSection1a(filingId string) ([]models.FormDatum, error) {
 	return rows, nil
 }
 
-func GetAUM(filingid string) ([]models.FormDataLegacy, error) {
-	var rows []models.FormDataLegacy
-	head, err := HeadVersion(filingid)
-	if err != nil {
-		return rows, err
-	}
-	if err := sqlDb.Where("filingid = ? AND fieldNo= ? AND isCurrentValue= ? AND version = ?", filingid, "3", 1, head).Find(&rows).Error; err != nil {
-		return rows, err
-	}
-	return rows, nil
-}
-
 func getAUMType(tx *gorm.DB, filingID, fundID, formLineNo string, version int) (string, string, error) {
-	onceFundCache.Do(loadFundCache)
-	b, ok := fundCache[fundID]
+	funds, err := GetFundMap([]string{fundID})
+	if err != nil {
+		return "", "", err
+	}
+	b, ok := funds[fundID]
 	if !ok {
 		return "", "", gorm.ErrRecordNotFound
 	}
 
 	// Determine fund type letter based on Fundtype
 	var fundTypeLetter string
-	switch strings.ToLower(b.Fundtype) {
+	switch strings.ToLower(b.FundType) {
 	case "hedge":
 		fundTypeLetter = "a"
 	case "liquidity":
@@ -247,7 +269,7 @@ func getAUMType(tx *gorm.DB, filingID, fundID, formLineNo string, version int) (
 	case "nota":
 		fundTypeLetter = "h"
 	default:
-		return "", "", fmt.Errorf("unknown fund type: %s", b.Fundtype)
+		return "", "", fmt.Errorf("unknown fund type: %s", b.FundType)
 	}
 
 	// Map formLineNo -> AUM suffix

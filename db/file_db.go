@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"form_pf_backend/models"
+	"time"
 )
 
 // GetAllFilings returns a pointer-slice of every row in filing_tracker.
@@ -36,14 +37,32 @@ func GetSeries(filingId, clientCode string) (string, error) {
 	return filing.Series, err
 }
 
-func GetFilingsByClientCode(clientCode string) (*[]models.FilingTracker, error) {
-	var filings []models.FilingTracker
+// FilingListRow is one filings-list entry, with the user names already resolved.
+type FilingListRow struct {
+	ID           string    `gorm:"column:id"`
+	FilingName   string    `gorm:"column:filingName"`
+	IsSubmitted  bool      `gorm:"column:isSubmitted"`
+	IsDeleted    bool      `gorm:"column:isDeleted"`
+	CreatedAt    time.Time `gorm:"column:createdAt"`
+	UpdatedAt    time.Time `gorm:"column:updatedAt"`
+	FilingStatus string    `gorm:"column:filingStatus"`
+	PreparedBy   string    `gorm:"column:preparedBy"`
+	ModifiedBy   string    `gorm:"column:modifiedBy"`
+}
 
-	err := sqlDb.Model(&models.FilingTracker{}).
-		Where("ClientCode = ?", clientCode).
-		Find(&filings).Error
-
-	return &filings, err
+// ListFilingsForClient returns that client's filings and the names of the users
+// who created and last updated them, in one query.
+func ListFilingsForClient(clientCode string) ([]FilingListRow, error) {
+	tracker := models.FilingTracker{}.TableName()
+	users := models.User{}.TableName()
+	var rows []FilingListRow
+	err := sqlDb.Table(tracker).
+		Select(tracker+".id, "+tracker+".filingName, "+tracker+".isSubmitted, "+tracker+".isDeleted, "+tracker+".createdAt, "+tracker+".updatedAt, "+tracker+".filingStatus, prepared.userName AS preparedBy, modifier.userName AS modifiedBy").
+		Joins("LEFT JOIN "+users+" AS prepared ON prepared.id = "+tracker+".createdBy").
+		Joins("LEFT JOIN "+users+" AS modifier ON modifier.id = "+tracker+".updatedBy").
+		Where(tracker+".clientCode = ?", clientCode).
+		Scan(&rows).Error
+	return rows, err
 }
 
 // FilingStatus

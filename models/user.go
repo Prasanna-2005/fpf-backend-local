@@ -36,6 +36,10 @@ type Session struct {
 	Jti        int       `gorm:"column:jwtId;default:null "`
 }
 
+func (User) TableName() string {
+	return "users"
+}
+
 func (Session) TableName() string {
 	return "session_logs"
 }

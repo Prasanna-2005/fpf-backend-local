@@ -6,6 +6,7 @@ import (
 	"form_pf_backend/db"
 	"form_pf_backend/models"
 	"form_pf_backend/modules"
+	"form_pf_backend/utility"
 	"net/http"
 	"reflect"
 	"strconv"
@@ -99,7 +100,7 @@ func GetFilingResponse(c *gin.Context) {
 		}
 	}
 
-	resp, err := modules.BuildResponselegacy(id, requested)
+	resp, err := modules.BuildResponselegacy(id, requested, utility.FilingTracker(c))
 	if err != nil {
 		if errors.Is(err, db.ErrExtractionNotCompleted) {
 			c.JSON(http.StatusConflict, gin.H{"message": "Extraction did not complete. No filing version is available to edit."})
@@ -319,12 +320,13 @@ func GetFieldHistory(c *gin.Context) {
 	)
 
 	userID := c.GetString("userId")
-	head, err := db.HeadVersion(filingID)
-	if err != nil {
-		logger.Log("ERROR", fmt.Sprintf("GetFieldHistory head version: user_id=%s filing=%s: %v", userID, filingID, err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": ServerError})
+	tracker := utility.FilingTracker(c)
+	if tracker == nil {
+		logger.Log("ERROR", fmt.Sprintf("GetFieldHistory: user_id=%s filing=%s tracker missing", userID, filingID))
+		c.JSON(http.StatusNotFound, gin.H{"error": FilingNotFound})
 		return
 	}
+	head := tracker.CurrentVersion
 	rows, err := db.GetFieldHistoryDB(filingID, fundSeriesID, fieldNo)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("GetFieldHistory: user_id=%s filing=%s fund=%s field=%s: %v", userID, filingID, fundSeriesID, fieldNo, err))

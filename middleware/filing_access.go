@@ -5,6 +5,7 @@ import (
 	"form_pf_backend/db"
 	"form_pf_backend/utility"
 	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -63,6 +64,7 @@ func RequireFilingAccess() gin.HandlerFunc {
 		}
 
 		c.Set("filingClientCode", tracker.ClientCode)
+		c.Set(utility.ContextFilingTracker, tracker)
 		c.Next()
 	}
 }
