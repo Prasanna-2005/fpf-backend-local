@@ -6,7 +6,6 @@ import (
 	"form_pf_backend/models"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,37 +21,7 @@ var (
 	ServerError               = errors.New("server down")
 )
 
-var (
-	fundCache     map[string]fundBrief
-	onceFundCache sync.Once
-)
-
-type fundBrief struct {
-	FundID   string
-	FundName string
-	Fundtype string
-}
-
-func loadFundCache() {
-	all, _ := GetAllFunds()
-	m := make(map[string]fundBrief, len(all))
-	for _, f := range all {
-		m[f.FundID] = fundBrief{FundID: f.FundID, FundName: f.FundName, Fundtype: f.FundType}
-	}
-	fundCache = m
-}
-
 type pair struct{ ln, vl string }
-
-// GetFundBrief returns fundID & fundName for a fundSeriesId
-func GetFundBrief(seriesID string) (fundID, fundName string, err error) {
-	onceFundCache.Do(loadFundCache)
-	b, ok := fundCache[seriesID]
-	if !ok {
-		return "", "", gorm.ErrRecordNotFound
-	}
-	return b.FundID, b.FundName, nil
-}
 
 func FetchFormDataByFiling(filingID string) ([]models.FormDatum, error) {
 	head, err := HeadVersion(filingID)
@@ -169,6 +138,9 @@ func UpdateLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 	}
 	// CreateInBatches sends one INSERT with multiple values
 	if err := tx.CreateInBatches(rowsToInsert, 200).Error; err != nil {
+		return err
+	}
+	if err := touchFiling(tx, fid, uid, now); err != nil {
 		return err
 	}
 	return tx.Commit().Error
@@ -373,5 +345,17 @@ func RevertLineItem(data *models.FieldItem, fid, uid, fundId string) error {
 		}
 	}
 
+	if err := touchFiling(tx, fid, uid, now); err != nil {
+		return err
+	}
 	return tx.Commit().Error
+}
+
+func touchFiling(tx *gorm.DB, filingID, userID string, at time.Time) error {
+	return tx.Model(&models.FilingTracker{}).
+		Where("id = ?", filingID).
+		Updates(map[string]interface{}{
+			"updatedAt": at,
+			"updatedBy": userID,
+		}).Error
 }
