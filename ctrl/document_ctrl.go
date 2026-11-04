@@ -227,9 +227,9 @@ func UpdateRequestTrackerStatus(c *gin.Context) {
 	}
 	status := req.FilingStatus
 
-	tracker, err := db.GetFilingTracker(c.Param("filing_id"))
-	if err != nil {
-		logger.Log("ERROR", err.Error())
+	tracker := utility.FilingTracker(c)
+	if tracker == nil {
+		logger.Log("ERROR", "filing tracker missing for status update")
 		c.JSON(http.StatusNotFound, gin.H{"message": "filing not found"})
 		return
 	}

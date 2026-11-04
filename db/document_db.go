@@ -267,13 +267,11 @@ func UpdateTracker(tracker *models.FilingTracker, req *models.SubmitReq) error {
 	return sqlDb.Save(tracker).Error
 }
 
-// tracker status update
+// tracker status update. Repeating the current status does not count as a modification.
 func UpdateTrackerStatus(tracker *models.FilingTracker, userId string, status string, ts time.Time) error {
-	// ts, _ := time.Parse(time.RFC3339, req.Timestamp)
-	// uid, err := strconv.Atoi(userID)
-	// if err != nil {
-	// 	return err
-	// }
+	if strings.EqualFold(tracker.FilingStatus, status) {
+		return nil
+	}
 	tracker.FilingStatus = status
 	tracker.UpdatedAt = ts
 	tracker.UpdatedBy = userId
@@ -412,7 +410,7 @@ func PullFilingMapper(filingId string, series string, version int) ([]models.Map
 	}
 
 	if version <= 0 {
-		version, err = filingHeadVersion(filingId)
+		version, err = HeadVersion(filingId)
 		if err != nil {
 			log.Printf("PullFilingMapper: head version for filing %s: %v", filingId, err)
 			return nil, err
@@ -439,14 +437,6 @@ func PullFilingMapper(filingId string, series string, version int) ([]models.Map
 	}
 
 	return withFundNames(filesPresentAt(rows, extractedAt), fundMap), nil
-}
-
-func filingHeadVersion(filingId string) (int, error) {
-	var version int
-	err := sqlDb.Model(&models.FilingTracker{}).
-		Where("id = ?", filingId).
-		Pluck("currentVersion", &version).Error
-	return version, err
 }
 
 // versionExtractedAt is the earliest non-edit write for a form version.
@@ -524,10 +514,4 @@ func withFundNames(mapped []models.MappedResp, fundMap map[string]string) []mode
 		})
 	}
 	return resp
-}
-
-func GetCurrentMappers(filingId string) ([]models.FileMapper, error) {
-	var rows []models.FileMapper
-	err := sqlDb.Where("filingId = ? AND isCurrent = ?", filingId, true).Find(&rows).Error
-	return rows, err
 }
