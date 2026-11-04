@@ -5,6 +5,7 @@ package db
 
 import (
 	"fmt"
+	"form_pf_backend/config"
 	"log"
 	"os"
 	"sync"
@@ -35,7 +36,10 @@ The function will terminate the application if connection fails.
 */
 func connect() {
 	var err error
-	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+	// checkConnLiveness checks the socket before reuse. MySQL on the VM closes an idle
+	// connection after wait_timeout, and a restarted VM drops the TCP session.
+	// A dead socket is discarded here instead of failing the next query.
+	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local&checkConnLiveness=true",
 		os.Getenv("DB_USER"),
 		os.Getenv("DB_PASSWORD"),
 		os.Getenv("DB_HOST"),
@@ -45,6 +49,13 @@ func connect() {
 	sqlDb, err = gorm.Open(mysql.Open(connectionString), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)
+	}
+
+	if rawDB, err := sqlDb.DB(); err == nil {
+		pool := config.LoadDBPool()
+		rawDB.SetMaxOpenConns(pool.MaxOpenConns)
+		rawDB.SetMaxIdleConns(pool.MaxOpenConns)
+		rawDB.SetConnMaxLifetime(pool.ConnMaxLifetime)
 	}
 
 	// Migrate the schema

@@ -191,3 +191,36 @@ func GetLatestChangesRefreshInterval() time.Duration {
 	}
 	return d
 }
+
+// DBPool is the database/sql pool for MySQL on the VM.
+// Idle matches open so a request reuses a connection.
+// Lifetime defaults to 3 minutes, the value in go-sql-driver/mysql's own example.
+type DBPool struct {
+	MaxOpenConns    int
+	ConnMaxLifetime time.Duration
+}
+
+func LoadDBPool() DBPool {
+	pool := DBPool{MaxOpenConns: 50, ConnMaxLifetime: 3 * time.Minute}
+	cfg, err := ini.Load("config/config.ini")
+	if err == nil {
+		sec := cfg.Section("db_pool")
+		pool.MaxOpenConns = sec.Key("max_open_conns").MustInt(pool.MaxOpenConns)
+		if raw := strings.TrimSpace(sec.Key("conn_max_lifetime").String()); raw != "" {
+			if d, parseErr := time.ParseDuration(raw); parseErr == nil && d > 0 {
+				pool.ConnMaxLifetime = d
+			}
+		}
+	}
+	if v := os.Getenv("DB_MAX_OPEN_CONNS"); v != "" {
+		if n, parseErr := strconv.Atoi(v); parseErr == nil && n > 0 {
+			pool.MaxOpenConns = n
+		}
+	}
+	if v := os.Getenv("DB_CONN_MAX_LIFETIME"); v != "" {
+		if d, parseErr := time.ParseDuration(v); parseErr == nil && d > 0 {
+			pool.ConnMaxLifetime = d
+		}
+	}
+	return pool
+}
