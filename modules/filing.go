@@ -83,12 +83,6 @@ func filingExistsInDB(filingName string) (bool, error) {
 	return true, nil
 }
 
-func draftExists(clientDir, filingName string) bool {
-	targetDir := filepath.Join(clientDir, sanitize(filingName))
-	info, err := os.Stat(targetDir)
-	return err == nil && info.IsDir()
-}
-
 func ProcessUpload(c *gin.Context, root string, req *UploadRequest) error {
 	var skipped, skippedFileRelPath []string
 	clientID, _ := c.Get("clientId")
@@ -178,26 +172,6 @@ func handleBindError(c *gin.Context, err error) {
 	}
 }
 
-func validateFilingConstraints(newFiling, exists bool, filingName string) error {
-	if newFiling && exists {
-		return fmt.Errorf("duplicate filing: %s", filingName)
-	}
-	if !newFiling && !exists {
-		return fmt.Errorf("missing filing: %s", filingName)
-	}
-	return nil
-}
-
-func handleFilingValidationError(c *gin.Context, err error, newFiling bool) {
-	if newFiling {
-		logger.Log("WARNING", fmt.Sprintf("[ProcessUpload] %v", err))
-		c.JSON(http.StatusConflict, gin.H{"message": "filing name already exists"})
-	} else {
-		logger.Log("WARNING", fmt.Sprintf("[ProcessUpload] %v", err))
-		c.JSON(http.StatusBadRequest, gin.H{"message": "filing doesn't exist"})
-	}
-}
-
 func handleSaveError(c *gin.Context, targetDir string, err error) {
 	logger.Log("ERROR", fmt.Sprintf("[ProcessUpload] Save and extract failed: %v", err))
 
@@ -231,45 +205,6 @@ func handleSaveError(c *gin.Context, targetDir string, err error) {
 // 	return nil
 // }
 
-func filingExists(clientDir, filingName string) bool {
-	recPresent := false
-	allfilings, err := db.GetAllFilings()
-	if err != nil {
-		logger.Log("ERROR", "Db error: "+err.Error())
-		return true
-	}
-	for _, filing := range *allfilings {
-		if filing.FilingName == filingName {
-			recPresent = true
-		}
-	}
-	targetDirName := sanitize(filingName)
-	entries, err := os.ReadDir(clientDir)
-	if err != nil {
-		logger.Log("WARNING", fmt.Sprintf("[filingExists] Failed to read directory %s: %v", clientDir, err))
-		return false
-	}
-
-	for _, e := range entries {
-		if e.IsDir() && e.Name() == targetDirName && recPresent {
-			logger.Log("INFO", fmt.Sprintf("[filingExists] Found existing filing: %s", e.Name()))
-			return true
-		} else if e.IsDir() && e.Name() == targetDirName && !recPresent {
-			brokenDir := filepath.Join(clientDir, targetDirName)
-			err := RemoveDir(brokenDir)
-			if err != nil {
-				logger.Log("ERROR", fmt.Sprintf("Incomplete filing Directory not removed:%v", brokenDir))
-				logger.Log("ERROR", "The above error occured :"+err.Error())
-				return true
-			}
-			fmt.Println(err)
-			logger.Log("INFO", fmt.Sprintf("Incomplete filing Directory removed:%v", filingName))
-		}
-	}
-
-	return false
-}
-
 func sanitize(name string) string {
 	sanitized := strings.NewReplacer("/", "_", "\\", "_", " ", "_").Replace(name)
 	logger.Log("INFO", fmt.Sprintf("[sanitize] '%s' -> '%s'", name, sanitized))
@@ -279,7 +214,7 @@ func sanitize(name string) string {
 func directoryFiles(dir string) {
 	xlsxFiles, pdfFiles, err := findFiles(dir)
 	if err != nil {
-		logger.Log("ERROR", fmt.Sprintf("failed to find files in %s: %w", dir, err))
+		logger.Log("ERROR", fmt.Sprintf("failed to find files in %s: %v", dir, err))
 	}
 	files := append(xlsxFiles, pdfFiles...)
 	key := filepath.Base(dir)

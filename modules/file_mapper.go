@@ -524,26 +524,6 @@ func decideSeries(funds []models.FegFileIdentification) string {
 	return first // uniform concrete series
 }
 
-func matchFundByFilename(name string, funds []models.FegFileIdentification) (models.FileMappingDetail, bool) {
-	ln := strings.ToLower(normalizeRomans(name))
-	// 1.  longest code first
-	sort.Slice(funds, func(i, j int) bool {
-		return len(funds[i].ShortCode) > len(funds[j].ShortCode)
-	})
-	for _, f := range funds {
-		sc := strings.ToLower(normalizeRomans(f.ShortCode))
-		if strings.Contains(ln, sc) || strings.Contains(ln, strings.ToLower(f.ShortCode)) || strings.Contains(ln, strings.ToLower(f.FundName)) {
-			return models.FileMappingDetail{
-				MapID:       f.ID,
-				FundName:    f.FundName,
-				ShortCode:   f.ShortCode,
-				MatchMethod: "filename",
-			}, true
-		}
-	}
-	return models.FileMappingDetail{}, false
-}
-
 func matchQuarterByFilename(name string) (int, int) {
 	re := regexp.MustCompile(`(?:19|20)\d{2}[.\-\/\\](0?[1-9]|1[0-2])`)
 	if loc := re.FindStringIndex(name); loc != nil {
