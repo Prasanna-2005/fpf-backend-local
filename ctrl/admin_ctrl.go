@@ -7,6 +7,7 @@ import (
 	"form_pf_backend/models"
 	"form_pf_backend/utility"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,25 +16,42 @@ import (
 
 const UserExist = "User already exists"
 
+type userData struct {
+	UserID   string `json:"user_id"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	UserRole string `json:"user_role"`
+	Email    string `json:"email"`
+}
+
 type NewUserRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-	UserRole string `json:"user_role" binding:"required"`
-	Email    string `json:"email" binding:"required"`
+	ClientCode string   `json:"client_code" binding:"required"`
+	Data       userData `json:"data" binding:"required"`
 }
 
 type EditUserRequest struct {
-	UserId   string  `json:"user_id" binding:"required"`
-	Username *string `json:"username"`
-	Password *string `json:"password"`
-	UserRole *string `json:"user_role"`
-	Email    *string `json:"email"`
+	ClientCode string   `json:"client_code"`
+	Data       userData `json:"data" binding:"required"`
+}
+
+func callerClient(c *gin.Context) (string, bool) {
+	id, ok := c.Get("clientId")
+	client, _ := id.(string)
+	if !ok || client == "" {
+		return "", false
+	}
+	return client, true
 }
 
 func NewUser(c *gin.Context) {
-	var req NewUserRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	var body NewUserRequest
+	if err := c.ShouldBindJSON(&body); err != nil {
 		logger.Log("WARNING", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+	req := body.Data
+	if req.Username == "" || req.Password == "" || req.UserRole == "" || req.Email == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
@@ -67,16 +85,11 @@ func NewUser(c *gin.Context) {
 	}
 	adminId, ok := c.Get("userId")
 	if !ok || adminId.(string) == "" {
-		logger.Log("ERROR", fmt.Sprintf("Missing userId in token claims: %v", err.Error()))
+		logger.Log("ERROR", "Missing userId in token claims")
 		c.JSON(http.StatusForbidden, gin.H{"message": ServerError})
-	}
-
-	cid, ok := c.Get("clientId")
-	if !ok || cid.(string) == "" {
-		logger.Log("ERROR", fmt.Sprintf("Client id parsing error: %v", err.Error()))
-		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 		return
 	}
+
 	jti := int(time.Now().Unix())
 
 	user := models.User{
@@ -84,7 +97,7 @@ func NewUser(c *gin.Context) {
 		Email:      req.Email,
 		Password:   string(hashedPasswd),
 		AccessType: req.UserRole,
-		ClientID:   cid.(string),
+		ClientID:   body.ClientCode,
 		Jti:        jti,
 		CreatedAt:  time.Now().UTC(),
 		UpdatedBy:  adminId.(string),
@@ -164,22 +177,22 @@ func GetUsers(c *gin.Context) {
 }
 
 func EditUser(c *gin.Context) {
-	var payload EditUserRequest
-
-	if err := c.ShouldBindJSON(&payload); err != nil {
-		logger.Log("ERROR", fmt.Sprintf("EditUser - payload err: %v", err.Error()))
+	var body EditUserRequest
+	if err := c.ShouldBindJSON(&body); err != nil || body.Data.UserID == "" {
+		logger.Log("ERROR", "EditUser - payload missing user_id")
 		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
 		return
 	}
+	payload := body.Data
 
-	user, err := db.GetUserByID(payload.UserId)
+	user, err := db.GetUserByID(payload.UserID)
 	if err != nil {
-		logger.Log("ERROR", fmt.Sprintf("EditUser - user not found [%s]: %v", payload.UserId, err.Error()))
+		logger.Log("ERROR", fmt.Sprintf("EditUser - user not found [%s]: %v", payload.UserID, err.Error()))
 		c.JSON(http.StatusNotFound, gin.H{"message": "User not found"})
 		return
 	}
 
-	if err := applyUserUpdates(user, &payload); err != nil {
+	if err := applyUserUpdates(user, &payload, body.ClientCode); err != nil {
 		logger.Log("ERROR", fmt.Sprintf("EditUser - apply updates err: %v", err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to process updates"})
 		return
@@ -194,33 +207,37 @@ func EditUser(c *gin.Context) {
 	user.UpdatedAt = time.Now()
 
 	if err := db.UpdateUser(user); err != nil {
-		logger.Log("ERROR", fmt.Sprintf("EditUser - update err [%s]: %v", payload.UserId, err.Error()))
+		logger.Log("ERROR", fmt.Sprintf("EditUser - update err [%s]: %v", payload.UserID, err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to update user"})
 		return
 	}
 
-	logger.Log("INFO", fmt.Sprintf("EditUser - user [%s] updated successfully", payload.UserId))
+	logger.Log("INFO", fmt.Sprintf("EditUser - user [%s] updated successfully", payload.UserID))
 	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully"})
 }
 
-// applyUserUpdates mutates the user struct with non-nil payload fields
-func applyUserUpdates(user *models.User, payload *EditUserRequest) error {
-	if payload.Username != nil {
-		user.UserName = *payload.Username
+func applyUserUpdates(user *models.User, payload *userData, clientCode string) error {
+	if strings.TrimSpace(payload.Username) != "" {
+		user.UserName = strings.TrimSpace(payload.Username)
 	}
-	if payload.Email != nil {
-		user.Email = *payload.Email
+	if strings.TrimSpace(payload.Email) != "" {
+		user.Email = strings.TrimSpace(payload.Email)
 	}
-	if payload.UserRole != nil {
-		user.AccessType = *payload.UserRole
+	if strings.TrimSpace(payload.UserRole) != "" {
+		user.AccessType = strings.TrimSpace(payload.UserRole)
 	}
-	if payload.Password != nil {
-		hashed, err := bcrypt.GenerateFromPassword([]byte(*payload.Password), bcrypt.DefaultCost)
-		if err != nil {
-			return fmt.Errorf("password hash err: %v", err)
-		}
-		user.Password = string(hashed)
+	if strings.TrimSpace(clientCode) != "" {
+		user.ClientID = strings.TrimSpace(clientCode)
 	}
+	if strings.TrimSpace(payload.Password) == "" {
+		return nil
+	}
+	cost := config.BcryptCost()
+	hashed, err := bcrypt.GenerateFromPassword([]byte(payload.Password), cost.Cost)
+	if err != nil {
+		return fmt.Errorf("password hash err: %v", err)
+	}
+	user.Password = string(hashed)
 	return nil
 }
 
