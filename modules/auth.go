@@ -5,6 +5,7 @@ import (
 	"form_pf_backend/config"
 	"form_pf_backend/models"
 	"form_pf_backend/utility"
+	"time"
 )
 
 var (
@@ -67,7 +68,11 @@ func buildOTPEmail(user *models.User) (string, error) {
 	logger.Log("INFO", "TOTP code generated successfully for user")
 
 	logger.Log("INFO", "Creating OTP email content")
-	emailOTP, err := utility.CreateQuantriumEmail(code, user.UserName, otpCfg.OTPExpiry.String())
+	expiry := otpCfg.OTPExpiry.String()
+	if otpCfg.OTPExpiry == time.Minute {
+		expiry = "1 minute"
+	}
+	emailOTP, err := utility.CreateQuantriumEmail(code, user.UserName, expiry)
 	if err != nil {
 		logger.Log("ERROR", fmt.Sprintf("Failed to create OTP email for user %s: %v", user.ID, err))
 		return "", err

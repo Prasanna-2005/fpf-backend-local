@@ -261,14 +261,21 @@ func CheckOtp(totpCode, userId string) (bool, error) {
 		:rtype: (bool, error)
 	*/
 	logger.Log("INFO", "CheckOtp: validating TOTP for user "+userId)
-	cfg := config.OTP()
+	return validateTOTP(config.OTP(), totpCode, userId)
+}
+
+func CheckResetOtp(totpCode, userId string) (bool, error) {
+	logger.Log("INFO", "CheckResetOtp: validating reset code for user "+userId)
+	return validateTOTP(config.ResetOTP(), totpCode, userId)
+}
+
+func validateTOTP(cfg config.OTPconfig, totpCode, userId string) (bool, error) {
 	if cfg.SecretKey == "" {
 		logger.Log("CRITICAL", "CheckOtp: missing OTP secret key in configuration")
 		return false, nil
 	}
 	var opts totp.ValidateOpts
 	opts.Period = uint(cfg.OTPExpiry.Seconds())
-	opts.Skew = 1 // Allow for 1 second of skew
 	opts.Digits = cfg.OTPLength
 
 	uniqueSecret := cfg.SecretKey + userId

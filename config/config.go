@@ -52,9 +52,16 @@ func SMTP() SMTPconfig {
 func OTP() OTPconfig {
 	return OTPconfig{
 		SecretKey: os.Getenv("SECRET_KEY"),
-		OTPExpiry: GetEnvAsDuration("OTP_EXPIRY", 100),
+		OTPExpiry: GetEnvAsDuration("OTP_EXPIRY", 60),
 		OTPLength: otp.Digits(GetEnvAsInt("OTP_LENGTH", 6)),
 	}
+}
+
+// ResetOTP is the password-reset code. Login keeps OTP().
+func ResetOTP() OTPconfig {
+	cfg := OTP()
+	cfg.OTPExpiry = GetEnvAsDuration("RESET_OTP_EXPIRY", 5*60)
+	return cfg
 }
 func Token() Tokenconfig {
 	return Tokenconfig{
