@@ -99,7 +99,7 @@ func UpdateLogout(uid, expiry string) error {
 }
 
 func UpdatePasswd(user *models.User) error {
-	return sqlDb.Save(&user).Error
+	return sqlDb.Save(user).Error
 }
 
 func CreateUser(user *models.User) (string, error) {
@@ -107,6 +107,18 @@ func CreateUser(user *models.User) (string, error) {
 		return "", err
 	}
 	return user.ID, nil
+}
+
+func GetUserByEmail(email string) (*models.User, error) {
+	var user models.User
+	err := sqlDb.Where("emailAddress = ?", email).First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("user not found")
+		}
+		return nil, err
+	}
+	return &user, nil
 }
 
 func FindEmail(email string) (bool, error) {

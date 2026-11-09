@@ -7,6 +7,7 @@ import (
 	"form_pf_backend/models"
 	"form_pf_backend/utility"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -384,6 +385,117 @@ func ListClientAdmins(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"users": list})
+}
+
+func SendPasswordReset(c *gin.Context) {
+	var req struct {
+		UserID string `json:"user_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+	target, err := db.GetUserByID(req.UserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"message": "User not found"})
+		return
+	}
+	role, _ := c.Get("role")
+	callerRole, _ := role.(string)
+	if strings.EqualFold(callerRole, roleSuperAdmin) {
+		if !strings.EqualFold(target.AccessType, roleAdmin) {
+			c.JSON(http.StatusForbidden, gin.H{"message": "A super admin can reset client admins only"})
+			return
+		}
+	} else {
+		caller, ok := callerClient(c)
+		if !ok || !strings.EqualFold(target.ClientID, caller) || strings.EqualFold(target.AccessType, roleSuperAdmin) {
+			c.JSON(http.StatusForbidden, gin.H{"message": "That user is outside this client"})
+			return
+		}
+	}
+	if err := sendResetCode(target); err != nil {
+		logger.Log("ERROR", "SendPasswordReset: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Reset email could not be sent"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "A code was sent"})
+}
+
+func CompletePasswordReset(c *gin.Context) {
+	var req struct {
+		Email    string `json:"email" binding:"required"`
+		OTP      string `json:"otp" binding:"required"`
+		Password string `json:"new_password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil || len(req.Password) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Email, the code, and a password of at least 8 characters are required"})
+		return
+	}
+	user, err := db.GetUserByEmail(strings.TrimSpace(req.Email))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid email or code"})
+		return
+	}
+	valid, err := utility.CheckResetOtp(strings.TrimSpace(req.OTP), user.ID)
+	if err != nil || !valid {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid email or code"})
+		return
+	}
+	cost := config.BcryptCost()
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), cost.Cost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	user.Password = string(hashed)
+	user.UpdatedAt = time.Now().UTC()
+	if err := db.UpdatePasswd(user); err != nil {
+		logger.Log("ERROR", "CompletePasswordReset: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Password reset successful"})
+}
+
+func sendResetCode(user *models.User) error {
+	otpCfg := config.ResetOTP()
+	code, err := utility.GenTOTP(&otpCfg, user.ID)
+	if err != nil {
+		return err
+	}
+	if code == "" {
+		return fmt.Errorf("password code was empty")
+	}
+	page := "/reset"
+	if cfg, err := config.LoadConfig(); err == nil && len(cfg.CORSOrigins) > 0 && cfg.CORSOrigins[0] != "" {
+		page = strings.TrimRight(cfg.CORSOrigins[0], "/") + "/reset"
+	}
+	page += "?account=0&email=" + url.QueryEscape(strings.TrimSpace(user.Email))
+	body, err := utility.CreatePasswordResetEmail(code, user.UserName, expiryPhrase(otpCfg.OTPExpiry), page)
+	if err != nil {
+		return err
+	}
+	return utility.SendHTMLEmail(user.Email, "Reset your Form PF password", body)
+}
+
+func expiryPhrase(d time.Duration) string {
+	if d <= 0 {
+		return "a short time"
+	}
+	d = d.Round(time.Second)
+	if d >= time.Minute && d%time.Minute == 0 {
+		minutes := int(d / time.Minute)
+		if minutes == 1 {
+			return "1 minute"
+		}
+		return fmt.Sprintf("%d minutes", minutes)
+	}
+	seconds := int(d / time.Second)
+	if seconds == 1 {
+		return "1 second"
+	}
+	return fmt.Sprintf("%d seconds", seconds)
 }
 
 // func DeleteUser(c *gin.Context) {

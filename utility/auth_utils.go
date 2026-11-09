@@ -108,6 +108,20 @@ func CreateQuantriumEmail(otp, name, expiry string) (string, error) {
 	return template, nil
 }
 
+func CreatePasswordResetEmail(otp, name, expiry, page string) (string, error) {
+	templateFile, err := os.ReadFile("static/password_reset_email.html")
+	if err != nil {
+		logger.Log("ERROR", "CreatePasswordResetEmail: failed to read email template - "+err.Error())
+		return "", err
+	}
+	body := string(templateFile)
+	body = strings.ReplaceAll(body, "{{.Name}}", template.HTMLEscapeString(name))
+	body = strings.ReplaceAll(body, "{{.OTP}}", template.HTMLEscapeString(otp))
+	body = strings.ReplaceAll(body, "{{.Expiry}}", template.HTMLEscapeString(expiry))
+	body = strings.ReplaceAll(body, "{{.Page}}", template.HTMLEscapeString(page))
+	return body, nil
+}
+
 func SendApprovalEmail(approvalemail, clientId string) error {
 	/*
 		SendOTPEmail sends an OTP email to the specified recipient using SMTP.

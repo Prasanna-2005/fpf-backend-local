@@ -55,6 +55,8 @@ func setupAuthRoutes(api *gin.RouterGroup) {
 	auth.POST("/resend_otp", ctrl.ResendOTP)
 	auth.POST("/logout", ctrl.Logout)
 	auth.POST("/access_token", ctrl.NewAccessToken)
+	auth.POST("/complete_reset", ctrl.CompletePasswordReset)
+
 }
 
 func setUpGeneralRoutes(api *gin.RouterGroup) {
@@ -101,6 +103,10 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 	admin.POST("/create_user", ctrl.NewUser)
 	admin.POST("/edit_user", ctrl.EditUser)
 	// admin.DELETE("/delete_user/:user_id", ctrl.DeleteUser)
+
+	shared := api.Group("/admin")
+	shared.Use(middleware.Authenticate("admin", "superadmin"))
+	shared.POST("/reset_link", ctrl.SendPasswordReset)
 
 	super := api.Group("/admin")
 	super.Use(middleware.Authenticate("superadmin"))
