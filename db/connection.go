@@ -4,11 +4,14 @@ Package db provides database connection and management functionality using GORM 
 package db
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"form_pf_backend/config"
 	"log"
 	"os"
 	"sync"
+	"time"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -56,10 +59,31 @@ func connect() {
 		rawDB.SetMaxOpenConns(pool.MaxOpenConns)
 		rawDB.SetMaxIdleConns(pool.MaxOpenConns)
 		rawDB.SetConnMaxLifetime(pool.ConnMaxLifetime)
+		rawDB.SetConnMaxIdleTime(pool.ConnMaxIdleTime)
+		go keepPoolWarm(rawDB, pool.PingInterval, pool.PingTimeout)
 	}
 
 	// Migrate the schema
 	// DB.AutoMigrate(&models.User{})
+}
+
+func keepPoolWarm(rawDB *sql.DB, every, timeout time.Duration) {
+	if every <= 0 {
+		every = 30 * time.Second
+	}
+	if timeout <= 0 {
+		timeout = 8 * time.Second
+	}
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for range ticker.C {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		err := rawDB.PingContext(ctx)
+		cancel()
+		if err != nil {
+			log.Printf("db pool ping: %v", err)
+		}
+	}
 }
 
 func Init() *gorm.DB {

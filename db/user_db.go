@@ -16,11 +16,14 @@ const (
 	idQuery = "id = ?"
 )
 
+// ErrConnectionLost is returned when the database handle is already unusable.
+var ErrConnectionLost = errors.New("db connection lost")
+
 func ValidateCredentials(name, password string) (models.User, error) {
 
 	var u models.User
 	if !dbAlive(sqlDb) {
-		return models.User{}, fmt.Errorf("db connection lost")
+		return models.User{}, ErrConnectionLost
 	}
 	if err := sqlDb.Where("emailAddress = ?", name).First(&u).Error; err != nil {
 		return models.User{}, fmt.Errorf("invalid Email Address")

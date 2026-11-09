@@ -4,6 +4,7 @@ Package ctrl provides authentication controllers for user login and OTP verifica
 package ctrl
 
 import (
+	"errors"
 	"fmt"
 	"form_pf_backend/config"
 	"form_pf_backend/db"
@@ -65,7 +66,7 @@ func Login(c *gin.Context) {
 	// Validate user credentials
 	user, err := db.ValidateCredentials(payload.Username, payload.Password)
 	if err != nil {
-		if err == fmt.Errorf("db connection lost") {
+		if errors.Is(err, db.ErrConnectionLost) {
 			logger.Log("WARNING", "SQL Db is down")
 			c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
 			return
@@ -77,8 +78,8 @@ func Login(c *gin.Context) {
 
 	logger.Log("INFO", "Credentials validated successfully for user")
 
-	// Generate and send OTP
-	err = modules.OtpService(user.ID)
+	// Generate the OTP. Mail delivery continues after the response is written.
+	err = modules.OtpService(&user)
 	if err != nil {
 		logger.Log("ERROR", LoginFailed+err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
@@ -102,9 +103,9 @@ func ResendOTP(c *gin.Context) {
 		  user_id (string): User's unique identifier
 
 		Response:
-		  200: OTP resent successfully
+		  200: OTP resent after the email was accepted
 		  400: Invalid request payload
-		  500: Internal server error
+		  502: The verification email could not be sent
 	*/
 	logger.Log("INFO", "OTP resend request initiated")
 
@@ -119,11 +120,18 @@ func ResendOTP(c *gin.Context) {
 		return
 	}
 
-	// Generate and send new OTP
-	err := modules.OtpService(payload.UserId)
+	user, err := db.GetUser(payload.UserId)
+	if err != nil {
+		logger.Log("ERROR", "Failed to retrieve user: "+err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Invalid user ID"})
+		return
+	}
+
+	// Wait for Gmail. Resend is the user's retry, so a failed send must be visible.
+	err = modules.SendOtpAndWait(user)
 	if err != nil {
 		logger.Log("ERROR", LoginFailed+err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		c.JSON(http.StatusBadGateway, gin.H{"message": "The verification code could not be sent. Please try again."})
 		return
 	}
 

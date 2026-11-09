@@ -28,8 +28,7 @@ func SendOTPEmail(to, emailOTP string) error {
 	/*
 		SendOTPEmail sends an OTP email to the specified recipient using SMTP.
 
-		This function validates SMTP configuration, constructs an HTML email with headers,
-		and sends the OTP email to the recipient.
+		This function sends the OTP email. SMTP configuration is checked in SendHTMLEmail.
 
 		:param to: Email address of the recipient
 		:type to: string
@@ -39,21 +38,21 @@ func SendOTPEmail(to, emailOTP string) error {
 		:returns: Error if email sending fails, nil on success
 		:rtype: error
 	*/
-	cfg := config.SMTP()
+	return SendHTMLEmail(to, "Your Quantrium Verification Code", emailOTP)
+}
 
-	// Validate SMTP configuration
+func SendHTMLEmail(to, subject, body string) error {
+	cfg := config.SMTP()
 	if cfg.SMTPHost == "" || cfg.SMTPPort == "" || cfg.SMTPUser == "" || cfg.SMTPPassword == "" {
-		logger.Log("CRITICAL", "SendOTPEmail: incomplete SMTP configuration")
-		return nil
+		logger.Log("CRITICAL", "SendHTMLEmail: incomplete SMTP configuration")
+		return fmt.Errorf("incomplete SMTP configuration")
 	}
 
-	logger.Log("INFO", "SendOTPEmail: attempting to send OTP email to "+to)
-
-	auth := smtp.PlainAuth("", cfg.SMTPUser, cfg.SMTPPassword, cfg.SMTPHost)
+	logger.Log("INFO", "SendHTMLEmail: attempting to send email to "+to)
 	headers := map[string]string{
 		"From":         fmt.Sprintf("%s <%s>", cfg.FromName, cfg.FromEmail),
 		"To":           to,
-		"Subject":      "Your Quantrium Verification Code",
+		"Subject":      subject,
 		"MIME-Version": "1.0",
 		"Content-Type": "text/html; charset=UTF-8",
 	}
@@ -62,22 +61,16 @@ func SendOTPEmail(to, emailOTP string) error {
 	for k, v := range headers {
 		msg.WriteString(fmt.Sprintf("%s: %s\r\n", k, v))
 	}
-	msg.WriteString("\r\n" + emailOTP)
+	msg.WriteString("\r\n" + body)
 
-	err := smtp.SendMail(
-		fmt.Sprintf("%s:%s", cfg.SMTPHost, cfg.SMTPPort),
-		auth,
-		cfg.FromEmail,
-		[]string{to},
-		msg.Bytes(),
-	)
+	err := mailSession.send(cfg, cfg.FromEmail, []string{to}, msg.Bytes())
 
 	if err != nil {
-		logger.Log("ERROR", "SendOTPEmail: failed to send email to "+to+" - "+err.Error())
+		logger.Log("ERROR", "SendHTMLEmail: failed to send email to "+to+" - "+err.Error())
 		return err
 	}
 
-	logger.Log("INFO", "SendOTPEmail: successfully sent OTP email to "+to)
+	logger.Log("INFO", "SendHTMLEmail: successfully sent email to "+to)
 	return nil
 }
 

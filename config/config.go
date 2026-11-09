@@ -194,14 +194,22 @@ func GetLatestChangesRefreshInterval() time.Duration {
 
 // DBPool is the database/sql pool for MySQL on the VM.
 // Idle matches open so a request reuses a connection.
-// Lifetime defaults to 3 minutes, the value in go-sql-driver/mysql's own example.
 type DBPool struct {
 	MaxOpenConns    int
 	ConnMaxLifetime time.Duration
+	ConnMaxIdleTime time.Duration
+	PingInterval    time.Duration
+	PingTimeout     time.Duration
 }
 
 func LoadDBPool() DBPool {
-	pool := DBPool{MaxOpenConns: 50, ConnMaxLifetime: 3 * time.Minute}
+	pool := DBPool{
+		MaxOpenConns:    50,
+		ConnMaxLifetime: 30 * time.Minute,
+		ConnMaxIdleTime: 4 * time.Minute,
+		PingInterval:    30 * time.Second,
+		PingTimeout:     8 * time.Second,
+	}
 	cfg, err := ini.Load("config/config.ini")
 	if err == nil {
 		sec := cfg.Section("db_pool")
@@ -209,6 +217,21 @@ func LoadDBPool() DBPool {
 		if raw := strings.TrimSpace(sec.Key("conn_max_lifetime").String()); raw != "" {
 			if d, parseErr := time.ParseDuration(raw); parseErr == nil && d > 0 {
 				pool.ConnMaxLifetime = d
+			}
+		}
+		if raw := strings.TrimSpace(sec.Key("conn_max_idle_time").String()); raw != "" {
+			if d, parseErr := time.ParseDuration(raw); parseErr == nil && d > 0 {
+				pool.ConnMaxIdleTime = d
+			}
+		}
+		if raw := strings.TrimSpace(sec.Key("ping_interval").String()); raw != "" {
+			if d, parseErr := time.ParseDuration(raw); parseErr == nil && d > 0 {
+				pool.PingInterval = d
+			}
+		}
+		if raw := strings.TrimSpace(sec.Key("ping_timeout").String()); raw != "" {
+			if d, parseErr := time.ParseDuration(raw); parseErr == nil && d > 0 {
+				pool.PingTimeout = d
 			}
 		}
 	}
