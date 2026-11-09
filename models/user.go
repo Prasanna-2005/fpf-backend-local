@@ -5,12 +5,9 @@ import (
 )
 
 type Client struct {
-	ID         string     `gorm:"primaryKey;autoIncrement;column:id"`
-	ClientCode string     `gorm:"column:clientCode;type:varchar(20);not null"`
-	CreatedAt  time.Time  `gorm:"column:createdAt;not null"`
-	CreatedBy  string     `gorm:"column:createdBy;not null"` // or string if you store usernames
-	UpdatedAt  *time.Time `gorm:"column:updatedAt"`
-	UpdatedBy  string     `gorm:"column:updatedBy"` // pointer allows NULL
+	ID         string    `gorm:"primaryKey;column:id"`
+	ClientCode string    `gorm:"column:clientCode;type:varchar(20);not null"`
+	CreatedAt  time.Time `gorm:"column:createdAt;not null"`
 }
 
 type User struct {

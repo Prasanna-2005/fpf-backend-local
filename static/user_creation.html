@@ -1,52 +1,124 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="UTF-8">
     <style>
         /* Modern, responsive styling */
-        body { font-family: 'Inter', system-ui, sans-serif; margin: 0; padding: 0; background: #f8fafc; }
-        .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .header { background:rgba(17, 45, 123, 0.97); padding: 24px; text-align: center; }
-        .header h1 { color: white; margin: 0; font-size: 24px; font-weight: 600; }
-        .content { padding: 32px; }
-        .approval-notice { text-align: center; margin-bottom: 32px; }
-        .approval-notice h2 { margin: 0; font-size: 20px; font-weight: 600; color: #1e293b; }
-        .approval-container { background: #f1f5f9; border-radius: 6px; padding: 24px; margin: 24px 0; text-align: center; border: 1px dashed #cbd5e1; }
-        .approval-icon { font-size: 48px; margin-bottom: 12px; }
-        .request-link { display: inline-block; margin-top: 16px; color: #1e3a8a; font-weight: 600; text-decoration: none; }
-        .request-link:hover { text-decoration: underline; }
-        .footer { padding: 24px; text-align: center; font-size: 12px; color: #64748b; background: #f1f5f9; }
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f8fafc;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background: rgba(17, 45, 123, 0.97);
+            padding: 24px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: white;
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .content {
+            padding: 32px;
+        }
+
+        .approval-notice {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .approval-notice h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .approval-container {
+            background: #f1f5f9;
+            border-radius: 6px;
+            padding: 24px;
+            margin: 24px 0;
+            text-align: center;
+            border: 1px dashed #cbd5e1;
+        }
+
+        .approval-icon {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        .request-link {
+            display: inline-block;
+            margin-top: 16px;
+            color: #1e3a8a;
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .request-link:hover {
+            text-decoration: underline;
+        }
+
+        .footer {
+            padding: 24px;
+            text-align: center;
+            font-size: 12px;
+            color: #64748b;
+            background: #f1f5f9;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="header">
             <h1>Quantrium Technologies</h1>
         </div>
-        
+
         <div class="content">
             <div class="approval-notice">
                 <h2>Your Account Has Been Created !</h2>
             </div>
-            
+
             <p>Hi {{.UserName}},</p>
-            <p><strong>{{.AdminName}}</strong> has created your user , use the credentials below to log in to the portal. We recommend resetting your password after your first login using the reset password option.</p>
-            
+            <p><strong>{{.AdminName}}</strong> has created your user account , use the credentials below to log in to
+                the portal. We recommend resetting your password after your first login using the reset password option.
+            </p>
+
             <div class="approval-container">
                 <p><strong>Email :</strong> {{.Email}}</p>
                 <p><strong>Password :</strong> {{.UserPassword}}</p>
                 <a href="{{.FormPFPortalURL}}" class="request-link">Form PF portal link</a>
             </div>
-            
-            <p>If you have any queries, please contact <a href={{.AdminMail}}>{{.AdminName}}</a> or <a href="mailto:form_pf_support@quantrium.ai">Quantrium team</a> .</p>
+
+            <p>If you have any queries, please contact <a href={{.AdminMail}}>{{.AdminName}}</a> or <a
+                    href="mailto:form_pf_support@quantrium.ai">Quantrium team</a> .</p>
         </div>
-        
+
         <div class="footer">
             <p>© 2025 Quantrium Tech Pvt Ltd<br>
-Workafella Teynampet<br>
-No. 431, 8th Floor, High Street, <br>Anna Salai, Teynampet,<br>
-Chennai, Tamil Nadu - 600 018</p>
+                Workafella Teynampet<br>
+                No. 431, 8th Floor, High Street, <br>Anna Salai, Teynampet,<br>
+                Chennai, Tamil Nadu - 600 018</p>
         </div>
     </div>
 </body>
+
 </html>

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"form_pf_backend/models"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -170,6 +171,31 @@ func GetUserByID(userID string) (*models.User, error) {
 	}
 
 	return &user, nil
+}
+
+func ClientCodeExists(code string) (bool, error) {
+	var count int64
+	err := sqlDb.Model(&models.Client{}).
+		Where("LOWER(clientCode) = ?", strings.ToLower(code)).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func CreateClient(client *models.Client) error {
+	// id is filled by the table default. createdBy and updatedBy are not columns.
+	return sqlDb.Select("ClientCode", "CreatedAt").Create(client).Error
+}
+
+func GetUsersByRole(role string) (*[]models.User, error) {
+	var users []models.User
+	err := sqlDb.Model(&models.User{}).
+		Select("id", "userName", "emailAddress", "accessType", "clientId", "createdAt", "updatedAt", "updatedBy").
+		Where("accessType = ?", role).
+		Find(&users).Error
+	return &users, err
 }
 
 func UpdateUser(user *models.User) error {

@@ -101,6 +101,11 @@ func setupAdminRoutes(api *gin.RouterGroup) {
 	admin.POST("/create_user", ctrl.NewUser)
 	admin.POST("/edit_user", ctrl.EditUser)
 	// admin.DELETE("/delete_user/:user_id", ctrl.DeleteUser)
+
+	super := api.Group("/admin")
+	super.Use(middleware.Authenticate("superadmin"))
+	super.POST("/create_client", ctrl.CreateClient)
+	super.GET("/client_admins", ctrl.ListClientAdmins)
 }
 
 func setupFileRoutes(api *gin.RouterGroup) {

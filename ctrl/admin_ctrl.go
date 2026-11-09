@@ -16,6 +16,11 @@ import (
 
 const UserExist = "User already exists"
 
+const (
+	roleAdmin      = "admin"
+	roleSuperAdmin = "superadmin"
+)
+
 type userData struct {
 	UserID   string `json:"user_id"`
 	Username string `json:"username"`
@@ -192,6 +197,13 @@ func EditUser(c *gin.Context) {
 		return
 	}
 
+	callerRole, _ := c.Get("role")
+	roleName, _ := callerRole.(string)
+	if strings.EqualFold(user.AccessType, roleSuperAdmin) && !strings.EqualFold(roleName, roleSuperAdmin) {
+		c.JSON(http.StatusForbidden, gin.H{"message": "A client admin cannot change a super admin"})
+		return
+	}
+
 	if err := applyUserUpdates(user, &payload, body.ClientCode); err != nil {
 		logger.Log("ERROR", fmt.Sprintf("EditUser - apply updates err: %v", err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Failed to process updates"})
@@ -239,6 +251,139 @@ func applyUserUpdates(user *models.User, payload *userData, clientCode string) e
 	}
 	user.Password = string(hashed)
 	return nil
+}
+
+type createClientRequest struct {
+	ClientCode    string `json:"client_code" binding:"required"`
+	AdminUsername string `json:"admin_username" binding:"required"`
+	AdminEmail    string `json:"admin_email" binding:"required"`
+	AdminPassword string `json:"admin_password" binding:"required"`
+}
+
+func CreateClient(c *gin.Context) {
+	var req createClientRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+	req.ClientCode = strings.ToUpper(strings.TrimSpace(req.ClientCode))
+	req.AdminUsername = strings.TrimSpace(req.AdminUsername)
+	req.AdminEmail = strings.TrimSpace(req.AdminEmail)
+	req.AdminPassword = strings.TrimSpace(req.AdminPassword)
+	if req.AdminPassword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"message": PayloadError})
+		return
+	}
+	if err := utility.ValidateUser(req.AdminUsername, req.AdminEmail); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"message": err.Error()})
+		return
+	}
+	exists, err := db.ClientCodeExists(req.ClientCode)
+	if err != nil {
+		logger.Log("ERROR", "CreateClient lookup: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	if exists {
+		c.JSON(http.StatusBadRequest, gin.H{"message": "Client already exists"})
+		return
+	}
+	emailTaken, err := db.FindEmail(req.AdminEmail)
+	if err != nil {
+		logger.Log("ERROR", "CreateClient email lookup: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	if emailTaken {
+		c.JSON(http.StatusBadRequest, gin.H{"message": UserExist})
+		return
+	}
+
+	adminID, _ := c.Get("userId")
+	actor, _ := adminID.(string)
+	now := time.Now().UTC()
+	client := models.Client{
+		ClientCode: req.ClientCode,
+		CreatedAt:  now,
+	}
+	if err := db.CreateClient(&client); err != nil {
+		logger.Log("ERROR", "CreateClient: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Client not created"})
+		return
+	}
+
+	cost := config.BcryptCost()
+	hashed, err := bcrypt.GenerateFromPassword([]byte(req.AdminPassword), cost.Cost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	admin := models.User{
+		UserName:   req.AdminUsername,
+		Email:      req.AdminEmail,
+		Password:   string(hashed),
+		AccessType: roleAdmin,
+		ClientID:   req.ClientCode,
+		Jti:        int(now.Unix()),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		UpdatedBy:  actor,
+	}
+	uid, err := db.CreateUser(&admin)
+	if err != nil {
+		logger.Log("ERROR", "CreateClient admin: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Client admin not created"})
+		return
+	}
+	admin.ID = uid
+	admin.Password = req.AdminPassword
+	creator, err := db.GetUserByID(actor)
+	if err != nil {
+		logger.Log("ERROR", "CreateClient provision mail: "+err.Error())
+		c.JSON(http.StatusCreated, gin.H{"id": uid, "client_code": req.ClientCode, "message": "Client created. The account email could not be sent."})
+		return
+	}
+	emailTemplate, err := utility.CreateUserProvisionMail(&admin, creator)
+	if err != nil || emailTemplate == "" {
+		logger.Log("ERROR", "CreateClient provision mail was not built")
+		c.JSON(http.StatusCreated, gin.H{"id": uid, "client_code": req.ClientCode, "message": "Client created. The account email could not be sent."})
+		return
+	}
+	if err := utility.SendOTPEmail(admin.Email, emailTemplate); err != nil {
+		logger.Log("ERROR", "CreateClient provision mail: "+err.Error())
+		c.JSON(http.StatusCreated, gin.H{"id": uid, "client_code": req.ClientCode, "message": "Client created. The account email could not be sent."})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"id": uid, "client_code": req.ClientCode, "message": "Client created. A login email was sent to the client admin."})
+}
+
+func ListClientAdmins(c *gin.Context) {
+	usersPtr, err := db.GetUsersByRole(roleAdmin)
+	if err != nil {
+		logger.Log("ERROR", "ListClientAdmins: "+err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"message": ServerError})
+		return
+	}
+	type respUser struct {
+		UserId     string    `json:"user_id"`
+		Username   string    `json:"username"`
+		Role       string    `json:"role"`
+		Email      string    `json:"email"`
+		ClientCode string    `json:"client_code"`
+		CreatedAt  time.Time `json:"created_at"`
+	}
+	list := make([]respUser, 0, len(*usersPtr))
+	for _, u := range *usersPtr {
+		list = append(list, respUser{
+			UserId:     u.ID,
+			Username:   u.UserName,
+			Role:       u.AccessType,
+			Email:      u.Email,
+			ClientCode: u.ClientID,
+			CreatedAt:  u.CreatedAt,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"users": list})
 }
 
 // func DeleteUser(c *gin.Context) {
